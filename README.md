@@ -1,4 +1,4 @@
-# PeopleDistributer_Simulated_Annealing
+# PeopleDistributor
 Program to distribute a given number of people into groups multiple times, 
 so that the number of people that meet each other gets maximized.
 
