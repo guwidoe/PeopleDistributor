@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30626.31
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PeopleDistributer_Simulated_Annealing", "PeopleDistributer_Simulated_Annealing\PeopleDistributer_Simulated_Annealing.vcxproj", "{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Debug|x64.ActiveCfg = Debug|x64
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Debug|x64.Build.0 = Debug|x64
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Debug|x86.ActiveCfg = Debug|Win32
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Debug|x86.Build.0 = Debug|Win32
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Release|x64.ActiveCfg = Release|x64
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Release|x64.Build.0 = Release|x64
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Release|x86.ActiveCfg = Release|Win32
+		{2C2657A4-BB12-4BB3-95BF-DEB59E10CEB3}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BD63B185-A01A-483C-B0A5-CA6714696C6E}
+	EndGlobalSection
+EndGlobal
