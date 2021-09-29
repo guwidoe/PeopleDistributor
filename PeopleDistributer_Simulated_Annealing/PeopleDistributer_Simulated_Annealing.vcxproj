@@ -24,6 +24,7 @@
     <ProjectGuid>{2c2657a4-bb12-4bb3-95bf-deb59e10ceb3}</ProjectGuid>
     <RootNamespace>PeopleDistributerSimulatedAnnealing</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>PeopleDistributor</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -139,7 +140,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="PeopleDistributer_Simulated_Annealing.cpp" />
+    <ClCompile Include="PeopleDistributor_main.cpp" />
     <ClCompile Include="State.cpp" />
     <ClCompile Include="subroutines.cpp" />
   </ItemGroup>

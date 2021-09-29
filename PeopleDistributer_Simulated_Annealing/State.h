@@ -14,14 +14,13 @@ private:
 
 	// For fast generation of good pseudorandom numbers this 
 	// xorshift 128 generator will be used
-
 	struct xorshift128p_state {
 		uint64_t a, b;
 	};
 
 	xorshift128p_state rnd_state;
 
-	/* The state must be seeded so that it is not all zero */
+	// The state must be seeded so that it is not all zero
 	uint64_t xorshift128p(struct xorshift128p_state* state)
 	{
 		uint64_t t = state->a;
@@ -53,12 +52,12 @@ private:
 	std::vector<unsigned int> f_number_of_immovable_people_per_group;
 
 	// These methods just initialize two vectors of sequential numbers 
-	// Each of the numbers is going to stand for one person
+	// Each of the numbers is going to represent one person
 	std::vector<unsigned int> create_male_numbers_vector(unsigned int total_males);
 	std::vector<unsigned int> create_female_numbers_vector(unsigned int total_females, 
 		unsigned int total_males);
 
-	// To understand why this in necessary, a little explanation of the
+	// To understand why the following in necessary, a little explanation of the
 	// algorithm will be given.
 	// The simulated annealing algorithm makes billions of random changes to 
 	// the "state" i.e. the distribution of people into groups and then clalculates
@@ -77,7 +76,7 @@ private:
 	// and the diagonal elements obviously don't matter. Because the direction of the
 	// contact doesn't matter (A sees B) == (B sees A) in theory only the triangle
 	// matrix has to be stored, but the nature of how some of the state change 
-	// mechanics are implemented require both halves to be filled. (It's all very dirty)
+	// mechanics are implemented require both halves to be filled. (It's not very clean)
 	std::vector<std::vector<unsigned int>> curr_contacts;
 	
 	// Just a variable storing the result of the target function for the current state.
@@ -87,7 +86,7 @@ private:
 
 	// These methods return how the target function would change if two m or f persons
 	// would swap groups on a certain day. The simulated annealing algorithm needs to know this 
-	// to decide whether to execute the swap or not.
+	// to decide whether or not to execute the swap.
 	int contact_delta_of_swap_m(unsigned int day, unsigned int male_group1, unsigned int male1, 
 		unsigned int male_group2, unsigned int male2);
 	int contact_delta_of_swap_f(unsigned int day, unsigned int female_group1, unsigned int female1, 
@@ -105,7 +104,7 @@ public:
 		unsigned int number_of_females_per_group, unsigned int number_of_days);
 	~State();
 
-	// ALARM: THIS INITIALIZING ROUTINE IS STILL GARBAGE AND COMPLETE BOTCH
+	// ALARM: THIS INITIALIZING ROUTINE IS NOT GERERALLY USABLE
 	// A little explanation why: Initializing the state with completely 
 	// sequential numbers and perfect order in the beginning will lead to
 	// the hillclimbing and then even the simulated annealing algorithm to
@@ -114,11 +113,11 @@ public:
 	// days will be randomly scrambled initially. This random scrambling 
 	// leads to the algorithms finding much, much better local maxima.
 	// To implement the "number of immovable people" the immovable part 
-	// of course may not be scrambled. The way this is implemented currently here 
-	// is very bad and even 
-	// HARD CODED FOR THE CURRENT INITILIZING PARAMETERS IN MAIN!!!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-	// THIS MEANS THIS WONT CURRENTLY WORK CORRECTLY FOR ANY INITIALIZE@@@@@@@@@@@@@@@@@@@@@@@@@ 
-	// PARAMETERS BECAUSE I DIDN'T HAVE THE TIME AND REASON TO DO IT!!!!!@@@@@@@@@@@@@@@@@@@@@@@
+	// of course may not be scrambled. The way this is implemented currently 
+	// is very bad and unfortunately
+	// HARD CODED FOR THE CURRENT INITILIZING PARAMETERS IN MAIN!
+	// THIS MEANS THIS WONT CURRENTLY WORK CORRECTLY FOR ARBITRARY INITIALIZE
+	// PARAMETERS!
 	void initialize(unsigned int number_of_groups, unsigned int number_of_males_per_group,
 		unsigned int number_of_females_per_group, unsigned int number_of_days);
 
