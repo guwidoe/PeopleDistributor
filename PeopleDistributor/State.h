@@ -107,7 +107,7 @@ public:
 	// ALARM: THIS INITIALIZING ROUTINE IS NOT GERERALLY USABLE
 	// A little explanation why: Initializing the state with completely 
 	// sequential numbers and perfect order in the beginning will lead to
-	// the hillclimbing and then even the simulated annealing algorithm to
+	// the hillclimbing and even the simulated annealing algorithm to
 	// hit a very poor local maximum very early, therefore
 	// only the first day will be initialized sequentially and the remaining 
 	// days will be randomly scrambled initially. This random scrambling 
