@@ -1,611 +1,671 @@
 #include "State.h"
 
 
-std::vector<unsigned int> State::create_male_numbers_vector(unsigned int total_males)
-{
-	std::vector<unsigned int> males(total_males, 0);
-	for (unsigned int i = 0; i < total_males; ++i) {
-		males[i] = i;
-	}
-	return males;
+std::vector<unsigned int> State::create_m_nums_vec(unsigned int total_ms) {
+  std::vector<unsigned int> ms(total_ms, 0);
+  for (unsigned int i = 0; i < total_ms; ++i) {
+    ms[i] = i;
+  }
+  return ms;
 }
 
-std::vector<unsigned int> State::create_female_numbers_vector(unsigned int total_females, 
-	unsigned int total_males)
-{
-	std::vector<unsigned int> females(total_females, 0);
-	for (unsigned int i = 0; i < total_females; ++i) {
-		females[i] = total_males + i;
-	}
-	return females;
+std::vector<unsigned int> State::create_f_nums_vec(unsigned int total_fs,
+                                                   unsigned int total_ms) {
+  std::vector<unsigned int> fs(total_fs, 0);
+  for (unsigned int i = 0; i < total_fs; ++i) {
+    fs[i] = total_ms + i;
+  }
+  return fs;
 }
 
-float State::average_contacts_per_person()
-{
-	return (static_cast<float>(curr_num_contacts)*2.0f)/ (number_of_groups * 
-		(number_of_males_per_group + number_of_females_per_group));
+float State::average_contacts_per_person() {
+  return (static_cast<float>(curr_num_contacts) * 2.0f) / (num_of_groups *
+    (num_ms_per_group + num_fs_per_group));
 }
 
-int State::contact_delta_of_swap_m(unsigned int day, unsigned int male_group1, unsigned int male1, 
-	unsigned int male_group2, unsigned int male2)
-{
-	if (male_group1 == male_group2) {
-		return 0;
-	}
-	int contact_delta = 0;
+int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1, 
+                                   unsigned int m1, unsigned int m_gr2,
+                                   unsigned int m2) {
+  if (m_gr1 == m_gr2) {
+    return 0;
+  }
+  int contact_delta = 0;
 
-	// Else: calculate how the contact matrix would change if the two were changed.
-	// Calculate losses of contacts of male1
-	unsigned int male1_num = m_day_group_person[day][male_group1][male1];
-	for (unsigned int male_in_group1 = 0; male_in_group1 < number_of_males_per_group; ++male_in_group1) {
-		if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 0) {
-			throw std::runtime_error("curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-		}
-		if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 1){
-			contact_delta--;
-		}
-	}
-	// Calculate losses of contacts of male2
-	unsigned int male2_num = m_day_group_person[day][male_group2][male2];
-	for (unsigned int male_in_group2 = 0; male_in_group2 < number_of_males_per_group; ++male_in_group2) {
-		if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 0) {
-			throw std::runtime_error("curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-		}
-		if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 1) {
-			contact_delta--;
-		}
-	}
+  // Else: calculate how the contact matrix would change if the two were changed.
+  // Calculate losses of contacts of m1
+  unsigned int m1_num = m_day_group_person[day][m_gr1][m1];
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]]
+                     [m1_num] == 0) {
+      throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr1]"
+                               "[m_in_gr1]][m1_num] == 0 "
+                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) {
+      contact_delta--;
+    }
+  }
+  // Calculate losses of contacts of m2
+  unsigned int m2_num = m_day_group_person[day][m_gr2][m2];
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) {
+      throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr2]"
+                               "[m_in_gr2]][m2_num] == 0 "
+                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) {
+      contact_delta--;
+    }
+  }
 
-	// Calculate newly gained contacts of male1
-	for (unsigned int male_in_group2 = 0; male_in_group2 < number_of_males_per_group; ++male_in_group2) {
-		if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male1_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (male_in_group2 != male2) {
-				contact_delta++;
-			}
-		}
-	}
-	// Calculate newly gained contacts of male2
-	for (unsigned int male_in_group1 = 0; male_in_group1 < number_of_males_per_group; ++male_in_group1) {
-		if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male2_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (male_in_group1 != male1) {
-				contact_delta++;
-			}
-		}
-	}
+  // Calculate newly gained contacts of m1
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num] == 0) {
+      // The following if is necessary because the person who just left the 
+      // group is not going to be met
+      if (m_in_gr2 != m2) {
+        contact_delta++;
+      }
+    }
+  }
+  // Calculate newly gained contacts of m2
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num] == 0) {
+      // The following if is necessary because the person who just left the 
+      // group is not going to be met
+      if (m_in_gr1 != m1) {
+        contact_delta++;
+      }
+    }
+  }
 
-	return contact_delta;
+  return contact_delta;
 }
 
-int State::contact_delta_of_swap_f(unsigned int day, unsigned int female_group1, 
-	unsigned int female1, unsigned int female_group2, unsigned int female2)
-{
-	if (female_group1 == female_group2) {
-		return 0;
-	}
-	int contact_delta = 0;
+int State::contact_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
+                                   unsigned int f1,  unsigned int f_gr2, 
+                                   unsigned int f2) {
+  if (f_gr1 == f_gr2) {
+    return 0;
+  }
+  int contact_delta = 0;
 
-	// Else: calculate how the contact matrix would change if the two were changed.
-	// Calculate losses of contacts of female1
-	unsigned int female1_num = f_day_group_person[day][female_group1][female1];
-	for (unsigned int female_in_group1 = 0; female_in_group1 < number_of_females_per_group; ++female_in_group1) {
-		//if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 0) {
-		//	throw std::runtime_error("curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-		//}
-		if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 1) {
-			contact_delta--;
-		}
-	}
-	// Calculate losses of contacts of female2
-	unsigned int female2_num = f_day_group_person[day][female_group2][female2];
-	for (unsigned int female_in_group2 = 0; female_in_group2 < number_of_females_per_group; ++female_in_group2) {
-		//if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 0) {
-		//	throw std::runtime_error("curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-		//}
-		if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 1) {
-			contact_delta--;
-		}
-	}
+  // Else: calculate how the contact matrix would change if the two were changed
+  // Calculate losses of contacts of f1
+  unsigned int f1_num = f_day_group_person[day][f_gr1][f1];
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    //if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]]
+    //                 [f1_num] == 0) {
+    //	throw std::runtime_error("curr_contacts[f_day_group_person[day]"
+    //                           "[f_gr1][f_in_gr1]][f1_num] == 0 "
+    //                         "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    //}
+    if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 1) {
+      contact_delta--;
+    }
+  }
+  // Calculate losses of contacts of f2
+  unsigned int f2_num = f_day_group_person[day][f_gr2][f2];
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    //if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]]
+    //                 [f2_num] == 0) {
+    //	throw std::runtime_error("curr_contacts[f_day_group_person[day]"
+    //                           "[f_gr2][f_in_gr2]][f2_num] == 0 "
+    //                         "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    //}
+    if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 1) {
+      contact_delta--;
+    }
+  }
 
-	// Calculate newly gained contacts of female1
-	for (unsigned int female_in_group2 = 0; female_in_group2 < number_of_females_per_group; ++female_in_group2) {
-		if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female1_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (female_in_group2 != female2) {
-				contact_delta++;
-			}
-		}
-	}
-	// Calculate newly gained contacts of female2
-	for (unsigned int female_in_group1 = 0; female_in_group1 < number_of_females_per_group; ++female_in_group1) {
-		if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female2_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (female_in_group1 != female1) {
-				contact_delta++;
-			}
-		}
-	}
+  // Calculate newly gained contacts of f1
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num] == 0) {
+      // The following if is necessary because the person who just left 
+      // the group is not going to be met
+      if (f_in_gr2 != f2) {
+        contact_delta++;
+      }
+    }
+  }
+  // Calculate newly gained contacts of f2
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num] == 0) {
+      // The following if is necessary because the person who just left 
+      // the group is not going to be met
+      if (f_in_gr1 != f1) {
+        contact_delta++;
+      }
+    }
+  }
 
-	return contact_delta;
+  return contact_delta;
 }
 
-void State::swap_m(unsigned int day, unsigned int male_group1, unsigned int male1, 
-	unsigned int male_group2, unsigned int male2)
-{
-	unsigned int male1_num = m_day_group_person[day][male_group1][male1];
-	unsigned int male2_num = m_day_group_person[day][male_group2][male2];
-	
-	// Swap the two numbers in the state
-	m_day_group_person[day][male_group2][male2] = male1_num;
-	m_day_group_person[day][male_group1][male1] = male2_num;
+void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
+                   unsigned int m_gr2, unsigned int m2) {
+  unsigned int m1_num = m_day_group_person[day][m_gr1][m1];
+  unsigned int m2_num = m_day_group_person[day][m_gr2][m2];
 
-	// In this case nothing about the contacts changes
-	if (male_group1 == male_group2) {
-		return;
-	}
+  // Swap the two nums in the state
+  m_day_group_person[day][m_gr2][m2] = m1_num;
+  m_day_group_person[day][m_gr1][m1] = m2_num;
 
-	// Else: calculate how the contact matrix changes if the two change.
-	// Consider losses of contacts of male1
-	for (unsigned int male_in_group1 = 0; male_in_group1 < number_of_males_per_group; ++male_in_group1) {
-		if (male_in_group1 != male1) {
-			if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 0) {
-				throw std::runtime_error("curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-			}
-			if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num] == 1) {
-				curr_num_contacts--;
-			}
-			curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male1_num]--;
-			curr_contacts[male1_num][m_day_group_person[day][male_group1][male_in_group1]]--;
-		}
-		
-	}
-	// Consider losses of contacts of male2
-	for (unsigned int male_in_group2 = 0; male_in_group2 < number_of_males_per_group; ++male_in_group2) {
-		if (male_in_group2 != male2) {
-			if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 0) {
-				throw std::runtime_error("curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-			}
-			if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num] == 1) {
-				curr_num_contacts--;
-			}
-			curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male2_num]--;
-			curr_contacts[male2_num][m_day_group_person[day][male_group2][male_in_group2]]--;
-		}
-	}
+  // In this case nothing about the contacts changes
+  if (m_gr1 == m_gr2) {
+    return;
+  }
 
-	// Calculate newly gained contacts of male1
-	for (unsigned int male_in_group2 = 0; male_in_group2 < number_of_males_per_group; ++male_in_group2) {
-		if (curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male1_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (male_in_group2 != male2) {
-				curr_num_contacts++;
-			}
-		}
-		if (male_in_group2 != male2) {
-			curr_contacts[m_day_group_person[day][male_group2][male_in_group2]][male1_num]++;
-			curr_contacts[male1_num][m_day_group_person[day][male_group2][male_in_group2]]++;
-		}
-	}
-	// Calculate newly gained contacts of male2
-	for (unsigned int male_in_group1 = 0; male_in_group1 < number_of_males_per_group; ++male_in_group1) {
-		if (curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male2_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (male_in_group1 != male1) {
-				curr_num_contacts++;
-			}
-		}
-		if (male_in_group1 != male1) {
-			curr_contacts[m_day_group_person[day][male_group1][male_in_group1]][male2_num]++;
-			curr_contacts[male2_num][m_day_group_person[day][male_group1][male_in_group1]]++;
-		}
-	}
+  // Else: calculate how the contact matrix changes if the two change.
+  // Consider losses of contacts of m1
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    if (m_in_gr1 != m1) {
+      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 0) 
+      {
+        throw std::runtime_error("curr_contacts[m_day_group_person[day]"
+                                 "[m_gr1][m_in_gr1]][m1_num] == 0 "
+                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+      }
+      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) 
+      {
+        curr_num_contacts--;
+      }
+      curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num]--;
+      curr_contacts[m1_num][m_day_group_person[day][m_gr1][m_in_gr1]]--;
+    }
+
+  }
+  // Consider losses of contacts of m2
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    if (m_in_gr2 != m2) {
+      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) 
+      {
+        throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr2]"
+                                 "[m_in_gr2]][m2_num] == 0 ASSUMPTION FALSE, "
+                                 "THIS SHOULDN't BE POSSIBLE!");
+      }
+      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) 
+      {
+        curr_num_contacts--;
+      }
+      curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num]--;
+      curr_contacts[m2_num][m_day_group_person[day][m_gr2][m_in_gr2]]--;
+    }
+  }
+
+  // Calculate newly gained contacts of m1
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num] == 0) {
+      // The following if is necessary because the person who just 
+      // left the group is not going to be met
+      if (m_in_gr2 != m2) {
+        curr_num_contacts++;
+      }
+    }
+    if (m_in_gr2 != m2) {
+      curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num]++;
+      curr_contacts[m1_num][m_day_group_person[day][m_gr2][m_in_gr2]]++;
+    }
+  }
+  // Calculate newly gained contacts of m2
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num] == 0) {
+      // The following if is necessary because the person who just 
+      // left the group is not going to be met
+      if (m_in_gr1 != m1) {
+        curr_num_contacts++;
+      }
+    }
+    if (m_in_gr1 != m1) {
+      curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num]++;
+      curr_contacts[m2_num][m_day_group_person[day][m_gr1][m_in_gr1]]++;
+    }
+  }
 }
 
-void State::swap_f(unsigned int day, unsigned int female_group1, unsigned int female1, 
-	unsigned int female_group2, unsigned int female2)
-{
-	unsigned int female1_num = f_day_group_person[day][female_group1][female1];
-	unsigned int female2_num = f_day_group_person[day][female_group2][female2];
+void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
+  unsigned int f_gr2, unsigned int f2) {
+  unsigned int f1_num = f_day_group_person[day][f_gr1][f1];
+  unsigned int f2_num = f_day_group_person[day][f_gr2][f2];
 
-	// Swap the two numbers in the state
-	f_day_group_person[day][female_group2][female2] = female1_num;
-	f_day_group_person[day][female_group1][female1] = female2_num;
+  // Swap the two nums in the state
+  f_day_group_person[day][f_gr2][f2] = f1_num;
+  f_day_group_person[day][f_gr1][f1] = f2_num;
 
-	// In this case nothing about the contacts changes
-	if (female_group1 == female_group2) {
-		return;
-	}
+  // In this case nothing about the contacts changes
+  if (f_gr1 == f_gr2) {
+    return;
+  }
 
-	// Else: calculate how the contact matrix changes if the two change.
-	// Consider losses of contacts of female1
-	for (unsigned int female_in_group1 = 0; female_in_group1 < number_of_females_per_group; ++female_in_group1) {
-		if (female_in_group1 != female1) {
-			if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 0) {
-				throw std::runtime_error("curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-			}
-			if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num] == 1) {
-				curr_num_contacts--;
-			}
-			curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female1_num]--;
-			curr_contacts[female1_num][f_day_group_person[day][female_group1][female_in_group1]]--;
-		}
+  // Else: calculate how the contact matrix changes if the two change.
+  // Consider losses of contacts of f1
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    if (f_in_gr1 != f1) {
+      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 0) 
+      {
+        throw std::runtime_error("curr_contacts[f_day_group_person[day][f_gr1]"
+                                 "[f_in_gr1]][f1_num] == 0 ASSUMPTION FALSE, "
+                                 "THIS SHOULDN't BE POSSIBLE!");
+      }
+      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 1) 
+      {
+        curr_num_contacts--;
+      }
+      curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num]--;
+      curr_contacts[f1_num][f_day_group_person[day][f_gr1][f_in_gr1]]--;
+    }
 
-	}
-	// Consider losses of contacts of female2
-	for (unsigned int female_in_group2 = 0; female_in_group2 < number_of_females_per_group; ++female_in_group2) {
-		if (female_in_group2 != female2) {
-			if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 0) {
-				throw std::runtime_error("curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 0 ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
-			}
-			if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num] == 1) {
-				curr_num_contacts--;
-			}
-			curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female2_num]--;
-			curr_contacts[female2_num][f_day_group_person[day][female_group2][female_in_group2]]--;
-		}
-	}
+  }
+  // Consider losses of contacts of f2
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    if (f_in_gr2 != f2) {
+      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 0) 
+      {
+        throw std::runtime_error("curr_contacts[f_day_group_person[day][f_gr2]"
+                                 "[f_in_gr2]][f2_num] == 0 ASSUMPTION FALSE, "
+                                 "THIS SHOULDN't BE POSSIBLE!");
+      }
+      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 1) 
+      {
+        curr_num_contacts--;
+      }
+      curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num]--;
+      curr_contacts[f2_num][f_day_group_person[day][f_gr2][f_in_gr2]]--;
+    }
+  }
 
-	// Calculate newly gained contacts of female1
-	for (unsigned int female_in_group2 = 0; female_in_group2 < number_of_females_per_group; ++female_in_group2) {
-		if (curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female1_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (female_in_group2 != female2) {
-				curr_num_contacts++;
-			}
-		}
-		if (female_in_group2 != female2) {
-			curr_contacts[f_day_group_person[day][female_group2][female_in_group2]][female1_num]++;
-			curr_contacts[female1_num][f_day_group_person[day][female_group2][female_in_group2]]++;
-		}
-	}
-	// Calculate newly gained contacts of female2
-	for (unsigned int female_in_group1 = 0; female_in_group1 < number_of_females_per_group; ++female_in_group1) {
-		if (curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female2_num] == 0) {
-			// The following if is necessary because the person who just left the group is not going to be met
-			if (female_in_group1 != female1) {
-				curr_num_contacts++;
-			}
-		}
-		if (female_in_group1 != female1) {
-			curr_contacts[f_day_group_person[day][female_group1][female_in_group1]][female2_num]++;
-			curr_contacts[female2_num][f_day_group_person[day][female_group1][female_in_group1]]++;
-		}
-	}
+  // Calculate newly gained contacts of f1
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num] == 0) {
+      // The following if is necessary because the person who just 
+      // left the group is not going to be met
+      if (f_in_gr2 != f2) {
+        curr_num_contacts++;
+      }
+    }
+    if (f_in_gr2 != f2) {
+      curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num]++;
+      curr_contacts[f1_num][f_day_group_person[day][f_gr2][f_in_gr2]]++;
+    }
+  }
+  // Calculate newly gained contacts of f2
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num] == 0) {
+      // The following if is necessary because the person who just 
+      // left the group is not going to be met
+      if (f_in_gr1 != f1) {
+        curr_num_contacts++;
+      }
+    }
+    if (f_in_gr1 != f1) {
+      curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num]++;
+      curr_contacts[f2_num][f_day_group_person[day][f_gr1][f_in_gr1]]++;
+    }
+  }
 }
 
-void State::add_number_of_immovable_males_per_group(std::vector<unsigned int> number_of_immovable_males_per_group)
-{
-	m_number_of_immovable_people_per_group = number_of_immovable_males_per_group;
+void State::add_num_of_immovable_ms_per_group(
+    std::vector<unsigned int> num_of_immovable_ms_per_group) {
+  m_num_of_immovable_people_per_group = num_of_immovable_ms_per_group;
 }
 
-void State::add_number_of_immovable_females_per_group(std::vector<unsigned int> number_of_immovable_females_per_group)
-{
-	f_number_of_immovable_people_per_group = number_of_immovable_females_per_group;
+void State::add_num_of_immovable_fs_per_group(
+    std::vector<unsigned int> num_of_immovable_fs_per_group) {
+  f_num_of_immovable_people_per_group = num_of_immovable_fs_per_group;
 }
 
 
 
-void State::try_random_male_swap_and_proceed_if_contact_delta_pos()
-{
-	// Required random numbers and their range: day:			(1 - number_of_days-1)
-	//											male_group1:	(0 - number_of_groups-1)
-	//											male1:			(0 - number_of_males_per_group)
-	//											male_group2:	(0 - number_of_groups-1)
-	//											male2:			(0 - number_of_males_per_group)
-	unsigned int day = (xorshift128p(&rnd_state) % (number_of_days - 1)) + 1;
-	unsigned int male_group1= xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int male_group2 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int male1 = xorshift128p(&rnd_state) % (number_of_males_per_group - m_number_of_immovable_people_per_group[male_group1]) 
-		+ m_number_of_immovable_people_per_group[male_group1];
-	unsigned int male2 = xorshift128p(&rnd_state) % (number_of_males_per_group - m_number_of_immovable_people_per_group[male_group2]) 
-		+ m_number_of_immovable_people_per_group[male_group2];
+void State::try_random_m_swap_and_proceed_if_contact_delta_pos() {
+  // Required random nums and their range: day:			(1 - num_of_days-1)
+  //											m_gr1:	(0 - num_of_groups-1)
+  //											m1:			(0 - num_ms_per_group)
+  //											m_gr2:	(0 - num_of_groups-1)
+  //											m2:			(0 - num_ms_per_group)
+  unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
+  unsigned int m_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m1 = xorshift128p(&rnd_state) % 
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr1])
+    + m_num_of_immovable_people_per_group[m_gr1];
+  unsigned int m2 = xorshift128p(&rnd_state) % 
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2])
+    + m_num_of_immovable_people_per_group[m_gr2];
 
-	if (contact_delta_of_swap_m(day, male_group1, male1, male_group2, male2) >= 0) {
-		swap_m(day, male_group1, male1, male_group2, male2);
-	}
+  if (contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2) >= 0) {
+    swap_m(day, m_gr1, m1, m_gr2, m2);
+  }
 }
 
-void State::try_random_female_swap_and_proceed_if_contact_delta_pos()
-{
-	// Required random numbers and their range: day:			(1 - number_of_days-1)
-	//											female_group1:	(0 - number_of_groups-1)
-	//											female1:			(0 - number_of_females_per_group)
-	//											female_group2:	(0 - number_of_groups-1)
-	//											female2:			(0 - number_of_females_per_group)
-	unsigned int day = (xorshift128p(&rnd_state) % (number_of_days - 1)) + 1;
-	unsigned int female_group1 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int female_group2 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int female1 = xorshift128p(&rnd_state) % (number_of_females_per_group - 
-		f_number_of_immovable_people_per_group[female_group1]) + f_number_of_immovable_people_per_group[female_group1];
-	unsigned int female2 = xorshift128p(&rnd_state) % (number_of_females_per_group - 
-		f_number_of_immovable_people_per_group[female_group2]) + f_number_of_immovable_people_per_group[female_group2];
+void State::try_random_f_swap_and_proceed_if_contact_delta_pos() {
+  // Required random nums and their range: day:			(1 - num_of_days-1)
+  //											f_gr1:	(0 - num_of_groups-1)
+  //											f1:			(0 - num_fs_per_group)
+  //											f_gr2:	(0 - num_of_groups-1)
+  //											f2:			(0 - num_fs_per_group)
+  unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
+  unsigned int f_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f1 = xorshift128p(&rnd_state) % 
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1]) 
+    + f_num_of_immovable_people_per_group[f_gr1];
+  unsigned int f2 = xorshift128p(&rnd_state) % 
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2]) 
+    + f_num_of_immovable_people_per_group[f_gr2];
 
-	if (contact_delta_of_swap_f(day, female_group1, female1, female_group2, female2) >= 0) {
-		swap_f(day, female_group1, female1, female_group2, female2);
-	}
+  if (contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2) >= 0) {
+    swap_f(day, f_gr1, f1, f_gr2, f2);
+  }
 }
 
-void State::perform_simulated_annealing_step(double temp)
-{
-	unsigned int day = (xorshift128p(&rnd_state) % (number_of_days - 1)) + 1;
-	unsigned int male_group1 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int male_group2 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int male1 = xorshift128p(&rnd_state) % (number_of_males_per_group - 
-		m_number_of_immovable_people_per_group[male_group1]) + m_number_of_immovable_people_per_group[male_group1];
-	unsigned int male2 = xorshift128p(&rnd_state) % (number_of_males_per_group - 
-		m_number_of_immovable_people_per_group[male_group2]) + m_number_of_immovable_people_per_group[male_group2];
+void State::perform_simulated_annealing_step(double temp) {
+  unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
+  unsigned int m_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m1 = xorshift128p(&rnd_state) % 
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr1])
+    + m_num_of_immovable_people_per_group[m_gr1];
+  unsigned int m2 = xorshift128p(&rnd_state) % 
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2]) 
+    + m_num_of_immovable_people_per_group[m_gr2];
 
-	int delta_male = contact_delta_of_swap_m(day, male_group1, male1, male_group2, male2);
+  int delta_m = contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
 
-	if (delta_male >= 0) {
-		swap_m(day, male_group1, male1, male_group2, male2);
-	}
-	else if ((static_cast<double>(xorshift128p(&rnd_state)) / static_cast<double>(UINT64_MAX)) < 
-		exp(static_cast<double>(delta_male) / temp)) {
-		swap_m(day, male_group1, male1, male_group2, male2);
-	}
+  if (delta_m >= 0) {
+    swap_m(day, m_gr1, m1, m_gr2, m2);
+  } else if ((static_cast<double>(xorshift128p(&rnd_state)) 
+            / static_cast<double>(UINT64_MAX)) <
+            exp(static_cast<double>(delta_m) / temp)) {
+    swap_m(day, m_gr1, m1, m_gr2, m2);
+  }
 
-	unsigned int female_group1 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int female_group2 = xorshift128p(&rnd_state) % number_of_groups;
-	unsigned int female1 = xorshift128p(&rnd_state) % (number_of_females_per_group - 
-		f_number_of_immovable_people_per_group[female_group1]) + f_number_of_immovable_people_per_group[female_group1];
-	unsigned int female2 = xorshift128p(&rnd_state) % (number_of_females_per_group - 
-		f_number_of_immovable_people_per_group[female_group2]) + f_number_of_immovable_people_per_group[female_group2];
+  unsigned int f_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f1 = xorshift128p(&rnd_state) % 
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1]) 
+    + f_num_of_immovable_people_per_group[f_gr1];
+  unsigned int f2 = xorshift128p(&rnd_state) % 
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2]) 
+    + f_num_of_immovable_people_per_group[f_gr2];
 
-	int delta_female = contact_delta_of_swap_f(day, female_group1, female1, female_group2, female2);
-	if (delta_female >= 0) {
-		swap_f(day, female_group1, female1, female_group2, female2);
-	}
-	else if ((static_cast<double>(xorshift128p(&rnd_state)) / static_cast<double>(UINT64_MAX)) < 
-		exp(static_cast<double>(delta_female) / temp)) {
-		swap_f(day, female_group1, female1, female_group2, female2);
-	}
+  int delta_f = contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
+  if (delta_f >= 0) {
+    swap_f(day, f_gr1, f1, f_gr2, f2);
+  } else if ((static_cast<double>(xorshift128p(&rnd_state)) 
+            / static_cast<double>(UINT64_MAX)) <
+            exp(static_cast<double>(delta_f) / temp)) {
+    swap_f(day, f_gr1, f1, f_gr2, f2);
+  }
 }
 
-State::State(){
-	//rnd_state = new xorshift128p_state();
-	rnd_state.a = std::time(0);
-	rnd_state.b = 1234124124;
+State::State() {
+  //rnd_state = new xorshift128p_state();
+  rnd_state.a = std::time(0);
+  rnd_state.b = 1234124124;
 }
 
-State::State(unsigned int in_number_of_groups, unsigned int in_number_of_males_per_group,
-	unsigned int in_number_of_females_per_group, unsigned int in_number_of_days)
-{
-	rnd_state.a = std::time(0);
-	rnd_state.b = 1234124124;
-	initialize(in_number_of_groups, in_number_of_males_per_group, in_number_of_females_per_group, in_number_of_days);
+State::State(unsigned int in_num_of_groups, unsigned int in_num_ms_per_group,
+             unsigned int in_num_fs_per_group, unsigned int in_num_of_days) {
+  rnd_state.a = std::time(0);
+  rnd_state.b = 1234124124;
+  initialize(in_num_of_groups, in_num_ms_per_group, 
+             in_num_fs_per_group, in_num_of_days);
 }
 
-State::~State()
-{
+State::~State() {
 }
 
-void State::initialize(unsigned int in_number_of_groups, unsigned int in_number_of_males_per_group, 
-	unsigned int in_number_of_females_per_group, unsigned int in_number_of_days)
-{
-	number_of_groups = in_number_of_groups;
-	number_of_males_per_group = in_number_of_males_per_group;
-	number_of_females_per_group = in_number_of_females_per_group;
-	number_of_days = in_number_of_days;
+void State::initialize(unsigned int in_num_of_groups, 
+                       unsigned int in_num_ms_per_group,
+                       unsigned int in_num_fs_per_group, 
+                       unsigned int in_num_of_days) {
+  num_of_groups = in_num_of_groups;
+  num_ms_per_group = in_num_ms_per_group;
+  num_fs_per_group = in_num_fs_per_group;
+  num_of_days = in_num_of_days;
+  
+  unsigned int total_people = num_of_groups 
+                              * (num_ms_per_group + num_fs_per_group);
+  unsigned int total_ms = num_of_groups * num_ms_per_group;
+  unsigned int total_fs = num_of_groups * num_fs_per_group;
 
-	unsigned int total_people = number_of_groups * (number_of_males_per_group + number_of_females_per_group);
-	unsigned int total_males = number_of_groups * number_of_males_per_group;
-	unsigned int total_females = number_of_groups * number_of_females_per_group;
+  std::vector<unsigned int> m_num_of_immovable_people_per_group(num_of_groups,
+                                                                0);
+  std::vector<unsigned int> f_num_of_immovable_people_per_group(num_of_groups, 
+                                                                0);
+  std::vector<std::vector<unsigned int>> 
+     vec_curr_c(total_people, std::vector<unsigned int>(total_people, 0));
+  curr_contacts = vec_curr_c;
 
-	std::vector<unsigned int> m_number_of_immovable_people_per_group(number_of_groups, 0);
-	std::vector<unsigned int> f_number_of_immovable_people_per_group(number_of_groups, 0);
+  std::vector<std::vector<std::vector<unsigned int>>>
+    vec_m(num_of_days, std::vector<std::vector<unsigned int>>
+      (num_of_groups, std::vector<unsigned int>
+        (num_ms_per_group, 0)));
 
+  m_day_group_person = vec_m;
 
-	std::vector<std::vector<unsigned int>> vec_curr_c (total_people, std::vector<unsigned int> (total_people, 0));
-	curr_contacts = vec_curr_c;
+  std::vector<std::vector<std::vector<unsigned int>>>
+    vec_f(num_of_days, std::vector<std::vector<unsigned int>>
+      (num_of_groups, std::vector<unsigned int>
+        (num_fs_per_group, 0)));
 
-	std::vector<std::vector<std::vector<unsigned int>>>
-		vec_m(number_of_days, std::vector<std::vector<unsigned int>>
-			(number_of_groups, std::vector<unsigned int>
-				(number_of_males_per_group, 0)));
+  f_day_group_person = vec_f;
 
-	m_day_group_person = vec_m;
+  // Create an initial state:
 
-	std::vector<std::vector<std::vector<unsigned int>>>
-		vec_f(number_of_days, std::vector<std::vector<unsigned int>>
-			(number_of_groups, std::vector<unsigned int>
-				(number_of_females_per_group, 0)));
+  // To create an initial state the 3-dimensional vectors m_day_group_person 
+  // and f_day_group_person must be completely filled with values. In every 
+  // 'layer' every number from 0 - total_ms - 1 (for m_day_group_person) or 
+  // total_ms - total_people - 1 (for f_day_group_person respectively) must 
+  // appear exactly once.
+  // In the first layer, they are going to appear in order, in the other 
+  // layers they will be mixed randomly.
 
-	f_day_group_person = vec_f;
+  // Starting with m_day_group_person:
+  // ms will be represented by the integers 0 - total_ms - 1.
+  std::vector<unsigned int> ms;
+  ms = create_m_nums_vec(total_ms);
 
-	// Create an initial state:
+  // On the first day the people are always ordered
+  // for each column:
+  for (unsigned int person = 0; person < num_ms_per_group; ++person) {
+    // for each row:
+    for (unsigned int group = 0; group < num_of_groups; ++group) {   
+        //if (ms[0] != num_ms_per_group * group + person) {
+        //	throw std::runtime_error("ms[0] != num_ms_per_group "
+        //                           "* group + person ASSUMPTION FALSE!");
+        //}
 
-	// To create an initial state the 3-dimensional vectors m_day_group_person and 
-	// f_day_group_person must be completely filled with values. In every 'layer'
-	// every number from 0 - total_males - 1 (for m_day_group_person) or 
-	// total_males - total_people - 1 (for f_day_group_person respectively) must appear
-	// exactly once.
-	// In the first layer, they are going to appear in order, in the other layers they
-	// will be mixed randomly.
+      //num_of_groups * group + person:
+      m_day_group_person[0][group][person] = ms[0]; 
+      ms.erase(ms.begin());
+    }
+  }
+  // On the remaining days they get shuffled.
+  // for each layer:
+  for (unsigned int day = 1; day < num_of_days; ++day) {	
+    ms = create_m_nums_vec(total_ms);
+    // shuffle the vector randomly
+    std::random_device random_dev;
+    std::mt19937       generator(random_dev());
+    // Ugly: doesn't shuffle the parts where the immovable persons sit
+    // @@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@
+    std::shuffle(ms.begin() + 6, ms.end(), generator);
+    // for each column:
+    for (unsigned int person = 0; person < num_ms_per_group; ++person) {
+      // for each row:
+      for (unsigned int group = 0; group < num_of_groups; ++group) {   
+        //num_of_groups * group + person:
+        m_day_group_person[day][group][person] = ms[0]; 
+        ms.erase(ms.begin());
+      }
+    }
+  }
 
-	// Starting with m_day_group_person:
-	// Males will be represented by the integers 0 - total_males - 1.
-	std::vector<unsigned int> males;
-	males = create_male_numbers_vector(total_males);
+  // f_day_group_person:
+  // fs will be represented by the integers total_ms - total_people - 1.
+  std::vector<unsigned int> fs;
+  fs = create_f_nums_vec(total_fs, total_ms);
 
-	// On the first day the people are always ordered
-	for (unsigned int person = 0; person < number_of_males_per_group; ++person) { // for each column
-	for (unsigned int group = 0; group < number_of_groups; ++group) {   // for each row
-			//if (males[0] != number_of_males_per_group * group + person) {
-			//	throw std::runtime_error("males[0] != number_of_males_per_group * group + person ASSUMPTION FALSE!");
-			//}
-			m_day_group_person[0][group][person] = males[0]; //number_of_groups * group + person
-			males.erase(males.begin());
-		}
-	}
-	// On the remaining days they get shuffled.
-	for (unsigned int day = 1; day < number_of_days; ++day) {	// for each layer
-		males = create_male_numbers_vector(total_males);
-		// shuffle the vector randomly
-		std::random_device random_dev;
-		std::mt19937       generator(random_dev());
-		// Ugly: doesn't shuffle the parts there the immovable persons sit
-		// @@@@@@@@@@@@@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@@@@@
-		std::shuffle(males.begin()+6, males.end(), generator);
-		for (unsigned int person = 0; person < number_of_males_per_group; ++person) { // for each column
-			for (unsigned int group = 0; group < number_of_groups; ++group) {   // for each row
-			
-				m_day_group_person[day][group][person] = males[0]; //number_of_groups * group + person
-				males.erase(males.begin());
-			}
-		}
-	}
+  // for each column:
+  for (unsigned int person = 0; person < num_fs_per_group; ++person) {
+    // for each row:
+    for (unsigned int group = 0; group < num_of_groups; ++group) {   
+      //if (fs[0] != total_ms + num_fs_per_group * group + person) {
+      //	throw std::runtime_error("fs[0] != total_ms + num_fs_per_group * group"
+      //                           " + person ASSUMPTION FALSE!");
+      //}
 
-	// f_day_group_person:
-	// Females will be represented by the integers total_males - total_people - 1.
-	std::vector<unsigned int> females;
-	females = create_female_numbers_vector(total_females, total_males);
+      //num_of_groups * group + person:
+      f_day_group_person[0][group][person] = fs[0]; 
+      fs.erase(fs.begin());
+    }
+  }
+  // On the remaining days they get shuffled.
+  // for each layer:
+  for (unsigned int day = 1; day < num_of_days; ++day) {	
+    fs = create_f_nums_vec(total_fs, total_ms);
+    // shuffle the vector randomly
+    std::random_device random_dev;
+    std::mt19937       generator(random_dev());
+    // Ugly: doesn't shuffle the parts where the immovable persons sit
+    // @@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@
+    std::shuffle(fs.begin() + 2, fs.end(), generator);
+    // for each column:
+    for (unsigned int person = 0; person < num_fs_per_group; ++person) {
+      // for each row:
+      for (unsigned int group = 0; group < num_of_groups; ++group) {   
 
-	for (unsigned int person = 0; person < number_of_females_per_group; ++person) { // for each column
-		for (unsigned int group = 0; group < number_of_groups; ++group) {   // for each row
-			//if (females[0] != total_males + number_of_females_per_group * group + person) {
-			//	throw std::runtime_error("females[0] != total_males + number_of_females_per_group * group + person ASSUMPTION FALSE!");
-			//}
-			f_day_group_person[0][group][person] = females[0]; //number_of_groups * group + person
-			females.erase(females.begin());
-		}
-	}
-	// On the remaining days they get shuffled.
-	for (unsigned int day = 1; day < number_of_days; ++day) {	// for each layer
-		females = create_female_numbers_vector(total_females, total_males);
-		// shuffle the vector randomly
-		std::random_device random_dev;
-		std::mt19937       generator(random_dev());
-		// Ugly: doesn't shuffle the parts there the immovable persons sit
-		// @@@@@@@@@@@@@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@@@@@
-		std::shuffle(females.begin()+2, females.end(), generator);
-		for (unsigned int person = 0; person < number_of_females_per_group; ++person) { // for each column
-		for (unsigned int group = 0; group < number_of_groups; ++group) {   // for each row
+        //num_of_groups * group + person:
+        f_day_group_person[day][group][person] = fs[0]; 
+        fs.erase(fs.begin());
+      }
+    }
+  }
 
-				f_day_group_person[day][group][person] = females[0]; //number_of_groups * group + person
-				females.erase(females.begin());
-			}
-		}
-	}
+  // Now the state is randomly initialized and only 
+  // the contacts matrix must be still updated.
+  // This can easily be done in a loop:
+  curr_num_contacts = 0;
+  bool new_contact;
 
-	// Now the state is randomly initialized and only the contacts matrix must be still updated.
-	// This can easily be done in a loop:
-	curr_num_contacts = 0;
-	bool new_contact;
-
-	for (unsigned int day = 0; day < number_of_days; ++day) {
-		for (unsigned int group = 0; group < number_of_groups; ++group) {
-			for (unsigned int male1 = 0; male1 < number_of_males_per_group; ++male1) {
-				// All the males that see each other
-				for (unsigned int male2 = 0; male2 < number_of_males_per_group; ++male2) {
-					if (curr_contacts[m_day_group_person[day][group][male1]][m_day_group_person[day][group][male2]] == 0) {
-						new_contact = true;
-					}
-					else {
-						new_contact = false;
-					}
-					curr_contacts[m_day_group_person[day][group][male1]][m_day_group_person[day][group][male2]]++;
-					if (new_contact) {
-						if (m_day_group_person[day][group][male1] < m_day_group_person[day][group][male2]) {
-							curr_num_contacts++;
-						}
-					}
-				}
-				// All the females the males see
-				for (unsigned int female2 = 0; female2 < number_of_females_per_group; ++female2) {
-					if (curr_contacts[m_day_group_person[day][group][male1]][f_day_group_person[day][group][female2]] == 0) {
-						new_contact = true;
-					}
-					else {
-						new_contact = false;
-					}
-					curr_contacts[m_day_group_person[day][group][male1]][f_day_group_person[day][group][female2]]++;
-					// To make the matrix properly symmetrical (necessary so the swap functions work correctly):
-					curr_contacts[f_day_group_person[day][group][female2]][m_day_group_person[day][group][male1]]++;
-					if (new_contact) {
-						curr_num_contacts++;
-					}
-				}
-			}
-			for (unsigned int female1 = 0; female1 < number_of_females_per_group; ++female1) {
-				// All the females that see each other
-				for (unsigned int female2 = 0; female2 < number_of_females_per_group; ++female2) {
-					if (curr_contacts[f_day_group_person[day][group][female1]][f_day_group_person[day][group][female2]] == 0) {
-						new_contact = true;
-					}
-					else {
-						new_contact = false;
-					}
-					curr_contacts[f_day_group_person[day][group][female1]][f_day_group_person[day][group][female2]]++;
-					if (new_contact) {
-						if (f_day_group_person[day][group][female1] < f_day_group_person[day][group][female2]) {
-							curr_num_contacts++;
-						}
-					}
-				}
-			}
-		}
-	}
+  for (unsigned int day = 0; day < num_of_days; ++day) {
+    for (unsigned int group = 0; group < num_of_groups; ++group) {
+      for (unsigned int m1 = 0; m1 < num_ms_per_group; ++m1) {
+        // All the ms that see each other
+        for (unsigned int m2 = 0; m2 < num_ms_per_group; ++m2) {
+          if (curr_contacts[m_day_group_person[day][group][m1]]
+                           [m_day_group_person[day][group][m2]] == 0) {
+            new_contact = true;
+          } else {
+            new_contact = false;
+          }
+          curr_contacts[m_day_group_person[day][group][m1]]
+                       [m_day_group_person[day][group][m2]]++;
+          if (new_contact) {
+            if (m_day_group_person[day][group][m1] 
+                < m_day_group_person[day][group][m2]) {
+              curr_num_contacts++;
+            }
+          }
+        }
+        // All the fs the ms see
+        for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
+          if (curr_contacts[m_day_group_person[day][group][m1]]
+                           [f_day_group_person[day][group][f2]] == 0) {
+            new_contact = true;
+          } else {
+            new_contact = false;
+          }
+          curr_contacts[m_day_group_person[day][group][m1]]
+                       [f_day_group_person[day][group][f2]]++;
+          // To make the matrix properly symmetrical 
+          // (necessary so the swap functions work correctly):
+          curr_contacts[f_day_group_person[day][group][f2]]
+                       [m_day_group_person[day][group][m1]]++;
+          if (new_contact) {
+            curr_num_contacts++;
+          }
+        }
+      }
+      for (unsigned int f1 = 0; f1 < num_fs_per_group; ++f1) {
+        // All the fs that see each other
+        for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
+          if (curr_contacts[f_day_group_person[day][group][f1]]
+                           [f_day_group_person[day][group][f2]] == 0) {
+            new_contact = true;
+          } else {
+            new_contact = false;
+          }
+          curr_contacts[f_day_group_person[day][group][f1]]
+                       [f_day_group_person[day][group][f2]]++;
+          if (new_contact) {
+            if (f_day_group_person[day][group][f1] 
+                < f_day_group_person[day][group][f2]) {
+              curr_num_contacts++;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-void State::print_number_of_contacts_per_person()
-{
-	std::cout << "Average contacts per person in the current state: " << average_contacts_per_person() << std::endl;
+void State::print_num_of_contacts_per_person() {
+  std::cout << "Average contacts per person in the current state: " 
+            << average_contacts_per_person() << std::endl;
 }
 
-void State::print_total_number_of_contacts()
-{
-	std::cout << "Total contacts in the current state: " << curr_num_contacts << std::endl;
+void State::print_total_num_of_contacts() {
+  std::cout << "Total contacts in the current state: " 
+            << curr_num_contacts << std::endl;
 }
 
-void State::print_random_number()
-{
-	std::cout << "Random number: " << (xorshift128p(&rnd_state)%6)+1 << std::endl;
+void State::print_random_number() {
+  std::cout << "Random number: " 
+            << (xorshift128p(&rnd_state) % 6) + 1 << std::endl;
 }
 
-void State::print_state()
-{
-	for (unsigned int day = 0; day < number_of_days; ++day) {
-		for (unsigned int male = 0; male < number_of_males_per_group; ++male) {
-			for (unsigned int group = 0; group < number_of_groups; ++group) {
-				std::cout << m_day_group_person[day][group][male] << "	";
-			}
-			std::cout << "\n";
-		}
-		for (unsigned int female = 0; female < number_of_females_per_group; ++female) {
-			for (unsigned int group = 0; group < number_of_groups; ++group) {
-				std::cout << f_day_group_person[day][group][female] << "	";
-			}
-			std::cout << "\n";
-		}
-		std::cout << "\n";
-	}
+void State::print_state() {
+  for (unsigned int day = 0; day < num_of_days; ++day) {
+    for (unsigned int m = 0; m < num_ms_per_group; ++m) {
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
+        std::cout << m_day_group_person[day][group][m] << "	";
+      }
+      std::cout << "\n";
+    }
+    for (unsigned int f = 0; f < num_fs_per_group; ++f) {
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
+        std::cout << f_day_group_person[day][group][f] << "	";
+      }
+      std::cout << "\n";
+    }
+    std::cout << "\n";
+  }
 }
 
-void State::write_state_to_csv()
-{
-	std::ofstream ocsv;
-	ocsv.open("Data.csv");
-	for (unsigned int day = 0; day < number_of_days; ++day) {
-		for (unsigned int male = 0; male < number_of_males_per_group; ++male) {
-			for (unsigned int group = 0; group < number_of_groups; ++group) {
-				ocsv << m_day_group_person[day][group][male] << ",";
-			}
-			ocsv << "\n";
-		}
-		for (unsigned int female = 0; female < number_of_females_per_group; ++female) {
-			for (unsigned int group = 0; group < number_of_groups; ++group) {
-				ocsv << f_day_group_person[day][group][female] << ",";
-			}
-			ocsv << "\n";
-		}
-		ocsv << "\n";
-	}
-	ocsv.close();
+void State::write_state_to_csv() {
+  std::ofstream ocsv;
+  ocsv.open("Data.csv");
+  for (unsigned int day = 0; day < num_of_days; ++day) {
+    for (unsigned int m = 0; m < num_ms_per_group; ++m) {
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
+        ocsv << m_day_group_person[day][group][m] << ",";
+      }
+      ocsv << "\n";
+    }
+    for (unsigned int f = 0; f < num_fs_per_group; ++f) {
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
+        ocsv << f_day_group_person[day][group][f] << ",";
+      }
+      ocsv << "\n";
+    }
+    ocsv << "\n";
+  }
+  ocsv.close();
 }
 
-double State::random()
-{
-	return static_cast<double>(xorshift128p(&rnd_state))/ static_cast<double>(UINT64_MAX);
+double State::random() {
+  return static_cast<double>(xorshift128p(&rnd_state)) 
+                            / static_cast<double>(UINT64_MAX);
 }
