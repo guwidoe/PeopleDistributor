@@ -40,7 +40,7 @@ private:
 	unsigned int num_fs_per_group;
 	unsigned int num_of_days;
 
-	// These 3-dimensional vector store all the information about the state
+	// These 3-dimensional vectors store all the information about the state
 	// meaning exactly which group each person is in during every single day
 	std::vector<std::vector<std::vector<unsigned int>>> m_day_group_person;
 	std::vector<std::vector<std::vector<unsigned int>>> f_day_group_person;
@@ -114,10 +114,10 @@ public:
 	// hit a very early and very poor local maximum very early, therefore
 	// only the first day will be initialized sequentially and the remaining 
 	// days will be randomly scrambled initially. This random scrambling 
-	// leads to the algorithms finding much, much better local maxima.
-	// To implement the "number of immovable people" the immovable part 
-	// of course may not be scrambled. The way this is implemented currently 
-	// is very bad and unfortunately
+	// leads to the algorithms finding much better local maxima.
+	// To implement the "number of immovable people" the immovable part must
+	// of course not be scrambled. The way this is implemented currently 
+	// is very hacky and unfortunately
 	// HARD CODED FOR THE CURRENT INITILIZING PARAMETERS IN MAIN!
 	// THIS MEANS THIS WONT CURRENTLY WORK CORRECTLY FOR ARBITRARY INITIALIZE
 	// PARAMETERS!
