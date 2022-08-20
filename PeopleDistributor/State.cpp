@@ -1,5 +1,8 @@
 #include "State.h"
 
+std::vector<unsigned int> State::create_m_nums_vec() {
+  return create_m_nums_vec(num_of_groups * num_ms_per_group);
+}
 
 std::vector<unsigned int> State::create_m_nums_vec(unsigned int total_ms) {
   std::vector<unsigned int> ms(total_ms, 0);
@@ -9,8 +12,13 @@ std::vector<unsigned int> State::create_m_nums_vec(unsigned int total_ms) {
   return ms;
 }
 
+std::vector<unsigned int> State::create_f_nums_vec() {
+  return create_f_nums_vec(num_of_groups * num_fs_per_group,
+                           num_of_groups * num_ms_per_group);
+}
+
 std::vector<unsigned int> State::create_f_nums_vec(unsigned int total_fs,
-                                                   unsigned int total_ms) {
+  unsigned int total_ms) {
   std::vector<unsigned int> fs(total_fs, 0);
   for (unsigned int i = 0; i < total_fs; ++i) {
     fs[i] = total_ms + i;
@@ -23,9 +31,9 @@ float State::average_contacts_per_person() {
     (num_ms_per_group + num_fs_per_group));
 }
 
-int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1, 
-                                   unsigned int m1, unsigned int m_gr2,
-                                   unsigned int m2) {
+int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
+  unsigned int m1, unsigned int m_gr2,
+  unsigned int m2) {
   if (m_gr1 == m_gr2) {
     return 0;
   }
@@ -36,10 +44,10 @@ int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
   unsigned int m1_num = m_day_group_person[day][m_gr1][m1];
   for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
     if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]]
-                     [m1_num] == 0) {
+      [m1_num] == 0) {
       throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr1]"
-                               "[m_in_gr1]][m1_num] == 0 "
-                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+        "[m_in_gr1]][m1_num] == 0 "
+        "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
     }
     if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) {
       contact_delta--;
@@ -50,8 +58,8 @@ int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
   for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
     if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) {
       throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr2]"
-                               "[m_in_gr2]][m2_num] == 0 "
-                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+        "[m_in_gr2]][m2_num] == 0 "
+        "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
     }
     if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) {
       contact_delta--;
@@ -83,8 +91,8 @@ int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
 }
 
 int State::contact_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
-                                   unsigned int f1,  unsigned int f_gr2, 
-                                   unsigned int f2) {
+  unsigned int f1, unsigned int f_gr2,
+  unsigned int f2) {
   if (f_gr1 == f_gr2) {
     return 0;
   }
@@ -143,7 +151,7 @@ int State::contact_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
 }
 
 void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
-                   unsigned int m_gr2, unsigned int m2) {
+  unsigned int m_gr2, unsigned int m2) {
   unsigned int m1_num = m_day_group_person[day][m_gr1][m1];
   unsigned int m2_num = m_day_group_person[day][m_gr2][m2];
 
@@ -160,14 +168,12 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
   // Consider losses of contacts of m1
   for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
     if (m_in_gr1 != m1) {
-      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 0) 
-      {
+      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 0) {
         throw std::runtime_error("curr_contacts[m_day_group_person[day]"
-                                 "[m_gr1][m_in_gr1]][m1_num] == 0 "
-                               "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+          "[m_gr1][m_in_gr1]][m1_num] == 0 "
+          "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
       }
-      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) 
-      {
+      if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) {
         curr_num_contacts--;
       }
       curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num]--;
@@ -178,14 +184,12 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
   // Consider losses of contacts of m2
   for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
     if (m_in_gr2 != m2) {
-      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) 
-      {
+      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) {
         throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr2]"
-                                 "[m_in_gr2]][m2_num] == 0 ASSUMPTION FALSE, "
-                                 "THIS SHOULDN't BE POSSIBLE!");
+          "[m_in_gr2]][m2_num] == 0 ASSUMPTION FALSE, "
+          "THIS SHOULDN't BE POSSIBLE!");
       }
-      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) 
-      {
+      if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) {
         curr_num_contacts--;
       }
       curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num]--;
@@ -241,14 +245,12 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
   // Consider losses of contacts of f1
   for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
     if (f_in_gr1 != f1) {
-      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 0) 
-      {
+      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 0) {
         throw std::runtime_error("curr_contacts[f_day_group_person[day][f_gr1]"
-                                 "[f_in_gr1]][f1_num] == 0 ASSUMPTION FALSE, "
-                                 "THIS SHOULDN't BE POSSIBLE!");
+          "[f_in_gr1]][f1_num] == 0 ASSUMPTION FALSE, "
+          "THIS SHOULDN't BE POSSIBLE!");
       }
-      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 1) 
-      {
+      if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] == 1) {
         curr_num_contacts--;
       }
       curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num]--;
@@ -259,14 +261,12 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
   // Consider losses of contacts of f2
   for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
     if (f_in_gr2 != f2) {
-      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 0) 
-      {
+      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 0) {
         throw std::runtime_error("curr_contacts[f_day_group_person[day][f_gr2]"
-                                 "[f_in_gr2]][f2_num] == 0 ASSUMPTION FALSE, "
-                                 "THIS SHOULDN't BE POSSIBLE!");
+          "[f_in_gr2]][f2_num] == 0 ASSUMPTION FALSE, "
+          "THIS SHOULDN't BE POSSIBLE!");
       }
-      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 1) 
-      {
+      if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] == 1) {
         curr_num_contacts--;
       }
       curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num]--;
@@ -304,16 +304,119 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
   }
 }
 
-void State::add_num_of_immovable_ms_per_group(
-    std::vector<unsigned int> num_of_immovable_ms_per_group) {
+void State::set_num_of_immovable_ms_per_group(
+  std::vector<unsigned int> num_of_immovable_ms_per_group) {
   m_num_of_immovable_people_per_group = num_of_immovable_ms_per_group;
+
+  if (num_of_immovable_ms_per_group.size() != num_of_groups) {
+    throw std::runtime_error("input for set_num_immovable_persons must"
+      "have dimension equal to number of groups");
+  }
+  bool found = false;
+  bool can_move = false;
+  unsigned int nth_pers_in_group = 0;
+  for (unsigned int i = 0; i < num_ms_per_group * num_of_groups; ++i) {
+    if (i % num_of_groups == 0) ++nth_pers_in_group;
+    can_move = (not (nth_pers_in_group <=
+      m_num_of_immovable_people_per_group[i % num_of_groups]));
+    if (not can_move) {
+      for (unsigned int day = 1; day < num_of_days; ++day) {
+        for (unsigned int group = 0; group < num_of_groups; ++group) {
+          for (unsigned int pers = 0; pers < num_ms_per_group; ++pers) {
+            if (m_day_group_person[day][group][pers] == i) {
+              swap_m(day, group, pers, i % num_of_groups, i - (i % num_of_groups));
+              //m_day_group_person[day][group][pers] =
+              //  m_day_group_person[day][i % num_of_groups]
+              //  [i - (i % num_of_groups)];
+              //m_day_group_person[day][i % num_of_groups]
+              //  [i - (i % num_of_groups)] = i;
+
+              //swap_m(day, group, pers, i - (i % num_ms_per_group), i % num_ms_per_group);
+              //m_day_group_person[day][group][pers] = m_day_group_person[day]
+              //  [i - (i % num_ms_per_group)][i % num_ms_per_group];
+              //m_day_group_person[day][i - (i % num_ms_per_group)]
+              //  [i % num_ms_per_group] = i;
+              found = true;
+              break;
+            }
+          }
+          if (found) { break; }
+        }
+        found = false;
+      }
+    }
+  }
+
+  //nth_pers_in_group = 0;
+  //for (unsigned int i = 0; i < num_ms_per_group * num_of_groups; ++i) {
+  //  if (i % num_of_groups == 0) ++nth_pers_in_group;
+  //  if (nth_pers_in_group <= num_of_immovable_ms_per_group[i % num_of_groups]) {
+  //    person_can_move[i] = false;
+  //  } else {
+  //    person_can_move[i] = true;
+  //  }
+  //}
 }
 
-void State::add_num_of_immovable_fs_per_group(
-    std::vector<unsigned int> num_of_immovable_fs_per_group) {
+void State::set_num_of_immovable_fs_per_group(
+  std::vector<unsigned int> num_of_immovable_fs_per_group) {
   f_num_of_immovable_people_per_group = num_of_immovable_fs_per_group;
-}
 
+  if (num_of_immovable_fs_per_group.size() != num_of_groups) {
+    throw std::runtime_error("input for set_num_immovable_persons must"
+      "have dimension equal to number of groups");
+  }
+  bool found = false;
+  bool can_move = false;
+  unsigned int nth_pers_in_group = 0;
+  for (unsigned int i = num_ms_per_group * num_of_groups;
+    i < (num_ms_per_group * num_of_groups) + num_fs_per_group *
+    num_of_groups; ++i) {
+    if (i % num_of_groups == 0) ++nth_pers_in_group;
+    can_move = (not (nth_pers_in_group <=
+      f_num_of_immovable_people_per_group[i % num_of_groups]));
+    if (not can_move) {
+      for (unsigned int day = 1; day < num_of_days; ++day) {
+        for (unsigned int group = 0; group < num_of_groups; ++group) {
+          for (unsigned int pers = 0; pers < num_fs_per_group; ++pers) {
+            if (f_day_group_person[day][group][pers] == i) {
+              swap_f(day, group, pers, i % num_of_groups, i -
+                (i % num_of_groups) - (num_ms_per_group * num_of_groups));
+              //f_day_group_person[day][group][pers] =
+              //  f_day_group_person[day][i % num_of_groups][i -
+              //  (i % num_of_groups) - (num_ms_per_group * num_of_groups)];
+              //f_day_group_person[day][i % num_of_groups][i -
+              //  (i % num_of_groups) - (num_ms_per_group * num_of_groups)] = i;
+
+              //swap_f(day, group, pers, i - (i % num_fs_per_group) - (num_ms_per_group *
+              //  num_of_groups), i % num_fs_per_group);
+              //f_day_group_person[day][group][pers] = f_day_group_person[day]
+              //  [i - (i % num_fs_per_group) - (num_ms_per_group *
+              //    num_of_groups)][i % num_fs_per_group];
+              //f_day_group_person[day][i - (i % num_fs_per_group) -
+              //  (num_ms_per_group * num_of_groups)]
+              //  [i % num_fs_per_group] = i;
+              found = true;
+              break;
+            }
+          }
+          if (found) { break; }
+        }
+        found = false;
+      }
+    }
+  }
+
+  //nth_pers_in_group = 0;
+  //for (unsigned int i = 0; i < num_fs_per_group * num_of_groups; ++i) {
+  //  if (i % num_of_groups == 0) ++nth_pers_in_group;
+  //  if (nth_pers_in_group <= num_of_immovable_fs_per_group[i % num_of_groups]) {
+  //    person_can_move[i + num_ms_per_group * num_of_groups] = false;
+  //  } else {
+  //    person_can_move[i + num_ms_per_group * num_of_groups] = true;
+  //  }
+  //}
+}
 
 
 void State::try_random_m_swap_and_proceed_if_contact_delta_pos() {
@@ -325,10 +428,10 @@ void State::try_random_m_swap_and_proceed_if_contact_delta_pos() {
   unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
   unsigned int m_gr1 = xorshift128p(&rnd_state) % num_of_groups;
   unsigned int m_gr2 = xorshift128p(&rnd_state) % num_of_groups;
-  unsigned int m1 = xorshift128p(&rnd_state) % 
+  unsigned int m1 = xorshift128p(&rnd_state) %
     (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr1])
     + m_num_of_immovable_people_per_group[m_gr1];
-  unsigned int m2 = xorshift128p(&rnd_state) % 
+  unsigned int m2 = xorshift128p(&rnd_state) %
     (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2])
     + m_num_of_immovable_people_per_group[m_gr2];
 
@@ -346,11 +449,11 @@ void State::try_random_f_swap_and_proceed_if_contact_delta_pos() {
   unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
   unsigned int f_gr1 = xorshift128p(&rnd_state) % num_of_groups;
   unsigned int f_gr2 = xorshift128p(&rnd_state) % num_of_groups;
-  unsigned int f1 = xorshift128p(&rnd_state) % 
-    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1]) 
+  unsigned int f1 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1])
     + f_num_of_immovable_people_per_group[f_gr1];
-  unsigned int f2 = xorshift128p(&rnd_state) % 
-    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2]) 
+  unsigned int f2 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2])
     + f_num_of_immovable_people_per_group[f_gr2];
 
   if (contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2) >= 0) {
@@ -362,38 +465,38 @@ void State::perform_simulated_annealing_step(double temp) {
   unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
   unsigned int m_gr1 = xorshift128p(&rnd_state) % num_of_groups;
   unsigned int m_gr2 = xorshift128p(&rnd_state) % num_of_groups;
-  unsigned int m1 = xorshift128p(&rnd_state) % 
+  unsigned int m1 = xorshift128p(&rnd_state) %
     (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr1])
     + m_num_of_immovable_people_per_group[m_gr1];
-  unsigned int m2 = xorshift128p(&rnd_state) % 
-    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2]) 
+  unsigned int m2 = xorshift128p(&rnd_state) %
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2])
     + m_num_of_immovable_people_per_group[m_gr2];
 
   int delta_m = contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
 
   if (delta_m >= 0) {
     swap_m(day, m_gr1, m1, m_gr2, m2);
-  } else if ((static_cast<double>(xorshift128p(&rnd_state)) 
-            / static_cast<double>(UINT64_MAX)) <
-            exp(static_cast<double>(delta_m) / temp)) {
+  } else if ((static_cast<double>(xorshift128p(&rnd_state))
+    / static_cast<double>(UINT64_MAX)) <
+    exp(static_cast<double>(delta_m) / temp)) {
     swap_m(day, m_gr1, m1, m_gr2, m2);
   }
 
   unsigned int f_gr1 = xorshift128p(&rnd_state) % num_of_groups;
   unsigned int f_gr2 = xorshift128p(&rnd_state) % num_of_groups;
-  unsigned int f1 = xorshift128p(&rnd_state) % 
-    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1]) 
+  unsigned int f1 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1])
     + f_num_of_immovable_people_per_group[f_gr1];
-  unsigned int f2 = xorshift128p(&rnd_state) % 
-    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2]) 
+  unsigned int f2 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2])
     + f_num_of_immovable_people_per_group[f_gr2];
 
   int delta_f = contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
   if (delta_f >= 0) {
     swap_f(day, f_gr1, f1, f_gr2, f2);
-  } else if ((static_cast<double>(xorshift128p(&rnd_state)) 
-            / static_cast<double>(UINT64_MAX)) <
-            exp(static_cast<double>(delta_f) / temp)) {
+  } else if ((static_cast<double>(xorshift128p(&rnd_state))
+    / static_cast<double>(UINT64_MAX)) <
+    exp(static_cast<double>(delta_f) / temp)) {
     swap_f(day, f_gr1, f1, f_gr2, f2);
   }
 }
@@ -405,36 +508,36 @@ State::State() {
 }
 
 State::State(unsigned int in_num_of_groups, unsigned int in_num_ms_per_group,
-             unsigned int in_num_fs_per_group, unsigned int in_num_of_days) {
+  unsigned int in_num_fs_per_group, unsigned int in_num_of_days) {
   rnd_state.a = std::time(0);
   rnd_state.b = 1234124124;
-  initialize(in_num_of_groups, in_num_ms_per_group, 
-             in_num_fs_per_group, in_num_of_days);
+  initialize(in_num_of_groups, in_num_ms_per_group,
+    in_num_fs_per_group, in_num_of_days);
 }
 
 State::~State() {
 }
 
-void State::initialize(unsigned int in_num_of_groups, 
-                       unsigned int in_num_ms_per_group,
-                       unsigned int in_num_fs_per_group, 
-                       unsigned int in_num_of_days) {
+void State::initialize(unsigned int in_num_of_groups,
+  unsigned int in_num_ms_per_group,
+  unsigned int in_num_fs_per_group,
+  unsigned int in_num_of_days) {
   num_of_groups = in_num_of_groups;
   num_ms_per_group = in_num_ms_per_group;
   num_fs_per_group = in_num_fs_per_group;
   num_of_days = in_num_of_days;
-  
-  unsigned int total_people = num_of_groups 
-                              * (num_ms_per_group + num_fs_per_group);
+
+  unsigned int total_people = num_of_groups
+    * (num_ms_per_group + num_fs_per_group);
   unsigned int total_ms = num_of_groups * num_ms_per_group;
   unsigned int total_fs = num_of_groups * num_fs_per_group;
 
   std::vector<unsigned int> m_num_of_immovable_people_per_group(num_of_groups,
-                                                                0);
-  std::vector<unsigned int> f_num_of_immovable_people_per_group(num_of_groups, 
-                                                                0);
-  std::vector<std::vector<unsigned int>> 
-     vec_curr_c(total_people, std::vector<unsigned int>(total_people, 0));
+    0);
+  std::vector<unsigned int> f_num_of_immovable_people_per_group(num_of_groups,
+    0);
+  std::vector<std::vector<unsigned int>>
+    vec_curr_c(total_people, std::vector<unsigned int>(total_people, 0));
   curr_contacts = vec_curr_c;
 
   std::vector<std::vector<std::vector<unsigned int>>>
@@ -470,33 +573,31 @@ void State::initialize(unsigned int in_num_of_groups,
   // for each column:
   for (unsigned int person = 0; person < num_ms_per_group; ++person) {
     // for each row:
-    for (unsigned int group = 0; group < num_of_groups; ++group) {   
-        //if (ms[0] != num_ms_per_group * group + person) {
-        //	throw std::runtime_error("ms[0] != num_ms_per_group "
-        //                           "* group + person ASSUMPTION FALSE!");
-        //}
+    for (unsigned int group = 0; group < num_of_groups; ++group) {
+      //if (ms[0] != num_ms_per_group * group + person) {
+      //	throw std::runtime_error("ms[0] != num_ms_per_group "
+      //                           "* group + person ASSUMPTION FALSE!");
+      //}
 
-      //num_of_groups * group + person:
-      m_day_group_person[0][group][person] = ms[0]; 
+    //num_of_groups * group + person:
+      m_day_group_person[0][group][person] = ms[0];
       ms.erase(ms.begin());
     }
   }
   // On the remaining days they get shuffled.
   // for each layer:
-  for (unsigned int day = 1; day < num_of_days; ++day) {	
+  for (unsigned int day = 1; day < num_of_days; ++day) {
     ms = create_m_nums_vec(total_ms);
     // shuffle the vector randomly
     std::random_device random_dev;
     std::mt19937       generator(random_dev());
-    // Ugly: doesn't shuffle the parts where the immovable persons sit
-    // @@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@
-    std::shuffle(ms.begin() + 6, ms.end(), generator);
+    std::shuffle(ms.begin(), ms.end(), generator);
     // for each column:
     for (unsigned int person = 0; person < num_ms_per_group; ++person) {
       // for each row:
-      for (unsigned int group = 0; group < num_of_groups; ++group) {   
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
         //num_of_groups * group + person:
-        m_day_group_person[day][group][person] = ms[0]; 
+        m_day_group_person[day][group][person] = ms[0];
         ms.erase(ms.begin());
       }
     }
@@ -510,34 +611,32 @@ void State::initialize(unsigned int in_num_of_groups,
   // for each column:
   for (unsigned int person = 0; person < num_fs_per_group; ++person) {
     // for each row:
-    for (unsigned int group = 0; group < num_of_groups; ++group) {   
+    for (unsigned int group = 0; group < num_of_groups; ++group) {
       //if (fs[0] != total_ms + num_fs_per_group * group + person) {
       //	throw std::runtime_error("fs[0] != total_ms + num_fs_per_group * group"
       //                           " + person ASSUMPTION FALSE!");
       //}
 
       //num_of_groups * group + person:
-      f_day_group_person[0][group][person] = fs[0]; 
+      f_day_group_person[0][group][person] = fs[0];
       fs.erase(fs.begin());
     }
   }
   // On the remaining days they get shuffled.
   // for each layer:
-  for (unsigned int day = 1; day < num_of_days; ++day) {	
+  for (unsigned int day = 1; day < num_of_days; ++day) {
     fs = create_f_nums_vec(total_fs, total_ms);
     // shuffle the vector randomly
     std::random_device random_dev;
     std::mt19937       generator(random_dev());
-    // Ugly: doesn't shuffle the parts where the immovable persons sit
-    // @@@ HARD CODED TO INITIALIZE PARAMETERS FOR THIS PROBLEM!!! @@@@@@@@@@@@@
-    std::shuffle(fs.begin() + 2, fs.end(), generator);
+    std::shuffle(fs.begin(), fs.end(), generator);
     // for each column:
     for (unsigned int person = 0; person < num_fs_per_group; ++person) {
       // for each row:
-      for (unsigned int group = 0; group < num_of_groups; ++group) {   
+      for (unsigned int group = 0; group < num_of_groups; ++group) {
 
         //num_of_groups * group + person:
-        f_day_group_person[day][group][person] = fs[0]; 
+        f_day_group_person[day][group][person] = fs[0];
         fs.erase(fs.begin());
       }
     }
@@ -555,16 +654,16 @@ void State::initialize(unsigned int in_num_of_groups,
         // All the ms that see each other
         for (unsigned int m2 = 0; m2 < num_ms_per_group; ++m2) {
           if (curr_contacts[m_day_group_person[day][group][m1]]
-                           [m_day_group_person[day][group][m2]] == 0) {
+            [m_day_group_person[day][group][m2]] == 0) {
             new_contact = true;
           } else {
             new_contact = false;
           }
           curr_contacts[m_day_group_person[day][group][m1]]
-                       [m_day_group_person[day][group][m2]]++;
+            [m_day_group_person[day][group][m2]]++;
           if (new_contact) {
-            if (m_day_group_person[day][group][m1] 
-                < m_day_group_person[day][group][m2]) {
+            if (m_day_group_person[day][group][m1]
+              < m_day_group_person[day][group][m2]) {
               curr_num_contacts++;
             }
           }
@@ -572,17 +671,17 @@ void State::initialize(unsigned int in_num_of_groups,
         // All the fs the ms see
         for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
           if (curr_contacts[m_day_group_person[day][group][m1]]
-                           [f_day_group_person[day][group][f2]] == 0) {
+            [f_day_group_person[day][group][f2]] == 0) {
             new_contact = true;
           } else {
             new_contact = false;
           }
           curr_contacts[m_day_group_person[day][group][m1]]
-                       [f_day_group_person[day][group][f2]]++;
+            [f_day_group_person[day][group][f2]]++;
           // To make the matrix properly symmetrical 
           // (necessary so the swap functions work correctly):
           curr_contacts[f_day_group_person[day][group][f2]]
-                       [m_day_group_person[day][group][m1]]++;
+            [m_day_group_person[day][group][m1]]++;
           if (new_contact) {
             curr_num_contacts++;
           }
@@ -592,16 +691,16 @@ void State::initialize(unsigned int in_num_of_groups,
         // All the fs that see each other
         for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
           if (curr_contacts[f_day_group_person[day][group][f1]]
-                           [f_day_group_person[day][group][f2]] == 0) {
+            [f_day_group_person[day][group][f2]] == 0) {
             new_contact = true;
           } else {
             new_contact = false;
           }
           curr_contacts[f_day_group_person[day][group][f1]]
-                       [f_day_group_person[day][group][f2]]++;
+            [f_day_group_person[day][group][f2]]++;
           if (new_contact) {
-            if (f_day_group_person[day][group][f1] 
-                < f_day_group_person[day][group][f2]) {
+            if (f_day_group_person[day][group][f1]
+              < f_day_group_person[day][group][f2]) {
               curr_num_contacts++;
             }
           }
@@ -612,18 +711,18 @@ void State::initialize(unsigned int in_num_of_groups,
 }
 
 void State::print_num_of_contacts_per_person() {
-  std::cout << "Average contacts per person in the current state: " 
-            << average_contacts_per_person() << std::endl;
+  std::cout << "Average contacts per person in the current state: "
+    << average_contacts_per_person() << std::endl;
 }
 
 void State::print_total_num_of_contacts() {
-  std::cout << "Total contacts in the current state: " 
-            << curr_num_contacts << std::endl;
+  std::cout << "Total contacts in the current state: "
+    << curr_num_contacts << std::endl;
 }
 
 void State::print_random_number() {
-  std::cout << "Random number: " 
-            << (xorshift128p(&rnd_state) % 6) + 1 << std::endl;
+  std::cout << "Random number: "
+    << (xorshift128p(&rnd_state) % 6) + 1 << std::endl;
 }
 
 void State::print_state() {
@@ -666,6 +765,57 @@ void State::write_state_to_csv() {
 }
 
 double State::random() {
-  return static_cast<double>(xorshift128p(&rnd_state)) 
-                            / static_cast<double>(UINT64_MAX);
+  return static_cast<double>(xorshift128p(&rnd_state))
+    / static_cast<double>(UINT64_MAX);
+}
+
+bool State::is_valid() {
+  std::vector<unsigned int>ms = create_m_nums_vec();
+  std::vector<bool> was_found(num_of_groups * num_ms_per_group, false);
+  for (unsigned int day = 0; day < num_of_days; ++day) {
+    for (unsigned int i = 0; i < num_of_groups * num_ms_per_group; ++i) {
+      was_found[i] = false;
+    }
+    for (unsigned int group = 0; group < num_of_groups; ++group) {
+      for (unsigned int p = 0; p < num_ms_per_group; ++p) {
+        if (not was_found[m_day_group_person[day][group][p]]) {
+          was_found[m_day_group_person[day][group][p]] = true;
+        } else{
+          return false;
+        } 
+      }
+    }
+  }
+  for (unsigned int i = 0; i < num_of_groups * num_ms_per_group; ++i) {
+    if (not was_found[i]) {
+      return false;
+    }
+  }
+
+  std::vector<unsigned int>fs = create_f_nums_vec();
+  std::vector<bool> was_found_f(num_of_groups * num_fs_per_group, false);
+  for (unsigned int day = 0; day < num_of_days; ++day) {
+    for (unsigned int i = 0; i < num_of_groups * num_fs_per_group; ++i) {
+      was_found_f[i] = false;
+    }
+    for (unsigned int group = 0; group < num_of_groups; ++group) {
+      for (unsigned int p = 0; p < num_fs_per_group; ++p) {
+        if (not was_found_f[f_day_group_person[day][group][p]-
+            (num_of_groups * num_ms_per_group)]) {
+          was_found_f[f_day_group_person[day][group][p]-
+            (num_of_groups * num_ms_per_group)] = true;
+        } else {
+          return false;
+        }
+      }
+    }
+  }
+  for (unsigned int i = 0; i < num_of_groups * num_fs_per_group; ++i) {
+    if (not was_found_f[i]) {
+      return false;
+    }
+  }
+  // TODO: should also check if curr_contacts and curr_num_contacts are true
+
+  return true;
 }

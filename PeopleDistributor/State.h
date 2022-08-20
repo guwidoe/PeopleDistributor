@@ -45,18 +45,22 @@ private:
 	std::vector<std::vector<std::vector<unsigned int>>> m_day_group_person;
 	std::vector<std::vector<std::vector<unsigned int>>> f_day_group_person;
 
-	// This is used in a not very elegant way of "freezing" a certain number 
-  // of people in each group that was implemented last minute
+	// This is used to "freeze" a certain number of people in each group
 	// The "immovable" people will never change group
 	std::vector<unsigned int> m_num_of_immovable_people_per_group;
 	std::vector<unsigned int> f_num_of_immovable_people_per_group;
 
+  // Different way of representing people that can not switch group
+  // std::vector<bool> person_can_move;
+
 	// These methods just initialize two vectors of sequential nums 
 	// Each of the nums is going to represent one person
+  std::vector<unsigned int> create_m_nums_vec();
 	std::vector<unsigned int> create_m_nums_vec(unsigned int total_ms);
-	std::vector<unsigned int> create_f_nums_vec(
-      unsigned int total_fs, 
-		  unsigned int total_ms);
+  std::vector<unsigned int> create_f_nums_vec();
+	std::vector<unsigned int> create_f_nums_vec(unsigned int total_fs, 
+		                                          unsigned int total_ms);
+
 
 	// To understand why the following in necessary, a little explanation of the
 	// algorithm will be given.
@@ -107,7 +111,6 @@ public:
 		unsigned int num_fs_per_group, unsigned int num_of_days);
 	~State();
 
-	// ALARM: THIS INITIALIZING ROUTINE IS NOT GERERALLY USABLE
 	// A little explanation why: Initializing the state with completely 
 	// sequential nums and perfect order in the beginning will lead to
 	// the hillclimbing and then even the simulated annealing algorithm to
@@ -115,20 +118,20 @@ public:
 	// only the first day will be initialized sequentially and the remaining 
 	// days will be randomly scrambled initially. This random scrambling 
 	// leads to the algorithms finding much better local maxima.
-	// To implement the "number of immovable people" the immovable part must
-	// of course not be scrambled. The way this is implemented currently 
-	// is very hacky and unfortunately
-	// HARD CODED FOR THE CURRENT INITILIZING PARAMETERS IN MAIN!
-	// THIS MEANS THIS WONT CURRENTLY WORK CORRECTLY FOR ARBITRARY INITIALIZE
-	// PARAMETERS!
+	// To implement the "number of immovable people" the immovable part is 
+  // still scrambled and will be "unscrambled" when the 
+  // set_number_of_immovable_people routines are called
 	void initialize(unsigned int num_of_groups, 
                   unsigned int num_ms_per_group,
 		              unsigned int num_fs_per_group, 
                   unsigned int num_of_days);
 
-	void add_num_of_immovable_ms_per_group(std::vector<unsigned int> 
+  // Sets m_num_of_immovable_people_per_group and
+  // m_num_of_immovable_people_per_group and unscrambles the people that
+  // are affected by this change
+	void set_num_of_immovable_ms_per_group(std::vector<unsigned int> 
       num_of_immovable_ms_per_group);
-	void add_num_of_immovable_fs_per_group(std::vector<unsigned int> 
+	void set_num_of_immovable_fs_per_group(std::vector<unsigned int> 
       num_of_immovable_fs_per_group);
 
 	void try_random_m_swap_and_proceed_if_contact_delta_pos();
@@ -144,6 +147,7 @@ public:
 	void write_state_to_csv();
 
 	double random();
+  bool is_valid();
 	
 
 };
