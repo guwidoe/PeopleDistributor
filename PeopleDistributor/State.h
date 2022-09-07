@@ -85,13 +85,21 @@ private:
 	std::vector<std::vector<unsigned int>> curr_contacts;
 	
 	// A variable storing the result of the target function for the current state.
-	int curr_num_contacts;
+
 
 	float average_contacts_per_person();
+  float average_penalty_per_person();
 
 	// These methods return how the target function would change if two m or f 
   // persons would swap groups on a certain day. The simulated annealing 
   // algorithm needs to know this to decide whether or not to execute the swap.
+  int penalty_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
+                              unsigned int m1, unsigned int m_gr2,
+                              unsigned int m2);
+  int penalty_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
+                              unsigned int f1, unsigned int f_gr2,
+                              unsigned int f2);
+
 	int contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1, 
                               unsigned int m1,	unsigned int m_gr2, 
                               unsigned int m2);
@@ -106,6 +114,11 @@ private:
 		unsigned int f_gr2, unsigned int f2);
 
 public:
+  int curr_num_contacts;
+
+  // 
+  int curr_penalty;
+
 	State();
 	State(unsigned int num_of_groups, unsigned int num_ms_per_group, 
 		unsigned int num_fs_per_group, unsigned int num_of_days);
@@ -139,9 +152,16 @@ public:
 
 	void perform_simulated_annealing_step(double temp);
 
+  void perform_simulated_annealing_penalty_version_step(double temp);
+
 	void print_num_of_contacts_per_person();
 	void print_total_num_of_contacts();
+
+  void print_total_penalty();
+  void print_penalty_per_person();
+
 	void print_random_number();
+
 
 	void print_state();
 	void write_state_to_csv();

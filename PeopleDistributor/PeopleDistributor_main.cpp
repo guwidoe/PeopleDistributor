@@ -8,6 +8,7 @@
 
 
 int main() {
-  run_algorithms();
+  //run_algorithms();
   //debug();
+  run_final_algorithm();
 }

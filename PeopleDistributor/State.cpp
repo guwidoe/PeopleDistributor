@@ -31,6 +31,13 @@ float State::average_contacts_per_person() {
     (num_ms_per_group + num_fs_per_group));
 }
 
+float State::average_penalty_per_person() {
+  return (static_cast<float>(curr_penalty) * 2.0f) / (num_of_groups *
+    (num_ms_per_group + num_fs_per_group));
+}
+
+
+
 int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
   unsigned int m1, unsigned int m_gr2,
   unsigned int m2) {
@@ -88,6 +95,142 @@ int State::contact_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
   }
 
   return contact_delta;
+}
+
+int State::penalty_delta_of_swap_m(unsigned int day, unsigned int m_gr1,
+  unsigned int m1, unsigned int m_gr2,
+  unsigned int m2) {
+  if (m_gr1 == m_gr2) {
+    return 0;
+  }
+  int penalty_delta = 0;
+
+  // Else: calculate how the contact matrix would change if the two were changed.
+  // Calculate losses of contacts of m1
+  unsigned int m1_num = m_day_group_person[day][m_gr1][m1];
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]]
+      [m1_num] == 0) {
+      throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr1]"
+        "[m_in_gr1]][m1_num] == 0 "
+        "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] > 1) {
+      if (m_day_group_person[day][m_gr1][m_in_gr1] != m1_num) {
+        penalty_delta -= pow(curr_contacts[m_day_group_person[day][m_gr1]
+          [m_in_gr1]][m1_num] - 1, 2);
+      }
+    }
+    //if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num] == 1) {
+    //  penalty_delta--;
+    //}
+  }
+  // Calculate losses of contacts of m2
+  unsigned int m2_num = m_day_group_person[day][m_gr2][m2];
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 0) {
+      throw std::runtime_error("curr_contacts[m_day_group_person[day][m_gr2]"
+        "[m_in_gr2]][m2_num] == 0 "
+        "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] > 1) {
+      if (m_day_group_person[day][m_gr2][m_in_gr2] != m2_num) {
+        penalty_delta -= pow(curr_contacts[m_day_group_person[day][m_gr2]
+          [m_in_gr2]][m2_num] - 1, 2);
+      }
+    }
+    //if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num] == 1) {
+    //  penalty_delta--;
+    //}
+  }
+
+  // Calculate newly gained contacts of m1
+  for (unsigned int m_in_gr2 = 0; m_in_gr2 < num_ms_per_group; ++m_in_gr2) {
+    //if (curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num] == 0) {
+      // The following if is necessary because the person who just left the 
+      // group is not going to be met
+      if (m_in_gr2 != m2) {
+        penalty_delta += pow(curr_contacts[m_day_group_person[day][m_gr2]
+                              [m_in_gr2]][m1_num], 2);
+      }
+    //}
+  }
+  // Calculate newly gained contacts of m2
+  for (unsigned int m_in_gr1 = 0; m_in_gr1 < num_ms_per_group; ++m_in_gr1) {
+    //if (curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num] == 0) {
+      // The following if is necessary because the person who just left the 
+      // group is not going to be met
+      if (m_in_gr1 != m1) {
+        penalty_delta += pow(curr_contacts[m_day_group_person[day][m_gr1]
+                              [m_in_gr1]][m2_num], 2);
+      }
+    //}
+  }
+
+  return penalty_delta;
+}
+
+int State::penalty_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
+  unsigned int f1, unsigned int f_gr2,
+  unsigned int f2) {
+  if (f_gr1 == f_gr2) {
+    return 0;
+  }
+  int penalty_delta = 0;
+
+  // Else: calculate how the contact matrix would change if the two were changed
+  // Calculate losses of contacts of f1
+  unsigned int f1_num = f_day_group_person[day][f_gr1][f1];
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]]
+                     [f1_num] == 0) {
+    	throw std::runtime_error("curr_contacts[f_day_group_person[day]"
+                               "[f_gr1][f_in_gr1]][f1_num] == 0 "
+                             "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] > 1) {
+      if (f_day_group_person[day][f_gr1][f_in_gr1] != f1_num) {
+        penalty_delta -= pow(curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num] - 1, 2);
+      }
+    }
+  }
+  // Calculate losses of contacts of f2
+  unsigned int f2_num = f_day_group_person[day][f_gr2][f2];
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]]
+                     [f2_num] == 0) {
+    	throw std::runtime_error("curr_contacts[f_day_group_person[day]"
+                               "[f_gr2][f_in_gr2]][f2_num] == 0 "
+                             "ASSUMPTION FALSE, THIS SHOULDN't BE POSSIBLE!");
+    }
+    if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] > 1) {
+      if (f_day_group_person[day][f_gr2][f_in_gr2] != f2_num) {
+        penalty_delta -= pow(curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num] - 1, 2);
+      }
+    }
+  }
+
+  // Calculate newly gained contacts of f1
+  for (unsigned int f_in_gr2 = 0; f_in_gr2 < num_fs_per_group; ++f_in_gr2) {
+    //if (curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num] == 0) {
+      // The following if is necessary because the person who just left 
+      // the group is not going to be met
+      if (f_in_gr2 != f2) {
+        penalty_delta += pow(curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num], 2);
+      }
+    //}
+  }
+  // Calculate newly gained contacts of f2
+  for (unsigned int f_in_gr1 = 0; f_in_gr1 < num_fs_per_group; ++f_in_gr1) {
+    //if (curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num] == 0) {
+      // The following if is necessary because the person who just left 
+      // the group is not going to be met
+      if (f_in_gr1 != f1) {
+        penalty_delta += pow(curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num], 2);
+      }
+    //}
+  }
+  return penalty_delta;
 }
 
 int State::contact_delta_of_swap_f(unsigned int day, unsigned int f_gr1,
@@ -178,6 +321,8 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
       }
       curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num]--;
       curr_contacts[m1_num][m_day_group_person[day][m_gr1][m_in_gr1]]--;
+      curr_penalty -=
+        pow(curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m1_num], 2);
     }
 
   }
@@ -194,6 +339,8 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
       }
       curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num]--;
       curr_contacts[m2_num][m_day_group_person[day][m_gr2][m_in_gr2]]--;
+      curr_penalty -=
+        pow(curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m2_num], 2);
     }
   }
 
@@ -207,6 +354,8 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
       }
     }
     if (m_in_gr2 != m2) {
+      curr_penalty +=
+        pow(curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num], 2);
       curr_contacts[m_day_group_person[day][m_gr2][m_in_gr2]][m1_num]++;
       curr_contacts[m1_num][m_day_group_person[day][m_gr2][m_in_gr2]]++;
     }
@@ -221,6 +370,8 @@ void State::swap_m(unsigned int day, unsigned int m_gr1, unsigned int m1,
       }
     }
     if (m_in_gr1 != m1) {
+      curr_penalty +=
+        pow(curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num], 2);
       curr_contacts[m_day_group_person[day][m_gr1][m_in_gr1]][m2_num]++;
       curr_contacts[m2_num][m_day_group_person[day][m_gr1][m_in_gr1]]++;
     }
@@ -255,6 +406,8 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
       }
       curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num]--;
       curr_contacts[f1_num][f_day_group_person[day][f_gr1][f_in_gr1]]--;
+      curr_penalty -=
+        pow(curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f1_num], 2);
     }
 
   }
@@ -271,6 +424,8 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
       }
       curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num]--;
       curr_contacts[f2_num][f_day_group_person[day][f_gr2][f_in_gr2]]--;
+      curr_penalty -=
+        pow(curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f2_num], 2);
     }
   }
 
@@ -284,6 +439,8 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
       }
     }
     if (f_in_gr2 != f2) {
+      curr_penalty +=
+        pow(curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num], 2);
       curr_contacts[f_day_group_person[day][f_gr2][f_in_gr2]][f1_num]++;
       curr_contacts[f1_num][f_day_group_person[day][f_gr2][f_in_gr2]]++;
     }
@@ -298,6 +455,8 @@ void State::swap_f(unsigned int day, unsigned int f_gr1, unsigned int f1,
       }
     }
     if (f_in_gr1 != f1) {
+      curr_penalty +=
+        pow(curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num], 2);
       curr_contacts[f_day_group_person[day][f_gr1][f_in_gr1]][f2_num]++;
       curr_contacts[f2_num][f_day_group_person[day][f_gr1][f_in_gr1]]++;
     }
@@ -501,6 +660,48 @@ void State::perform_simulated_annealing_step(double temp) {
   }
 }
 
+
+void State::perform_simulated_annealing_penalty_version_step(double temp) {
+  unsigned int day = (xorshift128p(&rnd_state) % (num_of_days - 1)) + 1;
+  unsigned int m_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int m1 = xorshift128p(&rnd_state) %
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr1])
+    + m_num_of_immovable_people_per_group[m_gr1];
+  unsigned int m2 = xorshift128p(&rnd_state) %
+    (num_ms_per_group - m_num_of_immovable_people_per_group[m_gr2])
+    + m_num_of_immovable_people_per_group[m_gr2];
+
+  int delta_m = -penalty_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
+
+  if (delta_m >= 0) {
+    swap_m(day, m_gr1, m1, m_gr2, m2);
+  } else if ((static_cast<double>(xorshift128p(&rnd_state))
+    / static_cast<double>(UINT64_MAX)) <
+    exp(static_cast<double>(delta_m) / temp)) {
+    swap_m(day, m_gr1, m1, m_gr2, m2);
+  }
+
+  unsigned int f_gr1 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f_gr2 = xorshift128p(&rnd_state) % num_of_groups;
+  unsigned int f1 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr1])
+    + f_num_of_immovable_people_per_group[f_gr1];
+  unsigned int f2 = xorshift128p(&rnd_state) %
+    (num_fs_per_group - f_num_of_immovable_people_per_group[f_gr2])
+    + f_num_of_immovable_people_per_group[f_gr2];
+
+  int delta_f = -penalty_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
+  if (delta_f >= 0) {
+    swap_f(day, f_gr1, f1, f_gr2, f2);
+  } else if ((static_cast<double>(xorshift128p(&rnd_state))
+    / static_cast<double>(UINT64_MAX)) <
+    exp(static_cast<double>(delta_f) / temp)) {
+    swap_f(day, f_gr1, f1, f_gr2, f2);
+  }
+}
+
+
 State::State() {
   //rnd_state = new xorshift128p_state();
   rnd_state.a = std::time(0);
@@ -646,35 +847,34 @@ void State::initialize(unsigned int in_num_of_groups,
   // the contacts matrix must be still updated.
   // This can easily be done in a loop:
   curr_num_contacts = 0;
-  bool new_contact;
+  curr_penalty = 0;
 
   for (unsigned int day = 0; day < num_of_days; ++day) {
     for (unsigned int group = 0; group < num_of_groups; ++group) {
       for (unsigned int m1 = 0; m1 < num_ms_per_group; ++m1) {
         // All the ms that see each other
         for (unsigned int m2 = 0; m2 < num_ms_per_group; ++m2) {
+          if (m1 != m2) {
+            curr_penalty += pow(curr_contacts[m_day_group_person[day][group][m1]]
+              [m_day_group_person[day][group][m2]], 2);
+          }
           if (curr_contacts[m_day_group_person[day][group][m1]]
             [m_day_group_person[day][group][m2]] == 0) {
-            new_contact = true;
-          } else {
-            new_contact = false;
-          }
-          curr_contacts[m_day_group_person[day][group][m1]]
-            [m_day_group_person[day][group][m2]]++;
-          if (new_contact) {
             if (m_day_group_person[day][group][m1]
               < m_day_group_person[day][group][m2]) {
               curr_num_contacts++;
             }
           }
+          curr_contacts[m_day_group_person[day][group][m1]]
+            [m_day_group_person[day][group][m2]]++;
         }
         // All the fs the ms see
         for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
+          curr_penalty += pow(curr_contacts[m_day_group_person[day][group][m1]]
+            [f_day_group_person[day][group][f2]], 2);
           if (curr_contacts[m_day_group_person[day][group][m1]]
             [f_day_group_person[day][group][f2]] == 0) {
-            new_contact = true;
-          } else {
-            new_contact = false;
+            curr_num_contacts++;
           }
           curr_contacts[m_day_group_person[day][group][m1]]
             [f_day_group_person[day][group][f2]]++;
@@ -682,28 +882,24 @@ void State::initialize(unsigned int in_num_of_groups,
           // (necessary so the swap functions work correctly):
           curr_contacts[f_day_group_person[day][group][f2]]
             [m_day_group_person[day][group][m1]]++;
-          if (new_contact) {
-            curr_num_contacts++;
-          }
         }
       }
       for (unsigned int f1 = 0; f1 < num_fs_per_group; ++f1) {
         // All the fs that see each other
         for (unsigned int f2 = 0; f2 < num_fs_per_group; ++f2) {
+          if (f1 != f2) {
+            curr_penalty += pow(curr_contacts[f_day_group_person[day][group][f1]]
+              [f_day_group_person[day][group][f2]], 2);
+          }
           if (curr_contacts[f_day_group_person[day][group][f1]]
             [f_day_group_person[day][group][f2]] == 0) {
-            new_contact = true;
-          } else {
-            new_contact = false;
-          }
-          curr_contacts[f_day_group_person[day][group][f1]]
-            [f_day_group_person[day][group][f2]]++;
-          if (new_contact) {
             if (f_day_group_person[day][group][f1]
               < f_day_group_person[day][group][f2]) {
               curr_num_contacts++;
             }
           }
+          curr_contacts[f_day_group_person[day][group][f1]]
+            [f_day_group_person[day][group][f2]]++;
         }
       }
     }
@@ -718,6 +914,16 @@ void State::print_num_of_contacts_per_person() {
 void State::print_total_num_of_contacts() {
   std::cout << "Total contacts in the current state: "
     << curr_num_contacts << std::endl;
+}
+
+void State::print_penalty_per_person() {
+  std::cout << "Average penalty per person in the current state: "
+    << average_penalty_per_person() << std::endl;
+}
+
+void State::print_total_penalty() {
+  std::cout << "Total penalty in the current state: "
+    << curr_penalty << std::endl;
 }
 
 void State::print_random_number() {
