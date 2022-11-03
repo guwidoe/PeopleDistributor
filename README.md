@@ -18,8 +18,12 @@ group 3 times, the penalty function will be increased by (3-1)^2 = 4
 This penalty function will be minimized. This technique will work well
 for problem parameters where everyone will be able to see everyone.
 
+The output produced is currently in .csv format.
+
 Comments explaining most of the implementation can be found in 
 the "State.h" file.
 
 This code was thrown together in a night to solve a concrete problem 
-I had and isn't intented to be usable / readable / expandable or anything.
+I had and isn't intented to be usable / expandable or anything yet.
+I might improve the algorithm in the future and add some more options
+to it. Also, a little gui facilitating the use might come at some point.
