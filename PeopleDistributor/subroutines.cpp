@@ -186,19 +186,15 @@ void run_algorithms() {
 
 void run_final_algorithm() {
   long long time_span;
-  unsigned int num_iterations = 1000000;
+  unsigned int num_iterations = 100000000;
   
   State best_start;
-  best_start.initialize(6, 6, 6, 6);
-  std::vector<unsigned int> num_of_immovable_ms_per_group{ 1, 0, 1, 1, 0, 1 };
-  std::vector<unsigned int> num_of_immovable_fs_per_group{ 0, 1, 0, 0, 1, 0 };
-  best_start.set_num_of_immovable_ms_per_group(num_of_immovable_ms_per_group);
-  best_start.set_num_of_immovable_fs_per_group(num_of_immovable_fs_per_group);
+
   for (unsigned int i = 0; i < 10000; ++i) {
     State s;
-    s.initialize(6, 6, 6, 6);
-    std::vector<unsigned int> num_of_immovable_ms_per_group{ 1, 0, 1, 1, 0, 1 };
-    std::vector<unsigned int> num_of_immovable_fs_per_group{ 0, 1, 0, 0, 1, 0 };
+    s.initialize(5, 3, 3, 10);
+    std::vector<unsigned int> num_of_immovable_ms_per_group{ 0, 0, 0, 0, 0 };
+    std::vector<unsigned int> num_of_immovable_fs_per_group{ 0, 0, 0, 0, 0 };
     s.set_num_of_immovable_ms_per_group(num_of_immovable_ms_per_group);
     s.set_num_of_immovable_fs_per_group(num_of_immovable_fs_per_group);
     if (s.curr_num_contacts > best_start.curr_num_contacts) {
