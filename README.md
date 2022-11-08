@@ -26,4 +26,4 @@ the "State.h" file.
 This code was thrown together in a night to solve a concrete problem 
 I had and isn't intented to be usable / expandable or anything yet.
 I might improve the algorithm in the future and add some more options
-to it. Also, a little gui facilitating the use might come at some point...
+to it. Also, a little gui facilitating the use might come at some point.
