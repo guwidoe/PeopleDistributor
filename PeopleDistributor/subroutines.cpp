@@ -186,7 +186,7 @@ void run_algorithms() {
 
 void run_final_algorithm() {
   long long time_span;
-  unsigned int num_iterations = 100000000;
+  unsigned int num_iterations = 1000000;
   
   State best_start;
 
