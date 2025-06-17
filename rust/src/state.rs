@@ -119,7 +119,7 @@ impl State {
             }
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for day in 1..num_of_days as usize {
             let mut shuffled_ms = ms.clone();
             shuffled_ms.shuffle(&mut rng);
