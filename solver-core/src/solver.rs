@@ -307,9 +307,10 @@ impl State {
             if p1_contacts == 1 {
                 contact_delta -= 1;
             }
-            repetition_delta -= (p1_contacts - 1).pow(2) as i32;
             if p1_contacts > 1 {
-                repetition_delta += (p1_contacts - 2).pow(2) as i32;
+                let old_penalty = (p1_contacts - 1).pow(2) as i32;
+                let new_penalty = (p1_contacts - 2).pow(2) as i32;
+                repetition_delta += new_penalty - old_penalty;
             }
 
             // p2 now meets member
@@ -317,9 +318,10 @@ impl State {
             if p2_contacts == 0 {
                 contact_delta += 1;
             }
-            repetition_delta += (p2_contacts + 1).pow(2) as i32;
             if p2_contacts > 0 {
-                repetition_delta -= p2_contacts.pow(2) as i32;
+                let old_penalty = (p2_contacts - 1).pow(2) as i32;
+                let new_penalty = (p2_contacts).pow(2) as i32;
+                repetition_delta += new_penalty - old_penalty;
             }
         }
 
@@ -333,9 +335,10 @@ impl State {
             if p2_contacts == 1 {
                 contact_delta -= 1;
             }
-            repetition_delta -= (p2_contacts - 1).pow(2) as i32;
             if p2_contacts > 1 {
-                repetition_delta += (p2_contacts - 2).pow(2) as i32;
+                let old_penalty = (p2_contacts - 1).pow(2) as i32;
+                let new_penalty = (p2_contacts - 2).pow(2) as i32;
+                repetition_delta += new_penalty - old_penalty;
             }
 
             // p1 now meets member
@@ -343,9 +346,10 @@ impl State {
             if p1_contacts == 0 {
                 contact_delta += 1;
             }
-            repetition_delta += (p1_contacts + 1).pow(2) as i32;
             if p1_contacts > 0 {
-                repetition_delta -= p1_contacts.pow(2) as i32;
+                let old_penalty = (p1_contacts - 1).pow(2) as i32;
+                let new_penalty = (p1_contacts).pow(2) as i32;
+                repetition_delta += new_penalty - old_penalty;
             }
         }
 
