@@ -16,6 +16,12 @@ pub struct State {
     pub person_idx_to_id: Vec<String>,
     pub group_id_to_idx: HashMap<String, usize>,
     pub group_idx_to_id: Vec<String>,
+    // Attribute key ("gender") -> internal index (0)
+    pub attr_key_to_idx: HashMap<String, usize>,
+    // For each attribute, Value String ("male") -> value index (0)
+    pub attr_val_to_idx: Vec<HashMap<String, usize>>,
+    // For each attribute, value index (0) -> Value String ("male")
+    pub attr_idx_to_val: Vec<Vec<String>>,
 
     // --- Core Data Structures ---
     // The main schedule: [day][group_idx] -> Vec<person_idx>
@@ -23,8 +29,9 @@ pub struct State {
     // Fast lookup for a person's location: [day][person_idx] -> (group_idx, vec_idx)
     pub locations: Vec<Vec<(usize, usize)>>,
 
-    // --- Problem Definition ---
-    pub person_attributes: Vec<HashMap<String, String>>,
+    // --- Problem Definition (integer-based) ---
+    // [person_idx][attr_idx] -> value_idx for that attribute
+    pub person_attributes: Vec<Vec<usize>>,
     pub attribute_balance_constraints: Vec<AttributeBalanceParams>,
     pub num_sessions: u32,
 
@@ -67,12 +74,46 @@ impl State {
         let group_idx_to_id: Vec<String> =
             input.problem.groups.iter().map(|g| g.id.clone()).collect();
 
-        let person_attributes: Vec<HashMap<String, String>> = input
-            .problem
-            .people
-            .iter()
-            .map(|p| p.attributes.clone())
-            .collect();
+        // --- Build Attribute Mappings ---
+        let mut attr_key_to_idx = HashMap::new();
+        let mut attr_val_to_idx: Vec<HashMap<String, usize>> = Vec::new();
+        let mut attr_idx_to_val: Vec<Vec<String>> = Vec::new();
+
+        let all_constraints = &input.constraints;
+        for constraint in all_constraints {
+            if let Constraint::AttributeBalance(params) = constraint {
+                if !attr_key_to_idx.contains_key(&params.attribute_key) {
+                    let attr_idx = attr_key_to_idx.len();
+                    attr_key_to_idx.insert(params.attribute_key.clone(), attr_idx);
+                    attr_val_to_idx.push(HashMap::new());
+                    attr_idx_to_val.push(Vec::new());
+                }
+            }
+        }
+        for person in &input.problem.people {
+            for (key, val) in &person.attributes {
+                if let Some(&attr_idx) = attr_key_to_idx.get(key) {
+                    let val_map = &mut attr_val_to_idx[attr_idx];
+                    if !val_map.contains_key(val) {
+                        let val_idx = val_map.len();
+                        val_map.insert(val.clone(), val_idx);
+                        attr_idx_to_val[attr_idx].push(val.clone());
+                    }
+                }
+            }
+        }
+
+        // --- Convert Person Attributes to Integer-based format ---
+        let mut person_attributes = vec![vec![usize::MAX; attr_key_to_idx.len()]; people_count];
+        for (p_idx, person) in input.problem.people.iter().enumerate() {
+            for (key, val) in &person.attributes {
+                if let Some(&attr_idx) = attr_key_to_idx.get(key) {
+                    if let Some(&val_idx) = attr_val_to_idx[attr_idx].get(val) {
+                        person_attributes[p_idx][attr_idx] = val_idx;
+                    }
+                }
+            }
+        }
 
         let attribute_balance_constraints = input
             .constraints
@@ -133,6 +174,9 @@ impl State {
             person_idx_to_id,
             group_id_to_idx,
             group_idx_to_id,
+            attr_key_to_idx,
+            attr_val_to_idx,
+            attr_idx_to_val,
             schedule,
             locations,
             person_attributes,
@@ -206,26 +250,29 @@ impl State {
                 let group_id = &self.group_idx_to_id[group_idx];
 
                 for constraint in &self.attribute_balance_constraints {
-                    // Check if constraint applies to this group (or all groups)
                     if &constraint.group_id != group_id && constraint.group_id != "ALL" {
                         continue;
                     }
 
-                    // Calculate actual counts of each attribute value in the group
-                    let mut value_counts: HashMap<String, u32> = HashMap::new();
-                    for person_idx in group_people {
-                        if let Some(attr_val) =
-                            self.person_attributes[*person_idx].get(&constraint.attribute_key)
-                        {
-                            *value_counts.entry(attr_val.clone()).or_insert(0) += 1;
+                    if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
+                        let num_values = self.attr_idx_to_val[attr_idx].len();
+                        let mut value_counts = vec![0; num_values];
+                        for person_idx in group_people {
+                            let val_idx = self.person_attributes[*person_idx][attr_idx];
+                            if val_idx != usize::MAX {
+                                value_counts[val_idx] += 1;
+                            }
                         }
-                    }
 
-                    // Compare with desired counts and add to penalty
-                    for (desired_val, desired_count) in &constraint.desired_values {
-                        let actual_count = *value_counts.get(desired_val).unwrap_or(&0);
-                        let diff = (actual_count as i32 - *desired_count as i32).abs();
-                        self.gender_balance_penalty += diff.pow(2) as i32; // Squared penalty
+                        for (desired_val_str, desired_count) in &constraint.desired_values {
+                            if let Some(&val_idx) =
+                                self.attr_val_to_idx[attr_idx].get(desired_val_str)
+                            {
+                                let actual_count = value_counts[val_idx];
+                                let diff = (actual_count as i32 - *desired_count as i32).abs();
+                                self.gender_balance_penalty += diff.pow(2) as i32;
+                            }
+                        }
                     }
                 }
             }
@@ -236,23 +283,24 @@ impl State {
         if self.attribute_balance_constraints.is_empty() {
             return 0;
         }
-
         let mut penalty = 0;
-        // This currently only supports one gender balance constraint for all groups
-        // but could be extended.
         if let Some(constraint) = self.attribute_balance_constraints.first() {
-            let mut value_counts: HashMap<String, u32> = HashMap::new();
-            for person_idx in group_people {
-                if let Some(attr_val) =
-                    self.person_attributes[*person_idx].get(&constraint.attribute_key)
-                {
-                    *value_counts.entry(attr_val.clone()).or_insert(0) += 1;
+            if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
+                let num_values = self.attr_idx_to_val[attr_idx].len();
+                let mut value_counts = vec![0; num_values];
+                for person_idx in group_people {
+                    let val_idx = self.person_attributes[*person_idx][attr_idx];
+                    if val_idx != usize::MAX {
+                        value_counts[val_idx] += 1;
+                    }
                 }
-            }
-            for (desired_val, desired_count) in &constraint.desired_values {
-                let actual_count = *value_counts.get(desired_val).unwrap_or(&0);
-                let diff = (actual_count as i32 - *desired_count as i32).abs();
-                penalty += diff.pow(2) as i32; // Squared penalty
+                for (desired_val_str, desired_count) in &constraint.desired_values {
+                    if let Some(&val_idx) = self.attr_val_to_idx[attr_idx].get(desired_val_str) {
+                        let actual_count = value_counts[val_idx];
+                        let diff = (actual_count as i32 - *desired_count as i32).abs();
+                        penalty += diff.pow(2) as i32;
+                    }
+                }
             }
         }
         penalty
@@ -260,31 +308,47 @@ impl State {
 
     fn _calculate_one_group_attribute_penalty_incremental(
         &self,
-        value_counts: &HashMap<String, u32>,
+        value_counts: &mut Vec<u32>,
         constraint: &AttributeBalanceParams,
-        p_in_attr: Option<&String>,
-        p_out_attr: Option<&String>,
+        attr_idx: usize,
+        p_in_attr_val: usize,
+        p_out_attr_val: usize,
     ) -> i32 {
-        if p_in_attr == p_out_attr {
+        if p_in_attr_val == p_out_attr_val {
             return 0; // No change in attribute counts
         }
 
-        let mut penalty = 0;
-        for (attr, desired_count) in &constraint.desired_values {
-            let current_count = *value_counts.get(attr).unwrap_or(&0);
-            let old_diff = (current_count as i32 - *desired_count as i32).pow(2);
+        let mut penalty_delta = 0;
 
-            let mut new_count = current_count;
-            if Some(attr) == p_in_attr {
-                new_count += 1;
+        // --- Process p_out ---
+        if p_out_attr_val != usize::MAX {
+            if let Some(desired_count) = constraint
+                .desired_values
+                .get(&self.attr_idx_to_val[attr_idx][p_out_attr_val])
+            {
+                let current_count = value_counts[p_out_attr_val];
+                let old_diff_sq = (current_count as i32 - *desired_count as i32).pow(2);
+                let new_diff_sq = (current_count as i32 - 1 - *desired_count as i32).pow(2);
+                penalty_delta += new_diff_sq - old_diff_sq;
+                value_counts[p_out_attr_val] -= 1;
             }
-            if Some(attr) == p_out_attr {
-                new_count = new_count.saturating_sub(1);
-            }
-            let new_diff = (new_count as i32 - *desired_count as i32).pow(2);
-            penalty += new_diff - old_diff;
         }
-        penalty
+
+        // --- Process p_in ---
+        if p_in_attr_val != usize::MAX {
+            if let Some(desired_count) = constraint
+                .desired_values
+                .get(&self.attr_idx_to_val[attr_idx][p_in_attr_val])
+            {
+                let current_count = value_counts[p_in_attr_val];
+                let old_diff_sq = (current_count as i32 - *desired_count as i32).pow(2);
+                let new_diff_sq = (current_count as i32 + 1 - *desired_count as i32).pow(2);
+                penalty_delta += new_diff_sq - old_diff_sq;
+                value_counts[p_in_attr_val] += 1;
+            }
+        }
+
+        penalty_delta
     }
 
     /// Calculate the change in score if p1 and p2 were swapped on a given day.
@@ -355,41 +419,46 @@ impl State {
 
         // --- Gender Balance Delta ---
         let mut gender_balance_delta = 0;
-        let p1_gender = self.person_attributes[p1_idx].get("gender");
-        let p2_gender = self.person_attributes[p2_idx].get("gender");
+        for constraint in &self.attribute_balance_constraints {
+            if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
+                let p1_attr_val = self.person_attributes[p1_idx][attr_idx];
+                let p2_attr_val = self.person_attributes[p2_idx][attr_idx];
 
-        // Only calculate if the people have different genders, otherwise no change
-        if p1_gender.is_some() && p1_gender != p2_gender {
-            // This logic assumes a single "gender" attribute constraint.
-            // It would need to be generalized for multiple attribute constraints.
-            if let Some(constraint) = self.attribute_balance_constraints.first() {
-                let mut g1_counts = HashMap::new();
+                if p1_attr_val == p2_attr_val {
+                    continue;
+                }
+
+                // Calculate for g1
+                let mut g1_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
                 for p_idx in &self.schedule[day][g1_idx] {
-                    if let Some(attr) =
-                        self.person_attributes[*p_idx].get(&constraint.attribute_key)
-                    {
-                        *g1_counts.entry(attr.clone()).or_insert(0) += 1;
+                    let val_idx = self.person_attributes[*p_idx][attr_idx];
+                    if val_idx != usize::MAX {
+                        g1_counts[val_idx] += 1;
                     }
                 }
+                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
+                    &mut g1_counts,
+                    constraint,
+                    attr_idx,
+                    p2_attr_val,
+                    p1_attr_val,
+                );
 
-                let mut g2_counts = HashMap::new();
+                // Calculate for g2
+                let mut g2_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
                 for p_idx in &self.schedule[day][g2_idx] {
-                    if let Some(attr) =
-                        self.person_attributes[*p_idx].get(&constraint.attribute_key)
-                    {
-                        *g2_counts.entry(attr.clone()).or_insert(0) += 1;
+                    let val_idx = self.person_attributes[*p_idx][attr_idx];
+                    if val_idx != usize::MAX {
+                        g2_counts[val_idx] += 1;
                     }
                 }
-
-                let g1_delta = self._calculate_one_group_attribute_penalty_incremental(
-                    &g1_counts, constraint, p2_gender, // p2 is moving IN to g1
-                    p1_gender, // p1 is moving OUT of g1
+                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
+                    &mut g2_counts,
+                    constraint,
+                    attr_idx,
+                    p1_attr_val,
+                    p2_attr_val,
                 );
-                let g2_delta = self._calculate_one_group_attribute_penalty_incremental(
-                    &g2_counts, constraint, p1_gender, // p1 is moving IN to g2
-                    p2_gender, // p2 is moving OUT of g2
-                );
-                gender_balance_delta = g1_delta + g2_delta;
             }
         }
 
