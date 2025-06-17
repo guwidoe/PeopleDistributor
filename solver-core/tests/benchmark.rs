@@ -13,7 +13,7 @@ fn create_benchmark_input() -> ApiInput {
     let num_groups = 5;
     let group_size = 6;
     let num_sessions = 10;
-    let iterations = 10_000;
+    let iterations = 1_000_000;
 
     let people: Vec<Person> = (0..num_people)
         .map(|i| {

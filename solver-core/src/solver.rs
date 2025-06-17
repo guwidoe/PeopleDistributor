@@ -232,6 +232,166 @@ impl State {
         }
     }
 
+    fn _calculate_one_group_gender_penalty(&self, group_people: &[usize]) -> i32 {
+        if self.attribute_balance_constraints.is_empty() {
+            return 0;
+        }
+
+        let mut penalty = 0;
+        // This currently only supports one gender balance constraint for all groups
+        // but could be extended.
+        if let Some(constraint) = self.attribute_balance_constraints.first() {
+            let mut value_counts: HashMap<String, u32> = HashMap::new();
+            for person_idx in group_people {
+                if let Some(attr_val) =
+                    self.person_attributes[*person_idx].get(&constraint.attribute_key)
+                {
+                    *value_counts.entry(attr_val.clone()).or_insert(0) += 1;
+                }
+            }
+            for (desired_val, desired_count) in &constraint.desired_values {
+                let actual_count = *value_counts.get(desired_val).unwrap_or(&0);
+                let diff = (actual_count as i32 - *desired_count as i32).abs();
+                penalty += diff.pow(2) as i32; // Squared penalty
+            }
+        }
+        penalty
+    }
+
+    fn _calculate_one_group_attribute_penalty_incremental(
+        &self,
+        value_counts: &HashMap<String, u32>,
+        constraint: &AttributeBalanceParams,
+        p_in_attr: Option<&String>,
+        p_out_attr: Option<&String>,
+    ) -> i32 {
+        if p_in_attr == p_out_attr {
+            return 0; // No change in attribute counts
+        }
+
+        let mut penalty = 0;
+        for (attr, desired_count) in &constraint.desired_values {
+            let current_count = *value_counts.get(attr).unwrap_or(&0);
+            let old_diff = (current_count as i32 - *desired_count as i32).pow(2);
+
+            let mut new_count = current_count;
+            if Some(attr) == p_in_attr {
+                new_count += 1;
+            }
+            if Some(attr) == p_out_attr {
+                new_count = new_count.saturating_sub(1);
+            }
+            let new_diff = (new_count as i32 - *desired_count as i32).pow(2);
+            penalty += new_diff - old_diff;
+        }
+        penalty
+    }
+
+    /// Calculate the change in score if p1 and p2 were swapped on a given day.
+    /// This is the performance-critical function.
+    fn _calculate_score_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> (i32, i32, i32) {
+        let (g1_idx, _) = self.locations[day][p1_idx];
+        let (g2_idx, _) = self.locations[day][p2_idx];
+
+        let mut contact_delta = 0;
+        let mut repetition_delta = 0;
+
+        // --- Contact & Repetition Delta ---
+        // Process effect of p1 leaving g1 and p2 joining it
+        for &member_idx in &self.schedule[day][g1_idx] {
+            if member_idx == p1_idx {
+                continue;
+            }
+            // p1 no longer meets member
+            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
+            if p1_contacts == 1 {
+                contact_delta -= 1;
+            }
+            repetition_delta -= (p1_contacts - 1).pow(2) as i32;
+            if p1_contacts > 1 {
+                repetition_delta += (p1_contacts - 2).pow(2) as i32;
+            }
+
+            // p2 now meets member
+            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
+            if p2_contacts == 0 {
+                contact_delta += 1;
+            }
+            repetition_delta += (p2_contacts + 1).pow(2) as i32;
+            if p2_contacts > 0 {
+                repetition_delta -= p2_contacts.pow(2) as i32;
+            }
+        }
+
+        // Process effect of p2 leaving g2 and p1 joining it
+        for &member_idx in &self.schedule[day][g2_idx] {
+            if member_idx == p2_idx {
+                continue;
+            }
+            // p2 no longer meets member
+            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
+            if p2_contacts == 1 {
+                contact_delta -= 1;
+            }
+            repetition_delta -= (p2_contacts - 1).pow(2) as i32;
+            if p2_contacts > 1 {
+                repetition_delta += (p2_contacts - 2).pow(2) as i32;
+            }
+
+            // p1 now meets member
+            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
+            if p1_contacts == 0 {
+                contact_delta += 1;
+            }
+            repetition_delta += (p1_contacts + 1).pow(2) as i32;
+            if p1_contacts > 0 {
+                repetition_delta -= p1_contacts.pow(2) as i32;
+            }
+        }
+
+        // --- Gender Balance Delta ---
+        let mut gender_balance_delta = 0;
+        let p1_gender = self.person_attributes[p1_idx].get("gender");
+        let p2_gender = self.person_attributes[p2_idx].get("gender");
+
+        // Only calculate if the people have different genders, otherwise no change
+        if p1_gender.is_some() && p1_gender != p2_gender {
+            // This logic assumes a single "gender" attribute constraint.
+            // It would need to be generalized for multiple attribute constraints.
+            if let Some(constraint) = self.attribute_balance_constraints.first() {
+                let mut g1_counts = HashMap::new();
+                for p_idx in &self.schedule[day][g1_idx] {
+                    if let Some(attr) =
+                        self.person_attributes[*p_idx].get(&constraint.attribute_key)
+                    {
+                        *g1_counts.entry(attr.clone()).or_insert(0) += 1;
+                    }
+                }
+
+                let mut g2_counts = HashMap::new();
+                for p_idx in &self.schedule[day][g2_idx] {
+                    if let Some(attr) =
+                        self.person_attributes[*p_idx].get(&constraint.attribute_key)
+                    {
+                        *g2_counts.entry(attr.clone()).or_insert(0) += 1;
+                    }
+                }
+
+                let g1_delta = self._calculate_one_group_attribute_penalty_incremental(
+                    &g1_counts, constraint, p2_gender, // p2 is moving IN to g1
+                    p1_gender, // p1 is moving OUT of g1
+                );
+                let g2_delta = self._calculate_one_group_attribute_penalty_incremental(
+                    &g2_counts, constraint, p1_gender, // p1 is moving IN to g2
+                    p2_gender, // p2 is moving OUT of g2
+                );
+                gender_balance_delta = g1_delta + g2_delta;
+            }
+        }
+
+        (contact_delta, repetition_delta, gender_balance_delta)
+    }
+
     pub fn swap(
         &mut self,
         day: usize,
@@ -247,40 +407,50 @@ impl State {
             return;
         }
 
-        // --- Calculate score before the swap ---
-        let score_before = self.unique_contacts as f64 * self.w_contacts
-            - self.repetition_penalty as f64 * self.w_repetition
-            - self.gender_balance_penalty as f64 * self.w_gender;
+        let (contact_delta, repetition_delta, gender_balance_delta) =
+            self._calculate_score_delta(day, p1_idx, p2_idx);
 
-        // --- Temporarily perform the swap to calculate the potential new score ---
-        self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
-        self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
-
-        let old_contacts = self.unique_contacts;
-        let old_penalty = self.repetition_penalty;
-        let old_gender_penalty = self.gender_balance_penalty;
-
-        // Recalculate scores based on the new arrangement
-        self.recalculate_scores();
-
-        let score_after = self.unique_contacts as f64 * self.w_contacts
-            - self.repetition_penalty as f64 * self.w_repetition
-            - self.gender_balance_penalty as f64 * self.w_gender;
-
-        let score_delta = score_after - score_before;
+        let score_delta = contact_delta as f64 * self.w_contacts
+            - repetition_delta as f64 * self.w_repetition
+            - gender_balance_delta as f64 * self.w_gender;
 
         // --- Decide whether to keep the swap ---
         if score_delta >= 0.0 || rng.gen::<f64>() < (score_delta / temp).exp() {
-            // Keep the swap: update locations
+            // --- Update Contact Matrix ---
+            let g1_members: Vec<usize> = self.schedule[day][g1_idx]
+                .iter()
+                .cloned()
+                .filter(|&p| p != p1_idx)
+                .collect();
+            let g2_members: Vec<usize> = self.schedule[day][g2_idx]
+                .iter()
+                .cloned()
+                .filter(|&p| p != p2_idx)
+                .collect();
+
+            for member_idx in g1_members {
+                self.contact_matrix[p1_idx][member_idx] -= 1;
+                self.contact_matrix[member_idx][p1_idx] -= 1;
+                self.contact_matrix[p2_idx][member_idx] += 1;
+                self.contact_matrix[member_idx][p2_idx] += 1;
+            }
+            for member_idx in g2_members {
+                self.contact_matrix[p2_idx][member_idx] -= 1;
+                self.contact_matrix[member_idx][p2_idx] -= 1;
+                self.contact_matrix[p1_idx][member_idx] += 1;
+                self.contact_matrix[member_idx][p1_idx] += 1;
+            }
+
+            // --- Perform Swap in schedule and locations---
+            self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
+            self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
             self.locations[day][p1_idx] = (g2_idx, p2_vec_idx);
             self.locations[day][p2_idx] = (g1_idx, p1_vec_idx);
-        } else {
-            // Reject the swap: revert schedule and scores
-            self.schedule[day][g1_idx][p1_vec_idx] = p1_idx;
-            self.schedule[day][g2_idx][p2_vec_idx] = p2_idx;
-            self.unique_contacts = old_contacts;
-            self.repetition_penalty = old_penalty;
-            self.gender_balance_penalty = old_gender_penalty;
+
+            // --- Update Scores ---
+            self.unique_contacts += contact_delta;
+            self.repetition_penalty += repetition_delta;
+            self.gender_balance_penalty += gender_balance_delta;
         }
     }
 
