@@ -482,8 +482,12 @@ impl State {
         let m1 = self.random() as u32 % self.num_ms_per_group;
         let m2 = self.random() as u32 % self.num_ms_per_group;
 
-        if self.contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2) > 0 {
+        let contact_delta = self.contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
+        if contact_delta > 0 {
+            let penalty_delta = self.penalty_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
             self.swap_m(day, m_gr1, m1, m_gr2, m2);
+            self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         }
     }
 
@@ -494,8 +498,12 @@ impl State {
         let f1 = self.random() as u32 % self.num_fs_per_group;
         let f2 = self.random() as u32 % self.num_fs_per_group;
 
-        if self.contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2) > 0 {
+        let contact_delta = self.contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
+        if contact_delta > 0 {
+            let penalty_delta = self.penalty_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
             self.swap_f(day, f_gr1, f1, f_gr2, f2);
+            self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         }
     }
 
@@ -511,13 +519,17 @@ impl State {
         let contact_delta = self.contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
 
         if contact_delta > 0 {
+            let penalty_delta = self.penalty_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
             self.swap_m(day, m_gr1, m1, m_gr2, m2);
             self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         } else if (self.random() as f64 / std::u64::MAX as f64)
             < (contact_delta as f64 / temp).exp()
         {
+            let penalty_delta = self.penalty_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
             self.swap_m(day, m_gr1, m1, m_gr2, m2);
             self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         }
 
         let f_gr1 = self.random() as u32 % self.num_of_groups;
@@ -530,13 +542,17 @@ impl State {
         let contact_delta = self.contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
 
         if contact_delta > 0 {
+            let penalty_delta = self.penalty_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
             self.swap_f(day, f_gr1, f1, f_gr2, f2);
             self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         } else if (self.random() as f64 / std::u64::MAX as f64)
             < (contact_delta as f64 / temp).exp()
         {
+            let penalty_delta = self.penalty_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
             self.swap_f(day, f_gr1, f1, f_gr2, f2);
             self.curr_num_contacts += contact_delta;
+            self.curr_penalty += penalty_delta;
         }
     }
 
@@ -552,13 +568,17 @@ impl State {
         let penalty_delta = self.penalty_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
 
         if penalty_delta < 0 {
+            let contact_delta = self.contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
             self.swap_m(day, m_gr1, m1, m_gr2, m2);
             self.curr_penalty += penalty_delta;
+            self.curr_num_contacts += contact_delta;
         } else if (self.random() as f64 / std::u64::MAX as f64)
             < (-penalty_delta as f64 / temp).exp()
         {
+            let contact_delta = self.contact_delta_of_swap_m(day, m_gr1, m1, m_gr2, m2);
             self.swap_m(day, m_gr1, m1, m_gr2, m2);
             self.curr_penalty += penalty_delta;
+            self.curr_num_contacts += contact_delta;
         }
 
         let f_gr1 = self.random() as u32 % self.num_of_groups;
@@ -571,13 +591,17 @@ impl State {
         let penalty_delta = self.penalty_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
 
         if penalty_delta < 0 {
+            let contact_delta = self.contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
             self.swap_f(day, f_gr1, f1, f_gr2, f2);
             self.curr_penalty += penalty_delta;
+            self.curr_num_contacts += contact_delta;
         } else if (self.random() as f64 / std::u64::MAX as f64)
             < (-penalty_delta as f64 / temp).exp()
         {
+            let contact_delta = self.contact_delta_of_swap_f(day, f_gr1, f1, f_gr2, f2);
             self.swap_f(day, f_gr1, f1, f_gr2, f2);
             self.curr_penalty += penalty_delta;
+            self.curr_num_contacts += contact_delta;
         }
     }
 
