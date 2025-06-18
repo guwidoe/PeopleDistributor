@@ -35,7 +35,7 @@ impl SimulatedAnnealing {
 
 impl Solver for SimulatedAnnealing {
     fn solve(&self, state: &mut State) -> SolverResult {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut temp = self.params.initial_temperature;
         let final_temp = self.params.final_temperature;
         let cooling_rate = (final_temp / temp).powf(1.0 / self.max_iterations as f64);
@@ -50,9 +50,9 @@ impl Solver for SimulatedAnnealing {
 
         // Main simulated annealing loop
         for _ in 0..self.max_iterations {
-            let p1_idx = rng.gen_range(0..state.person_idx_to_id.len());
-            let p2_idx = rng.gen_range(0..state.person_idx_to_id.len());
-            let day = rng.gen_range(0..state.num_sessions as usize);
+            let p1_idx = rng.random_range(0..state.person_idx_to_id.len());
+            let p2_idx = rng.random_range(0..state.person_idx_to_id.len());
+            let day = rng.random_range(0..state.num_sessions as usize);
 
             let (g1_idx, _) = state.locations[day][p1_idx];
             let (g2_idx, _) = state.locations[day][p2_idx];
@@ -65,7 +65,7 @@ impl Solver for SimulatedAnnealing {
                     - repetition_delta as f64 * state.w_repetition
                     - gender_balance_delta as f64 * state.w_gender;
 
-                if score_delta >= 0.0 || rng.gen::<f64>() < (score_delta / temp).exp() {
+                if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
                     state._apply_swap(day, p1_idx, p2_idx, deltas);
                 }
             }
