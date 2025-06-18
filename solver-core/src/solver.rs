@@ -353,7 +353,12 @@ impl State {
 
     /// Calculate the change in score if p1 and p2 were swapped on a given day.
     /// This is the performance-critical function.
-    fn _calculate_score_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> (i32, i32, i32) {
+    pub(crate) fn _calculate_score_delta(
+        &self,
+        day: usize,
+        p1_idx: usize,
+        p2_idx: usize,
+    ) -> (i32, i32, i32) {
         let (g1_idx, _) = self.locations[day][p1_idx];
         let (g2_idx, _) = self.locations[day][p2_idx];
 
@@ -465,66 +470,52 @@ impl State {
         (contact_delta, repetition_delta, gender_balance_delta)
     }
 
-    pub fn swap(
+    /// Applies a swap to the state and updates the scores using pre-calculated deltas.
+    pub(crate) fn _apply_swap(
         &mut self,
         day: usize,
         p1_idx: usize,
         p2_idx: usize,
-        temp: f64,
-        rng: &mut impl Rng,
+        (contact_delta, repetition_delta, gender_balance_delta): (i32, i32, i32),
     ) {
         let (g1_idx, p1_vec_idx) = self.locations[day][p1_idx];
         let (g2_idx, p2_vec_idx) = self.locations[day][p2_idx];
 
-        if g1_idx == g2_idx {
-            return;
+        // --- Update Contact Matrix ---
+        let g1_members: Vec<usize> = self.schedule[day][g1_idx]
+            .iter()
+            .cloned()
+            .filter(|&p| p != p1_idx)
+            .collect();
+        let g2_members: Vec<usize> = self.schedule[day][g2_idx]
+            .iter()
+            .cloned()
+            .filter(|&p| p != p2_idx)
+            .collect();
+
+        for member_idx in g1_members {
+            self.contact_matrix[p1_idx][member_idx] -= 1;
+            self.contact_matrix[member_idx][p1_idx] -= 1;
+            self.contact_matrix[p2_idx][member_idx] += 1;
+            self.contact_matrix[member_idx][p2_idx] += 1;
+        }
+        for member_idx in g2_members {
+            self.contact_matrix[p2_idx][member_idx] -= 1;
+            self.contact_matrix[member_idx][p2_idx] -= 1;
+            self.contact_matrix[p1_idx][member_idx] += 1;
+            self.contact_matrix[member_idx][p1_idx] += 1;
         }
 
-        let (contact_delta, repetition_delta, gender_balance_delta) =
-            self._calculate_score_delta(day, p1_idx, p2_idx);
+        // --- Perform Swap in schedule and locations---
+        self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
+        self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
+        self.locations[day][p1_idx] = (g2_idx, p2_vec_idx);
+        self.locations[day][p2_idx] = (g1_idx, p1_vec_idx);
 
-        let score_delta = contact_delta as f64 * self.w_contacts
-            - repetition_delta as f64 * self.w_repetition
-            - gender_balance_delta as f64 * self.w_gender;
-
-        // --- Decide whether to keep the swap ---
-        if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
-            // --- Update Contact Matrix ---
-            let g1_members: Vec<usize> = self.schedule[day][g1_idx]
-                .iter()
-                .cloned()
-                .filter(|&p| p != p1_idx)
-                .collect();
-            let g2_members: Vec<usize> = self.schedule[day][g2_idx]
-                .iter()
-                .cloned()
-                .filter(|&p| p != p2_idx)
-                .collect();
-
-            for member_idx in g1_members {
-                self.contact_matrix[p1_idx][member_idx] -= 1;
-                self.contact_matrix[member_idx][p1_idx] -= 1;
-                self.contact_matrix[p2_idx][member_idx] += 1;
-                self.contact_matrix[member_idx][p2_idx] += 1;
-            }
-            for member_idx in g2_members {
-                self.contact_matrix[p2_idx][member_idx] -= 1;
-                self.contact_matrix[member_idx][p2_idx] -= 1;
-                self.contact_matrix[p1_idx][member_idx] += 1;
-                self.contact_matrix[member_idx][p1_idx] += 1;
-            }
-
-            // --- Perform Swap in schedule and locations---
-            self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
-            self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
-            self.locations[day][p1_idx] = (g2_idx, p2_vec_idx);
-            self.locations[day][p2_idx] = (g1_idx, p1_vec_idx);
-
-            // --- Update Scores ---
-            self.unique_contacts += contact_delta;
-            self.repetition_penalty += repetition_delta;
-            self.gender_balance_penalty += gender_balance_delta;
-        }
+        // --- Update Scores ---
+        self.unique_contacts += contact_delta;
+        self.repetition_penalty += repetition_delta;
+        self.gender_balance_penalty += gender_balance_delta;
     }
 
     pub fn to_solver_result(&self, final_score: f64) -> SolverResult {
@@ -547,74 +538,6 @@ impl State {
             schedule,
         }
     }
-}
-
-pub fn run_solver(input: ApiInput) -> SolverResult {
-    let mut state = State::new(&input);
-    let mut rng = rand::rng();
-
-    // Extract solver params
-    let (initial_temp, final_temp, cooling_schedule) =
-        if let Some(crate::models::SolverParams::SimulatedAnnealing(params)) =
-            input.solver.solver_params.as_ref()
-        {
-            (
-                params.initial_temperature,
-                params.final_temperature,
-                params.cooling_schedule.as_str(),
-            )
-        } else {
-            // Default values if not specified
-            (1.0, 0.001, "geometric")
-        };
-
-    let max_iter = input
-        .solver
-        .stop_conditions
-        .max_iterations
-        .unwrap_or(100_000);
-    let cooling_rate = (final_temp / initial_temp).powf(1.0 / max_iter as f64);
-    let mut temp = initial_temp;
-
-    println!("Solver starting...");
-    println!(" -> Initial Temperature: {}", initial_temp);
-    println!(" -> Max Iterations: {}", max_iter);
-    println!(
-        " -> Initial Scores: Contacts={}, Repetition Penalty={}, Gender Balance Penalty={}",
-        state.unique_contacts, state.repetition_penalty, state.gender_balance_penalty
-    );
-
-    // Main simulated annealing loop
-    for _ in 0..max_iter {
-        let p1 = rng.random_range(0..state.person_idx_to_id.len());
-        let p2 = rng.random_range(0..state.person_idx_to_id.len());
-        let day = rng.random_range(0..state.num_sessions as usize);
-
-        state.swap(day, p1, p2, temp, &mut rng);
-
-        // Cool down temperature
-        match cooling_schedule {
-            "geometric" => temp *= cooling_rate,
-            "linear" => temp -= (initial_temp - final_temp) / max_iter as f64,
-            _ => temp *= cooling_rate, // Default to geometric
-        }
-        if temp < final_temp {
-            temp = final_temp;
-        }
-    }
-
-    let final_score = state.unique_contacts as f64 * state.w_contacts
-        - state.repetition_penalty as f64 * state.w_repetition
-        - state.gender_balance_penalty as f64 * state.w_gender;
-
-    println!("Solver finished.");
-    println!(
-        " -> Final Scores: Contacts={}, Repetition Penalty={}, Gender Balance Penalty={}",
-        state.unique_contacts, state.repetition_penalty, state.gender_balance_penalty
-    );
-    println!(" -> Final Weighted Score: {}", final_score);
-
-    state.to_solver_result(final_score)
 }
 
 #[cfg(test)]
@@ -711,7 +634,8 @@ mod tests {
 
         // 2. Action: Swap person 2 (from G0) with person 3 (from G1) on day 0
         // This swap has a score_delta of 0. It should be accepted.
-        state.swap(0, 2, 3, 1.0, &mut rng);
+        let deltas = state._calculate_score_delta(0, 2, 3);
+        state._apply_swap(0, 2, 3, deltas);
 
         // 3. Assert
         assert_ne!(

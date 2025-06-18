@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use serde::Serialize;
-use solver_core::{models::ApiInput, solver::run_solver};
+use solver_core::{models::ApiInput, run_solver};
 use std::sync::Arc;
 use tokio::task;
 use uuid::Uuid;
@@ -51,13 +51,10 @@ impl JobManager {
 
             let solver_result = run_solver(input);
 
-            manager_clone
-                .jobs
-                .entry(job_id)
-                .and_modify(|j| {
-                    j.status = JobStatus::Completed;
-                    j.result = serde_json::to_string(&solver_result).ok();
-                });
+            manager_clone.jobs.entry(job_id).and_modify(|j| {
+                j.status = JobStatus::Completed;
+                j.result = serde_json::to_string(&solver_result).ok();
+            });
         });
 
         job_id
@@ -66,4 +63,4 @@ impl JobManager {
     pub fn get_job(&self, id: Uuid) -> Option<Job> {
         self.jobs.get(&id).map(|job| job.clone())
     }
-} 
+}

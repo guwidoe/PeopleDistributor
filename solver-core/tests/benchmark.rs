@@ -3,7 +3,7 @@ use solver_core::{
         ApiInput, AttributeBalanceParams, Constraint, Group, Objective, Person, ProblemDefinition,
         SimulatedAnnealingParams, SolverConfiguration, SolverParams, StopConditions,
     },
-    solver::run_solver,
+    run_solver,
 };
 use std::collections::HashMap;
 use std::time::Instant;
