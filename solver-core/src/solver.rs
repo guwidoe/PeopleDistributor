@@ -150,7 +150,7 @@ impl State {
 
         // --- Initialize with a random assignment ---
         let mut person_indices: Vec<usize> = (0..people_count).collect();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for (day_idx, day_schedule) in schedule.iter_mut().enumerate() {
             person_indices.shuffle(&mut rng);
@@ -488,7 +488,7 @@ impl State {
             - gender_balance_delta as f64 * self.w_gender;
 
         // --- Decide whether to keep the swap ---
-        if score_delta >= 0.0 || rng.gen::<f64>() < (score_delta / temp).exp() {
+        if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
             // --- Update Contact Matrix ---
             let g1_members: Vec<usize> = self.schedule[day][g1_idx]
                 .iter()
@@ -551,7 +551,7 @@ impl State {
 
 pub fn run_solver(input: ApiInput) -> SolverResult {
     let mut state = State::new(&input);
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Extract solver params
     let (initial_temp, final_temp, cooling_schedule) =
@@ -586,9 +586,9 @@ pub fn run_solver(input: ApiInput) -> SolverResult {
 
     // Main simulated annealing loop
     for _ in 0..max_iter {
-        let p1 = rng.gen_range(0..state.person_idx_to_id.len());
-        let p2 = rng.gen_range(0..state.person_idx_to_id.len());
-        let day = rng.gen_range(0..state.num_sessions as usize);
+        let p1 = rng.random_range(0..state.person_idx_to_id.len());
+        let p2 = rng.random_range(0..state.person_idx_to_id.len());
+        let day = rng.random_range(0..state.num_sessions as usize);
 
         state.swap(day, p1, p2, temp, &mut rng);
 
