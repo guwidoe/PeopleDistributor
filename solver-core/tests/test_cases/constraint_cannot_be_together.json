@@ -1,0 +1,31 @@
+{
+  "name": "Constraint Test: Cannot Be Together",
+  "input": {
+    "people": [
+      { "id": "p0", "attributes": {} }, { "id": "p1", "attributes": {} }, { "id": "p2", "attributes": {} }, { "id": "p3", "attributes": {} },
+      { "id": "p4", "attributes": {} }, { "id": "p5", "attributes": {} }, { "id": "p6", "attributes": {} }, { "id": "p7", "attributes": {} },
+      { "id": "p8", "attributes": {} }, { "id": "p9", "attributes": {} }, { "id": "p10", "attributes": {} }, { "id": "p11", "attributes": {} }
+    ],
+    "groups": [
+      { "id": "g0", "size": 4 },
+      { "id": "g1", "size": 4 },
+      { "id": "g2", "size": 4 }
+    ],
+    "num_sessions": 3,
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+      {
+        "type": "CannotBeTogether",
+        "people": ["p5", "p6"]
+      }
+    ],
+    "solver_type": "SimulatedAnnealing",
+    "stop_conditions": { "max_iterations": 2000 },
+    "initial_temperature": 1.0,
+    "final_temperature": 0.001,
+    "cooling_schedule": "geometric"
+  },
+  "expected": {
+    "cannot_be_together_respected": true
+  }
+} 

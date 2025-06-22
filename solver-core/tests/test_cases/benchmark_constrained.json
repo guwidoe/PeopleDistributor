@@ -1,0 +1,50 @@
+{
+  "name": "Benchmark: Constrained",
+  "input": {
+    "people": [
+      {"id":"p0","attributes":{"gender":"M"}}, {"id":"p1","attributes":{"gender":"F"}},
+      {"id":"p2","attributes":{"gender":"M"}}, {"id":"p3","attributes":{"gender":"F"}},
+      {"id":"p4","attributes":{"gender":"M"}}, {"id":"p5","attributes":{"gender":"F"}},
+      {"id":"p6","attributes":{"gender":"M"}}, {"id":"p7","attributes":{"gender":"F"}},
+      {"id":"p8","attributes":{"gender":"M"}}, {"id":"p9","attributes":{"gender":"F"}},
+      {"id":"p10","attributes":{"gender":"M"}},{"id":"p11","attributes":{"gender":"F"}},
+      {"id":"p12","attributes":{"gender":"M"}},{"id":"p13","attributes":{"gender":"F"}},
+      {"id":"p14","attributes":{"gender":"M"}},{"id":"p15","attributes":{"gender":"F"}},
+      {"id":"p16","attributes":{"gender":"M"}},{"id":"p17","attributes":{"gender":"F"}},
+      {"id":"p18","attributes":{"gender":"M"}},{"id":"p19","attributes":{"gender":"F"}},
+      {"id":"p20","attributes":{"gender":"M"}},{"id":"p21","attributes":{"gender":"F"}},
+      {"id":"p22","attributes":{"gender":"M"}},{"id":"p23","attributes":{"gender":"F"}},
+      {"id":"p24","attributes":{"gender":"M"}},{"id":"p25","attributes":{"gender":"F"}},
+      {"id":"p26","attributes":{"gender":"M"}},{"id":"p27","attributes":{"gender":"F"}},
+      {"id":"p28","attributes":{"gender":"M"}},{"id":"p29","attributes":{"gender":"F"}}
+    ],
+    "groups": [
+      {"id":"g0","size":6}, {"id":"g1","size":6}, {"id":"g2","size":6},
+      {"id":"g3","size":6}, {"id": "g4","size":6}
+    ],
+    "num_sessions": 10,
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+      {
+        "type": "AttributeBalance",
+        "group_id": "ALL",
+        "attribute_key": "gender",
+        "desired_values": { "M": 3, "F": 3 },
+        "penalty_weight": 10.0
+      },
+      { "type": "MustStayTogether", "people": ["p0", "p1"] },
+      { "type": "MustStayTogether", "people": ["p2", "p3", "p4"] },
+      { "type": "CannotBeTogether", "people": ["p5", "p6"] },
+      { "type": "CannotBeTogether", "people": ["p0", "p10"] }
+    ],
+    "solver_type": "SimulatedAnnealing",
+    "stop_conditions": { "max_iterations": 1000000 },
+    "initial_temperature": 1.0,
+    "final_temperature": 0.0001,
+    "cooling_schedule": "geometric"
+  },
+  "expected": {
+    "must_stay_together_respected": true,
+    "cannot_be_together_respected": true
+  }
+} 

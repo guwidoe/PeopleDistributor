@@ -9,7 +9,7 @@ pub mod solver;
 
 pub fn run_solver(input: ApiInput) -> SolverResult {
     // 1. Create the initial state
-    let mut state = State::new(&input);
+    let mut state = State::new(&input).unwrap();
 
     // 2. Select the solver based on input config
     let solver: Box<dyn Solver> = match input.solver.solver_type.as_str() {

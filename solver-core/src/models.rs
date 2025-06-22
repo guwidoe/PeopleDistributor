@@ -42,6 +42,8 @@ pub enum Constraint {
     RepeatEncounter(RepeatEncounterParams),
     AttributeBalance(AttributeBalanceParams),
     ImmovablePerson(ImmovablePersonParams),
+    MustStayTogether { people: Vec<String> },
+    CannotBeTogether { people: Vec<String> },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -98,4 +100,8 @@ pub struct SimulatedAnnealingParams {
 pub struct SolverResult {
     pub final_score: f64,
     pub schedule: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
+    pub unique_contacts: i32,
+    pub repetition_penalty: i32,
+    pub gender_balance_penalty: i32,
+    pub constraint_penalty: i32,
 }

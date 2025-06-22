@@ -8,12 +8,14 @@ name = "solver_core"
 path = "src/lib.rs"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-rand = "0.9.1"
+serde = { version = "1.0.190", features = ["derive"] }
+rand = { version = "0.9.1", features = ["std_rng"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 indicatif = "0.17.8"
 getrandom = { version = "0.3.3" }
 log = "0.4"
+serde_json = "1.0.108"
+thiserror = "2.0.12"
 
 [dev-dependencies]
 rand_chacha = "0.9.0"
