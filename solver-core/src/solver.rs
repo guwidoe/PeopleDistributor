@@ -707,7 +707,22 @@ impl State {
             delta_score -= (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
         }
 
-        // Hard Constraint Delta
+        // Hard Constraint Delta - Cliques
+        if let Some(c_id) = self.person_to_clique_id[p1_idx] {
+            let clique = &self.cliques[c_id];
+            // If p2 is not in the same clique, this swap would break the clique
+            if self.person_to_clique_id[p2_idx] != Some(c_id) {
+                delta_score -= self.w_constraint * clique.len() as f64;
+            }
+        } else if let Some(c_id) = self.person_to_clique_id[p2_idx] {
+            // Same logic if p2 is in a clique and p1 is not
+            let clique = &self.cliques[c_id];
+            if self.person_to_clique_id[p1_idx] != Some(c_id) {
+                delta_score -= self.w_constraint * clique.len() as f64;
+            }
+        }
+
+        // Hard Constraint Delta - Forbidden Pairs
         for &(p1, p2) in &self.forbidden_pairs {
             let p1_is_swapped = p1_idx == p1 || p2_idx == p1;
             let p2_is_swapped = p1_idx == p2 || p2_idx == p2;
