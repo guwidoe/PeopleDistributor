@@ -821,63 +821,85 @@ impl State {
         // Contact/Repetition updates
         let g1_members = self.schedule[day][g1_idx].clone();
         let g2_members = self.schedule[day][g2_idx].clone();
+
         // p1
         for &member in g1_members.iter() {
             if member == p1_idx {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            self.repetition_penalty -= (count as i32 - 1).pow(2);
-            if count > 1 {
-                self.repetition_penalty += (count as i32 - 2).pow(2);
+            if count > 0 {
+                // This pair is losing a contact
+                if count > 1 {
+                    self.repetition_penalty -= (count as i32 - 1).pow(2);
+                }
+                if count > 2 {
+                    self.repetition_penalty += (count as i32 - 2).pow(2);
+                }
+                if count == 1 {
+                    self.unique_contacts -= 1;
+                }
+                self.contact_matrix[p1_idx][member] -= 1;
+                self.contact_matrix[member][p1_idx] -= 1;
             }
-            if count == 1 {
-                self.unique_contacts -= 1;
-            }
-            self.contact_matrix[p1_idx][member] -= 1;
-            self.contact_matrix[member][p1_idx] -= 1;
         }
         for &member in g2_members.iter() {
             if member == p2_idx {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            self.repetition_penalty -= (count as i32 - 1).pow(2);
-            self.repetition_penalty += (count as i32).pow(2);
-            if count == 0 {
-                self.unique_contacts += 1;
+            if count > 0 {
+                // This pair is gaining a contact
+                if count > 1 {
+                    self.repetition_penalty -= (count as i32 - 1).pow(2);
+                }
+                self.repetition_penalty += (count as i32).pow(2);
+                if count == 1 {
+                    self.unique_contacts += 1;
+                }
+                self.contact_matrix[p1_idx][member] += 1;
+                self.contact_matrix[member][p1_idx] += 1;
             }
-            self.contact_matrix[p1_idx][member] += 1;
-            self.contact_matrix[member][p1_idx] += 1;
         }
+
         // p2
         for &member in g2_members.iter() {
             if member == p2_idx {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            self.repetition_penalty -= (count as i32 - 1).pow(2);
-            if count > 1 {
-                self.repetition_penalty += (count as i32 - 2).pow(2);
+            if count > 0 {
+                // This pair is losing a contact
+                if count > 1 {
+                    self.repetition_penalty -= (count as i32 - 1).pow(2);
+                }
+                if count > 2 {
+                    self.repetition_penalty += (count as i32 - 2).pow(2);
+                }
+                if count == 1 {
+                    self.unique_contacts -= 1;
+                }
+                self.contact_matrix[p2_idx][member] -= 1;
+                self.contact_matrix[member][p2_idx] -= 1;
             }
-            if count == 1 {
-                self.unique_contacts -= 1;
-            }
-            self.contact_matrix[p2_idx][member] -= 1;
-            self.contact_matrix[member][p2_idx] -= 1;
         }
         for &member in g1_members.iter() {
             if member == p1_idx {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            self.repetition_penalty -= (count as i32 - 1).pow(2);
-            self.repetition_penalty += (count as i32).pow(2);
-            if count == 0 {
-                self.unique_contacts += 1;
+            if count > 0 {
+                // This pair is gaining a contact
+                if count > 1 {
+                    self.repetition_penalty -= (count as i32 - 1).pow(2);
+                }
+                self.repetition_penalty += (count as i32).pow(2);
+                if count == 1 {
+                    self.unique_contacts += 1;
+                }
+                self.contact_matrix[p2_idx][member] += 1;
+                self.contact_matrix[member][p2_idx] += 1;
             }
-            self.contact_matrix[p2_idx][member] += 1;
-            self.contact_matrix[member][p2_idx] += 1;
         }
 
         // Perform swap
