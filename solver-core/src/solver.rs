@@ -537,8 +537,8 @@ impl State {
                 self.attr_val_to_idx[self.attr_key_to_idx[&ac.attribute_key]].get(val_str)
             {
                 let actual_count = counts[val_idx];
-                penalty +=
-                    (actual_count as i32 - *desired_count as i32).pow(2) as f64 * ac.penalty_weight;
+                let diff = (actual_count as i32 - *desired_count as i32).abs();
+                penalty += diff.pow(2) as f64 * ac.penalty_weight;
             }
         }
         penalty
@@ -707,6 +707,45 @@ impl State {
             delta_score -= (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
         }
 
+        // Hard Constraint Delta
+        for &(p1, p2) in &self.forbidden_pairs {
+            let p1_is_swapped = p1_idx == p1 || p2_idx == p1;
+            let p2_is_swapped = p1_idx == p2 || p2_idx == p2;
+
+            // If the pair is not involved in the swap, no change
+            if !p1_is_swapped && !p2_is_swapped {
+                continue;
+            }
+
+            // Penalty before swap
+            if g1_members.contains(&p1) && g1_members.contains(&p2) {
+                delta_score += self.w_constraint;
+            }
+            if g2_members.contains(&p1) && g2_members.contains(&p2) {
+                delta_score += self.w_constraint;
+            }
+
+            // Penalty after swap
+            let mut next_g1_members: Vec<usize> = g1_members
+                .iter()
+                .filter(|&&p| p != p1_idx)
+                .cloned()
+                .collect();
+            next_g1_members.push(p2_idx);
+            let mut next_g2_members: Vec<usize> = g2_members
+                .iter()
+                .filter(|&&p| p != p2_idx)
+                .cloned()
+                .collect();
+            next_g2_members.push(p1_idx);
+            if next_g1_members.contains(&p1) && next_g1_members.contains(&p2) {
+                delta_score -= self.w_constraint;
+            }
+            if next_g2_members.contains(&p1) && next_g2_members.contains(&p2) {
+                delta_score -= self.w_constraint;
+            }
+        }
+
         delta_score
     }
 
@@ -793,6 +832,9 @@ impl State {
             self.attribute_balance_penalty +=
                 self.calculate_group_attribute_penalty_for_members(&self.schedule[day][g2_idx], ac);
         }
+
+        // A full recalculation is cheap enough for this simple constraint
+        self._recalculate_constraint_penalty();
     }
 }
 
