@@ -115,6 +115,7 @@ impl Solver for SimulatedAnnealing {
             );
         }
 
+        best_state.validate_scores();
         let result = best_state.to_solver_result(final_score);
 
         if state.logging.display_final_schedule {

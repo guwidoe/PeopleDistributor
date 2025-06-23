@@ -848,18 +848,16 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
+            // This pair is gaining a contact
             if count > 0 {
-                // This pair is gaining a contact
-                if count > 1 {
-                    self.repetition_penalty -= (count as i32 - 1).pow(2);
-                }
-                self.repetition_penalty += (count as i32).pow(2);
-                if count == 1 {
-                    self.unique_contacts += 1;
-                }
-                self.contact_matrix[p1_idx][member] += 1;
-                self.contact_matrix[member][p1_idx] += 1;
+                self.repetition_penalty -= (count as i32 - 1).pow(2);
             }
+            self.repetition_penalty += (count as i32).pow(2);
+            if count == 0 {
+                self.unique_contacts += 1;
+            }
+            self.contact_matrix[p1_idx][member] += 1;
+            self.contact_matrix[member][p1_idx] += 1;
         }
 
         // p2
@@ -888,18 +886,16 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
+            // This pair is gaining a contact
             if count > 0 {
-                // This pair is gaining a contact
-                if count > 1 {
-                    self.repetition_penalty -= (count as i32 - 1).pow(2);
-                }
-                self.repetition_penalty += (count as i32).pow(2);
-                if count == 1 {
-                    self.unique_contacts += 1;
-                }
-                self.contact_matrix[p2_idx][member] += 1;
-                self.contact_matrix[member][p2_idx] += 1;
+                self.repetition_penalty -= (count as i32 - 1).pow(2);
             }
+            self.repetition_penalty += (count as i32).pow(2);
+            if count == 0 {
+                self.unique_contacts += 1;
+            }
+            self.contact_matrix[p2_idx][member] += 1;
+            self.contact_matrix[member][p2_idx] += 1;
         }
 
         // Perform swap
@@ -918,6 +914,69 @@ impl State {
 
         // A full recalculation is cheap enough for this simple constraint
         self._recalculate_constraint_penalty();
+    }
+
+    pub fn validate_scores(&mut self) {
+        // 1. Store the scores calculated incrementally
+        let cached_unique_contacts = self.unique_contacts;
+        let cached_repetition_penalty = self.repetition_penalty;
+        let cached_attribute_balance_penalty = self.attribute_balance_penalty;
+        let cached_constraint_penalty = self.constraint_penalty;
+
+        // 2. Perform a full recalculation from the schedule
+        self._recalculate_scores();
+
+        // 3. Store the freshly calculated scores
+        let fresh_unique_contacts = self.unique_contacts;
+        let fresh_repetition_penalty = self.repetition_penalty;
+        let fresh_attribute_balance_penalty = self.attribute_balance_penalty;
+        let fresh_constraint_penalty = self.constraint_penalty;
+
+        // 4. Compare and collect errors
+        let mut errors = Vec::new();
+
+        if cached_unique_contacts != fresh_unique_contacts {
+            errors.push(format!(
+                "Unique Contacts mismatch: cached={}, recalculated={}",
+                cached_unique_contacts, fresh_unique_contacts
+            ));
+        }
+
+        if cached_repetition_penalty != fresh_repetition_penalty {
+            errors.push(format!(
+                "Repetition Penalty mismatch: cached={}, recalculated={}",
+                cached_repetition_penalty, fresh_repetition_penalty
+            ));
+        }
+
+        if (cached_attribute_balance_penalty - fresh_attribute_balance_penalty).abs() > 1e-9 {
+            errors.push(format!(
+                "Attribute Balance Penalty mismatch: cached={}, recalculated={}",
+                cached_attribute_balance_penalty, fresh_attribute_balance_penalty
+            ));
+        }
+
+        if cached_constraint_penalty != fresh_constraint_penalty {
+            errors.push(format!(
+                "Constraint Penalty mismatch: cached={}, recalculated={}",
+                cached_constraint_penalty, fresh_constraint_penalty
+            ));
+        }
+
+        // 5. Restore the original incremental scores so the original output is preserved
+        self.unique_contacts = cached_unique_contacts;
+        self.repetition_penalty = cached_repetition_penalty;
+        self.attribute_balance_penalty = cached_attribute_balance_penalty;
+        self.constraint_penalty = cached_constraint_penalty;
+
+        // 6. Panic if any errors were found
+        if !errors.is_empty() {
+            panic!(
+                "Score validation failed!\n{}\nFinal State: {:?}",
+                errors.join("\n"),
+                self
+            );
+        }
     }
 }
 
