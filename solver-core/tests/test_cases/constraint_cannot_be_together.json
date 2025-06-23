@@ -37,5 +37,8 @@
   "expected": {
     "cannot_be_together_respected": true,
     "max_constraint_penalty": 0
+  },
+  "test_settings": {
+    "display_final_schedule": false
   }
 } 

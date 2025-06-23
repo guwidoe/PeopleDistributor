@@ -936,6 +936,7 @@ mod tests {
                     initial_temperature: 1.0,
                     final_temperature: 0.1,
                     cooling_schedule: "linear".to_string(),
+                    log_frequency: Some(0),
                 }),
             },
         }

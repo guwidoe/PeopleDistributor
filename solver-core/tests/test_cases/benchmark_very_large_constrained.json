@@ -3,21 +3,21 @@
   "input": {
     "problem": {
       "people": [
-        {"id":"p0","attributes":{"gender":"male"}}, {"id":"p1","attributes":{"gender":"female"}},
-        {"id":"p2","attributes":{"gender":"male"}}, {"id":"p3","attributes":{"gender":"female"}},
-        {"id":"p4","attributes":{"gender":"male"}}, {"id":"p5","attributes":{"gender":"female"}},
-        {"id":"p6","attributes":{"gender":"male"}}, {"id":"p7","attributes":{"gender":"female"}},
-        {"id":"p8","attributes":{"gender":"male"}}, {"id":"p9","attributes":{"gender":"female"}},
-        {"id":"p10","attributes":{"gender":"male"}},{"id":"p11","attributes":{"gender":"female"}},
-        {"id":"p12","attributes":{"gender":"male"}},{"id":"p13","attributes":{"gender":"female"}},
-        {"id":"p14","attributes":{"gender":"male"}},{"id":"p15","attributes":{"gender":"female"}},
-        {"id":"p16","attributes":{"gender":"male"}},{"id":"p17","attributes":{"gender":"female"}},
-        {"id":"p18","attributes":{"gender":"male"}},{"id":"p19","attributes":{"gender":"female"}},
-        {"id":"p20","attributes":{"gender":"male"}},{"id":"p21","attributes":{"gender":"female"}},
-        {"id":"p22","attributes":{"gender":"male"}},{"id":"p23","attributes":{"gender":"female"}},
-        {"id":"p24","attributes":{"gender":"male"}},{"id":"p25","attributes":{"gender":"female"}},
-        {"id":"p26","attributes":{"gender":"male"}},{"id":"p27","attributes":{"gender":"female"}},
-        {"id":"p28","attributes":{"gender":"male"}},{"id":"p29","attributes":{"gender":"female"}}
+        {"id":"m0","attributes":{"gender":"male"}}, {"id":"f1","attributes":{"gender":"female"}},
+        {"id":"m2","attributes":{"gender":"male"}}, {"id":"f3","attributes":{"gender":"female"}},
+        {"id":"m4","attributes":{"gender":"male"}}, {"id":"f5","attributes":{"gender":"female"}},
+        {"id":"m6","attributes":{"gender":"male"}}, {"id":"f7","attributes":{"gender":"female"}},
+        {"id":"m8","attributes":{"gender":"male"}}, {"id":"f9","attributes":{"gender":"female"}},
+        {"id":"m10","attributes":{"gender":"male"}},{"id":"f11","attributes":{"gender":"female"}},
+        {"id":"m12","attributes":{"gender":"male"}},{"id":"f13","attributes":{"gender":"female"}},
+        {"id":"m14","attributes":{"gender":"male"}},{"id":"f15","attributes":{"gender":"female"}},
+        {"id":"m16","attributes":{"gender":"male"}},{"id":"f17","attributes":{"gender":"female"}},
+        {"id":"m18","attributes":{"gender":"male"}},{"id":"f19","attributes":{"gender":"female"}},
+        {"id":"m20","attributes":{"gender":"male"}},{"id":"f21","attributes":{"gender":"female"}},
+        {"id":"m22","attributes":{"gender":"male"}},{"id":"f23","attributes":{"gender":"female"}},
+        {"id":"m24","attributes":{"gender":"male"}},{"id":"f25","attributes":{"gender":"female"}},
+        {"id":"m26","attributes":{"gender":"male"}},{"id":"f27","attributes":{"gender":"female"}},
+        {"id":"m28","attributes":{"gender":"male"}},{"id":"f29","attributes":{"gender":"female"}}
       ],
       "groups": [
         {"id":"g0","size":6}, {"id":"g1","size":6}, {"id":"g2","size":6},
@@ -49,5 +49,8 @@
       }
     }
   },
-  "expected": {}
+  "expected": {},
+  "options": {
+    "display": true
+  }
 } 

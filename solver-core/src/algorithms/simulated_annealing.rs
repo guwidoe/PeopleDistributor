@@ -9,6 +9,7 @@ pub struct SimulatedAnnealing {
     pub max_iterations: u64,
     pub initial_temperature: f64,
     pub final_temperature: f64,
+    pub log_frequency: Option<u64>,
 }
 
 impl SimulatedAnnealing {
@@ -20,6 +21,7 @@ impl SimulatedAnnealing {
             max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
             initial_temperature: sa_params.initial_temperature,
             final_temperature: sa_params.final_temperature,
+            log_frequency: sa_params.log_frequency,
         }
     }
 }
@@ -71,11 +73,16 @@ impl Solver for SimulatedAnnealing {
             }
 
             // --- Logging ---
-            if i % 100000 == 0 {
-                println!(
-                    "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
-                    i, temperature, current_state.unique_contacts, current_state.repetition_penalty
-                );
+            if let Some(freq) = self.log_frequency {
+                if i > 0 && i % freq == 0 {
+                    println!(
+                        "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
+                        i,
+                        temperature,
+                        current_state.unique_contacts,
+                        current_state.repetition_penalty
+                    );
+                }
             }
 
             // --- Stop Condition ---

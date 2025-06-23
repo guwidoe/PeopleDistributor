@@ -44,9 +44,15 @@
         "solver_type": "SimulatedAnnealing",
         "initial_temperature": 10.0,
         "final_temperature": 0.001,
-        "cooling_schedule": "geometric"
+        "cooling_schedule": "geometric",
+        "log_frequency": 2000
       }
     }
   },
-  "expected": {}
+  "expected": {},
+  "test_settings": {
+    "log_test_name": true,
+    "log_duration_and_score": true,
+    "display_final_schedule": false
+  }
 } 

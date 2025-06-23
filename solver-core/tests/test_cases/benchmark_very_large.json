@@ -33,5 +33,8 @@
       }
     }
   },
-  "expected": {}
+  "expected": {},
+  "options": {
+    "display": false
+  }
 } 

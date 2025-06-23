@@ -36,5 +36,8 @@
   },
   "expected": {
     "must_stay_together_respected": true
+  },
+  "test_settings": {
+    "display_final_schedule": false
   }
 } 

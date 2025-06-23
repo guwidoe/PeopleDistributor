@@ -30,7 +30,8 @@
         "solver_type": "SimulatedAnnealing",
         "initial_temperature": 5.0,
         "final_temperature": 0.001,
-        "cooling_schedule": "geometric"
+        "cooling_schedule": "geometric",
+        "log_frequency": 5000
       }
     }
   },
@@ -38,5 +39,10 @@
     "must_stay_together_respected": true,
     "cannot_be_together_respected": true,
     "max_constraint_penalty": 0
+  },
+  "test_settings": {
+    "log_test_name": true,
+    "log_duration_and_score": true,
+    "display_final_schedule": true
   }
 } 

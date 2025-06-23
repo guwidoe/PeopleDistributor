@@ -93,6 +93,8 @@ pub struct SimulatedAnnealingParams {
     pub initial_temperature: f64,
     pub final_temperature: f64,
     pub cooling_schedule: String, // "geometric", "linear", etc
+    #[serde(default)]
+    pub log_frequency: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,4 +105,53 @@ pub struct SolverResult {
     pub repetition_penalty: i32,
     pub attribute_balance_penalty: i32,
     pub constraint_penalty: i32,
+}
+
+impl SolverResult {
+    pub fn display(&self) -> String {
+        let mut output = String::new();
+        output.push_str(&format!("Final Score: {:.2}\n", self.final_score));
+        output.push_str(&format!("- Unique Contacts: {}\n", self.unique_contacts));
+        output.push_str(&format!(
+            "- Repetition Penalty: {}\n",
+            self.repetition_penalty
+        ));
+        output.push_str(&format!(
+            "- Attribute Balance Penalty: {}\n",
+            self.attribute_balance_penalty
+        ));
+        output.push_str(&format!(
+            "- Constraint Penalty: {}\n\n",
+            self.constraint_penalty
+        ));
+
+        let mut sorted_sessions: Vec<_> = self.schedule.keys().collect();
+        sorted_sessions.sort_by_key(|a| {
+            a.split('_')
+                .last()
+                .unwrap_or("0")
+                .parse::<usize>()
+                .unwrap_or(0)
+        });
+
+        for session_key in sorted_sessions {
+            output.push_str(&format!(
+                "========== {} ==========\n",
+                session_key.to_uppercase()
+            ));
+            if let Some(groups) = self.schedule.get(session_key) {
+                let mut sorted_groups: Vec<_> = groups.keys().collect();
+                sorted_groups.sort();
+
+                for group_key in sorted_groups {
+                    if let Some(people) = groups.get(group_key) {
+                        let people_list = people.join(", ");
+                        output.push_str(&format!("{}: {}\n", group_key, people_list));
+                    }
+                }
+            }
+            output.push('\n');
+        }
+        output
+    }
 }
