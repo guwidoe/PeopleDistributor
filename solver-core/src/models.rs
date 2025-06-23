@@ -73,6 +73,8 @@ pub struct SolverConfiguration {
     pub solver_type: String,
     pub stop_conditions: StopConditions,
     pub solver_params: SolverParams,
+    #[serde(default)]
+    pub logging: LoggingOptions,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -93,8 +95,18 @@ pub struct SimulatedAnnealingParams {
     pub initial_temperature: f64,
     pub final_temperature: f64,
     pub cooling_schedule: String, // "geometric", "linear", etc
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct LoggingOptions {
     #[serde(default)]
     pub log_frequency: Option<u64>,
+    #[serde(default)]
+    pub log_initial_state: bool,
+    #[serde(default)]
+    pub log_duration_and_score: bool,
+    #[serde(default)]
+    pub display_final_schedule: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

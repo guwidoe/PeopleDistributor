@@ -31,13 +31,16 @@
         "initial_temperature": 1.0,
         "final_temperature": 0.001,
         "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false
       }
     }
   },
   "expected": {
     "must_stay_together_respected": true
-  },
-  "test_settings": {
-    "display_final_schedule": false
   }
 } 

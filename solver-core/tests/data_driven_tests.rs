@@ -5,25 +5,12 @@ use solver_core::{
 };
 use std::fs;
 use std::path::Path;
-use std::time::Instant;
 
 #[derive(Deserialize)]
 struct TestCase {
     name: String,
     input: ApiInput,
     expected: ExpectedMetrics,
-    #[serde(default)]
-    test_settings: TestSettings,
-}
-
-#[derive(Deserialize, Default)]
-struct TestSettings {
-    #[serde(default)]
-    log_test_name: bool,
-    #[serde(default)]
-    log_duration_and_score: bool,
-    #[serde(default)]
-    display_final_schedule: bool,
 }
 
 #[derive(Deserialize)]
@@ -53,12 +40,8 @@ fn run_test_case_from_file(path: &Path) {
     let test_case: TestCase = serde_json::from_str(&file_content)
         .unwrap_or_else(|e| panic!("Failed to parse test case {:?}: {}", path, e));
 
-    if test_case.test_settings.log_test_name {
-        println!("--- Running Test: {} ---", test_case.name);
-    }
-    let start_time = Instant::now();
+    println!("--- Running Test: {} ---", test_case.name);
     let result = run_solver(&test_case.input);
-    let duration = start_time.elapsed();
 
     assert!(
         result.is_ok(),
@@ -67,13 +50,6 @@ fn run_test_case_from_file(path: &Path) {
         result.err()
     );
     let result = result.unwrap();
-
-    if test_case.test_settings.log_duration_and_score {
-        println!(
-            "Finished in {:.2?}. Score: {}",
-            duration, result.final_score
-        );
-    }
 
     if test_case.expected.must_stay_together_respected {
         assert_cliques_respected(&test_case.input, &result);
@@ -90,10 +66,6 @@ fn run_test_case_from_file(path: &Path) {
             result.constraint_penalty,
             max_penalty
         );
-    }
-
-    if test_case.test_settings.display_final_schedule {
-        println!("{}", result.display());
     }
 }
 

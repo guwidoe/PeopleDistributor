@@ -1,4 +1,4 @@
-use crate::models::{ApiInput, AttributeBalanceParams, Constraint, SolverResult};
+use crate::models::{ApiInput, AttributeBalanceParams, Constraint, LoggingOptions, SolverResult};
 use rand::seq::SliceRandom;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -26,6 +26,8 @@ pub struct State {
     pub attr_val_to_idx: Vec<HashMap<String, usize>>,
     // For each attribute, value index (0) -> Value String ("male")
     pub attr_idx_to_val: Vec<Vec<String>>,
+    // --- UI / Logging ---
+    pub logging: LoggingOptions,
 
     // --- Core Data Structures ---
     // The main schedule: [day][group_idx] -> Vec<person_idx>
@@ -165,6 +167,7 @@ impl State {
             attr_key_to_idx,
             attr_val_to_idx,
             attr_idx_to_val,
+            logging: input.solver.logging.clone(),
             schedule,
             locations,
             person_attributes,
@@ -936,8 +939,8 @@ mod tests {
                     initial_temperature: 1.0,
                     final_temperature: 0.1,
                     cooling_schedule: "linear".to_string(),
-                    log_frequency: Some(0),
                 }),
+                logging: Default::default(),
             },
         }
     }

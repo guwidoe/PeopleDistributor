@@ -9,7 +9,6 @@ pub struct SimulatedAnnealing {
     pub max_iterations: u64,
     pub initial_temperature: f64,
     pub final_temperature: f64,
-    pub log_frequency: Option<u64>,
 }
 
 impl SimulatedAnnealing {
@@ -21,7 +20,6 @@ impl SimulatedAnnealing {
             max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
             initial_temperature: sa_params.initial_temperature,
             final_temperature: sa_params.final_temperature,
-            log_frequency: sa_params.log_frequency,
         }
     }
 }
@@ -36,12 +34,14 @@ impl Solver for SimulatedAnnealing {
         let mut best_score = state.weighted_score();
         let mut no_improvement_counter = 0;
 
-        println!(
-            "Initial state: Contacts={}, Repetition={}, AttributeBalance={:.2}",
-            current_state.unique_contacts,
-            current_state.repetition_penalty,
-            current_state.attribute_balance_penalty
-        );
+        if state.logging.log_initial_state {
+            println!(
+                "Initial state: Contacts={}, Repetition={}, AttributeBalance={:.2}",
+                current_state.unique_contacts,
+                current_state.repetition_penalty,
+                current_state.attribute_balance_penalty
+            );
+        }
 
         for i in 0..self.max_iterations {
             let temperature = self.initial_temperature
@@ -73,7 +73,7 @@ impl Solver for SimulatedAnnealing {
             }
 
             // --- Logging ---
-            if let Some(freq) = self.log_frequency {
+            if let Some(freq @ 1..) = state.logging.log_frequency {
                 if i > 0 && i % freq == 0 {
                     println!(
                         "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
@@ -96,9 +96,21 @@ impl Solver for SimulatedAnnealing {
 
         let final_score = best_state.weighted_score();
         let elapsed = start_time.elapsed().as_secs_f64();
-        println!("Solver finished in {:.2} seconds.", elapsed);
 
-        Ok(best_state.to_solver_result(final_score))
+        if state.logging.log_duration_and_score {
+            println!(
+                "Solver finished in {:.2} seconds. Final score: {:.2}",
+                elapsed, final_score
+            );
+        }
+
+        let result = best_state.to_solver_result(final_score);
+
+        if state.logging.display_final_schedule {
+            println!("{}", result.display());
+        }
+
+        Ok(result)
     }
 }
 
