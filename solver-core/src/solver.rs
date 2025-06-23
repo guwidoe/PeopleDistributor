@@ -43,6 +43,7 @@ pub struct State {
     pub cliques: Vec<Vec<usize>>,
     pub person_to_clique_id: Vec<Option<usize>>,
     pub forbidden_pairs: Vec<(usize, usize)>,
+    pub immovable_people: HashMap<(usize, usize), usize>, // (person_idx, session_idx) -> group_idx
     pub num_sessions: u32,
 
     // --- Scoring Data ---
@@ -175,6 +176,7 @@ impl State {
             cliques: vec![], // To be populated by preprocessing
             person_to_clique_id: vec![None; people_count], // To be populated
             forbidden_pairs: vec![], // To be populated
+            immovable_people: HashMap::new(), // To be populated
             num_sessions: input.problem.num_sessions,
             contact_matrix: vec![vec![0; people_count]; people_count],
             unique_contacts: 0,
@@ -195,9 +197,33 @@ impl State {
             .collect();
         unassigned_people.shuffle(&mut rng);
 
-        for day_schedule in state.schedule.iter_mut() {
+        for (day, day_schedule) in state.schedule.iter_mut().enumerate() {
             let mut assigned_in_day = vec![false; people_count];
             let mut group_cursors = vec![0; group_count];
+
+            // 0. Assign immovable people for this day
+            for (person_idx, group_idx) in state
+                .immovable_people
+                .iter()
+                .filter(|((_, s_idx), _)| *s_idx == day)
+                .map(|((p_idx, _), g_idx)| (*p_idx, *g_idx))
+            {
+                let group_size = input.problem.groups[group_idx].size as usize;
+                if group_cursors[group_idx] < group_size {
+                    day_schedule[group_idx].push(person_idx);
+                    assigned_in_day[person_idx] = true;
+                    group_cursors[group_idx] += 1;
+                    // Remove from unassigned
+                    if let Some(pos) = unassigned_people.iter().position(|x| *x == person_idx) {
+                        unassigned_people.remove(pos);
+                    }
+                } else {
+                    return Err(SolverError::ValidationError(format!(
+                        "Cannot place immovable person {} in group {}: group is full.",
+                        state.person_idx_to_id[person_idx], state.group_idx_to_id[group_idx]
+                    )));
+                }
+            }
 
             // 1. Assign cliques first
             for clique in &state.cliques {
@@ -261,83 +287,119 @@ impl State {
         &mut self,
         input: &ApiInput,
     ) -> Result<(), SolverError> {
-        let max_group_size = input
-            .problem
-            .groups
-            .iter()
-            .map(|g| g.size)
-            .max()
-            .unwrap_or(0) as usize;
         let people_count = self.person_id_to_idx.len();
+        // --- Process `MustStayTogether` (Cliques) and `CannotBeTogether` (Forbidden Pairs) ---
+        // This part combines clique logic and must-stay-together constraints.
+        // It uses a Disjoint Set Union (DSU) data structure to merge people into cliques.
 
-        // --- 1. Process MustStayTogether constraints and merge cliques ---
         let mut dsu = DSU::new(people_count);
-        let mut cliques_from_constraints: Vec<Vec<usize>> = Vec::new();
+        let mut person_to_clique_id = vec![None; people_count];
 
         for constraint in &input.constraints {
             if let Constraint::MustStayTogether { people } = constraint {
-                let clique: Vec<usize> =
-                    people.iter().map(|id| self.person_id_to_idx[id]).collect();
-                for i in 0..(clique.len() - 1) {
-                    dsu.union(clique[i], clique[i + 1]);
+                if people.len() < 2 {
+                    continue;
                 }
-                cliques_from_constraints.push(clique);
+                for i in 0..(people.len() - 1) {
+                    let p1_id = &people[i];
+                    let p2_id = &people[i + 1];
+                    let p1_idx = self.person_id_to_idx.get(p1_id).ok_or_else(|| {
+                        SolverError::ValidationError(format!("Person '{}' not found.", p1_id))
+                    })?;
+                    let p2_idx = self.person_id_to_idx.get(p2_id).ok_or_else(|| {
+                        SolverError::ValidationError(format!("Person '{}' not found.", p2_id))
+                    })?;
+                    dsu.union(*p1_idx, *p2_idx);
+                }
             }
         }
 
-        let mut merged_cliques: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut cliques: HashMap<usize, Vec<usize>> = HashMap::new();
         for i in 0..people_count {
             let root = dsu.find(i);
-            merged_cliques.entry(root).or_default().push(i);
+            cliques.entry(root).or_default().push(i);
         }
 
-        self.cliques = merged_cliques
-            .into_values()
-            .filter(|c| c.len() > 1)
-            .collect();
-
-        // --- 2. Validate clique sizes and populate person_to_clique_id map ---
-        for (clique_id, clique) in self.cliques.iter().enumerate() {
-            if clique.len() > max_group_size {
-                let member_ids: Vec<String> = clique
+        self.cliques = Vec::new();
+        let mut clique_id_counter = 0;
+        for (_, clique_members) in cliques.into_iter().filter(|(_, v)| v.len() > 1) {
+            // Validate clique size against group sizes
+            let max_group_size = input
+                .problem
+                .groups
+                .iter()
+                .map(|g| g.size)
+                .max()
+                .unwrap_or(0);
+            if clique_members.len() as u32 > max_group_size {
+                let member_ids: Vec<String> = clique_members
                     .iter()
-                    .map(|p_idx| self.person_idx_to_id[*p_idx].clone())
+                    .map(|id| self.person_idx_to_id[*id].clone())
                     .collect();
                 return Err(SolverError::ValidationError(format!(
                     "Clique {:?} is larger than any available group.",
                     member_ids
                 )));
             }
-            for &person_idx in clique {
-                self.person_to_clique_id[person_idx] = Some(clique_id);
-            }
-        }
 
-        // --- 3. Process and validate CannotBeTogether constraints ---
+            for &member_idx in &clique_members {
+                person_to_clique_id[member_idx] = Some(clique_id_counter);
+            }
+            self.cliques.push(clique_members);
+            clique_id_counter += 1;
+        }
+        self.person_to_clique_id = person_to_clique_id;
+
+        // --- Process `CannotBeTogether` (Forbidden Pairs) ---
         for constraint in &input.constraints {
             if let Constraint::CannotBeTogether { people } = constraint {
-                let person_indices: Vec<usize> =
-                    people.iter().map(|id| self.person_id_to_idx[id]).collect();
-                for i in 0..person_indices.len() {
-                    for j in (i + 1)..person_indices.len() {
-                        let p1_idx = person_indices[i];
-                        let p2_idx = person_indices[j];
+                for i in 0..people.len() {
+                    for j in (i + 1)..people.len() {
+                        let p1_idx = *self.person_id_to_idx.get(&people[i]).unwrap();
+                        let p2_idx = *self.person_id_to_idx.get(&people[j]).unwrap();
 
-                        // Validate against cliques
+                        // Check for conflict with cliques
                         if let (Some(c1), Some(c2)) = (
                             self.person_to_clique_id[p1_idx],
                             self.person_to_clique_id[p2_idx],
                         ) {
                             if c1 == c2 {
                                 return Err(SolverError::ValidationError(format!(
-                                    "Forbidden pair ({}, {}) exists within the same clique.",
-                                    self.person_idx_to_id[p1_idx], self.person_idx_to_id[p2_idx]
+                                    "Forbidden pair ({}, {}) are in the same clique.",
+                                    people[i], people[j]
                                 )));
                             }
                         }
                         self.forbidden_pairs.push((p1_idx, p2_idx));
                     }
                 }
+            }
+        }
+
+        // --- Process `ImmovablePerson` ---
+        for constraint in &input.constraints {
+            if let Constraint::ImmovablePerson(params) = constraint {
+                let p_idx = self
+                    .person_id_to_idx
+                    .get(&params.person_id)
+                    .ok_or_else(|| {
+                        SolverError::ValidationError(format!(
+                            "Person '{}' not found.",
+                            params.person_id
+                        ))
+                    })?;
+                let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
+                    SolverError::ValidationError(format!("Group '{}' not found.", params.group_id))
+                })?;
+                let s_idx = params.session as usize;
+
+                if s_idx >= self.num_sessions as usize {
+                    return Err(SolverError::ValidationError(format!(
+                        "Session index {} out of bounds for immovable person {}.",
+                        s_idx, params.person_id
+                    )));
+                }
+                self.immovable_people.insert((*p_idx, s_idx), *g_idx);
             }
         }
 
@@ -615,7 +677,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            delta_score += self.w_repetition * ((count - 2).pow(2) - (count - 1).pow(2)) as f64;
+            delta_score +=
+                self.w_repetition * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 1 {
                 delta_score -= self.w_contacts;
             }
@@ -625,7 +688,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            delta_score += self.w_repetition * (count.pow(2) - (count - 1).pow(2)) as f64;
+            delta_score +=
+                self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 0 {
                 delta_score += self.w_contacts;
             }
@@ -636,7 +700,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            delta_score += self.w_repetition * ((count - 2).pow(2) - (count - 1).pow(2)) as f64;
+            delta_score +=
+                self.w_repetition * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 1 {
                 delta_score -= self.w_contacts;
             }
@@ -646,7 +711,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            delta_score += self.w_repetition * (count.pow(2) - (count - 1).pow(2)) as f64;
+            delta_score +=
+                self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 0 {
                 delta_score += self.w_contacts;
             }
@@ -1045,7 +1111,7 @@ mod tests {
         assert!(result.is_err());
         if let Err(SolverError::ValidationError(msg)) = result {
             assert!(msg.contains("Forbidden pair"));
-            assert!(msg.contains("exists within the same clique"));
+            assert!(msg.contains("are in the same clique"));
         } else {
             panic!("Expected a ValidationError");
         }

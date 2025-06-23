@@ -40,7 +40,7 @@
     ],
     "solver": {
       "solver_type": "SimulatedAnnealing",
-      "stop_conditions": { "max_iterations": 1000000 },
+      "stop_conditions": { "max_iterations": 100000 },
       "solver_params": {
         "solver_type": "SimulatedAnnealing",
         "initial_temperature": 10.0,

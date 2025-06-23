@@ -50,12 +50,23 @@ impl Solver for SimulatedAnnealing {
 
             // --- Choose a random move ---
             let day = rng.random_range(0..current_state.num_sessions as usize);
-            let people_count = current_state.person_idx_to_id.len();
-            let p1_idx = rng.random_range(0..people_count);
-            let mut p2_idx = rng.random_range(0..people_count);
-            while p1_idx == p2_idx {
-                p2_idx = rng.random_range(0..people_count);
+
+            let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
+                .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
+                .collect();
+
+            if swappable_people.len() < 2 {
+                continue;
             }
+
+            // Ensure we don't pick an immovable person for a swap
+            let p1_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+            let p2_idx = loop {
+                let idx = swappable_people[rng.random_range(0..swappable_people.len())];
+                if idx != p1_idx {
+                    break idx;
+                }
+            };
 
             // --- Evaluate the swap ---
             let score_delta = current_state.calculate_swap_delta(day, p1_idx, p2_idx);
