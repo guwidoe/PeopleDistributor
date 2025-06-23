@@ -454,9 +454,9 @@ impl State {
     }
 
     pub fn to_solver_result(&self, final_score: f64) -> SolverResult {
-        let mut schedule = HashMap::new();
-        for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
-            let session_key = format!("session_{}", day_idx);
+        let mut schedule_output = HashMap::new();
+        for (day, day_schedule) in self.schedule.iter().enumerate() {
+            let session_key = format!("session_{}", day);
             let mut group_map = HashMap::new();
             for (group_idx, group) in day_schedule.iter().enumerate() {
                 let group_key = self.group_idx_to_id[group_idx].clone();
@@ -466,11 +466,11 @@ impl State {
                     .collect();
                 group_map.insert(group_key, person_ids);
             }
-            schedule.insert(session_key, group_map);
+            schedule_output.insert(session_key, group_map);
         }
         SolverResult {
             final_score,
-            schedule,
+            schedule: schedule_output,
             unique_contacts: self.unique_contacts,
             repetition_penalty: self.repetition_penalty,
             attribute_balance_penalty: self.attribute_balance_penalty as i32,
@@ -502,6 +502,297 @@ impl State {
         // Update the locations to match
         self.locations[day][p1_idx] = (g2_idx, v2_idx);
         self.locations[day][p2_idx] = (g1_idx, v1_idx);
+    }
+
+    fn get_attribute_counts(&self, group_members: &[usize], attr_idx: usize) -> Vec<u32> {
+        let num_values = self.attr_idx_to_val.get(attr_idx).map_or(0, |v| v.len());
+        let mut counts = vec![0; num_values];
+        for &person_idx in group_members {
+            let value_idx = self.person_attributes[person_idx][attr_idx];
+            if value_idx != usize::MAX {
+                counts[value_idx] += 1;
+            }
+        }
+        counts
+    }
+
+    fn calculate_group_attribute_penalty(
+        &self,
+        day: usize,
+        group_idx: usize,
+        ac: &AttributeBalanceParams,
+    ) -> f64 {
+        if let Some(&attr_idx) = self.attr_key_to_idx.get(&ac.attribute_key) {
+            let group_members = &self.schedule[day][group_idx];
+            let counts = self.get_attribute_counts(group_members, attr_idx);
+            return self.calculate_penalty_from_counts(&counts, ac);
+        }
+        0.0
+    }
+
+    fn calculate_penalty_from_counts(&self, counts: &[u32], ac: &AttributeBalanceParams) -> f64 {
+        let mut penalty = 0.0;
+        for (val_str, desired_count) in &ac.desired_values {
+            if let Some(&val_idx) =
+                self.attr_val_to_idx[self.attr_key_to_idx[&ac.attribute_key]].get(val_str)
+            {
+                let actual_count = counts[val_idx];
+                penalty +=
+                    (actual_count as i32 - *desired_count as i32).pow(2) as f64 * ac.penalty_weight;
+            }
+        }
+        penalty
+    }
+
+    fn _recalculate_attribute_balance_penalty(&mut self) {
+        self.attribute_balance_penalty = 0.0;
+        for day_schedule in &self.schedule {
+            for (group_idx, group_people) in day_schedule.iter().enumerate() {
+                let group_id = &self.group_idx_to_id[group_idx];
+
+                for constraint in &self.attribute_balance_constraints {
+                    // Check if the constraint applies to this group (or all groups)
+                    if &constraint.group_id != group_id && constraint.group_id != "ALL" {
+                        continue;
+                    }
+
+                    // Find the internal index for the attribute key (e.g., "gender", "department")
+                    if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
+                        let num_values = self.attr_idx_to_val[attr_idx].len();
+                        let mut value_counts = vec![0; num_values];
+
+                        // Count how many people with each attribute value are in the group
+                        for person_idx in group_people {
+                            let val_idx = self.person_attributes[*person_idx][attr_idx];
+                            if val_idx != usize::MAX {
+                                value_counts[val_idx] += 1;
+                            }
+                        }
+
+                        // Calculate the penalty for this specific constraint
+                        let mut penalty_for_this_constraint = 0.0;
+                        for (desired_val_str, desired_count) in &constraint.desired_values {
+                            if let Some(&val_idx) =
+                                self.attr_val_to_idx[attr_idx].get(desired_val_str)
+                            {
+                                let actual_count = value_counts[val_idx];
+                                let diff = (actual_count as i32 - *desired_count as i32).abs();
+                                penalty_for_this_constraint += diff.pow(2) as f64;
+                            }
+                        }
+
+                        // Add the weighted penalty to the total
+                        self.attribute_balance_penalty +=
+                            penalty_for_this_constraint * constraint.penalty_weight;
+                    }
+                }
+            }
+        }
+    }
+
+    fn _recalculate_constraint_penalty(&mut self) {
+        self.constraint_penalty = 0;
+        for day_schedule in &self.schedule {
+            for group in day_schedule {
+                for &(p1, p2) in &self.forbidden_pairs {
+                    let mut p1_in = false;
+                    let mut p2_in = false;
+                    for &member in group {
+                        if member == p1 {
+                            p1_in = true;
+                        }
+                        if member == p2 {
+                            p2_in = true;
+                        }
+                    }
+                    if p1_in && p2_in {
+                        self.constraint_penalty += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    fn calculate_group_attribute_penalty_for_members(
+        &self,
+        group_members: &[usize],
+        ac: &AttributeBalanceParams,
+    ) -> f64 {
+        if let Some(&attr_idx) = self.attr_key_to_idx.get(&ac.attribute_key) {
+            let counts = self.get_attribute_counts(group_members, attr_idx);
+            return self.calculate_penalty_from_counts(&counts, ac);
+        }
+        0.0
+    }
+
+    pub fn calculate_swap_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> f64 {
+        let (g1_idx, _) = self.locations[day][p1_idx];
+        let (g2_idx, _) = self.locations[day][p2_idx];
+
+        if g1_idx == g2_idx {
+            return 0.0;
+        }
+
+        let mut delta_score = 0.0;
+
+        // Contact/Repetition Delta
+        let g1_members = &self.schedule[day][g1_idx];
+        let g2_members = &self.schedule[day][g2_idx];
+        // p1
+        for &member in g1_members.iter() {
+            if member == p1_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p1_idx][member];
+            delta_score += self.w_repetition * ((count - 2).pow(2) - (count - 1).pow(2)) as f64;
+            if count == 1 {
+                delta_score -= self.w_contacts;
+            }
+        }
+        for &member in g2_members.iter() {
+            if member == p2_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p1_idx][member];
+            delta_score += self.w_repetition * (count.pow(2) - (count - 1).pow(2)) as f64;
+            if count == 0 {
+                delta_score += self.w_contacts;
+            }
+        }
+        // p2
+        for &member in g2_members.iter() {
+            if member == p2_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p2_idx][member];
+            delta_score += self.w_repetition * ((count - 2).pow(2) - (count - 1).pow(2)) as f64;
+            if count == 1 {
+                delta_score -= self.w_contacts;
+            }
+        }
+        for &member in g1_members.iter() {
+            if member == p1_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p2_idx][member];
+            delta_score += self.w_repetition * (count.pow(2) - (count - 1).pow(2)) as f64;
+            if count == 0 {
+                delta_score += self.w_contacts;
+            }
+        }
+
+        // Attribute Balance Delta
+        for ac in &self.attribute_balance_constraints {
+            let old_penalty_g1 = self.calculate_group_attribute_penalty_for_members(g1_members, ac);
+            let old_penalty_g2 = self.calculate_group_attribute_penalty_for_members(g2_members, ac);
+
+            let mut next_g1_members: Vec<usize> = g1_members
+                .iter()
+                .filter(|&&p| p != p1_idx)
+                .cloned()
+                .collect();
+            next_g1_members.push(p2_idx);
+            let mut next_g2_members: Vec<usize> = g2_members
+                .iter()
+                .filter(|&&p| p != p2_idx)
+                .cloned()
+                .collect();
+            next_g2_members.push(p1_idx);
+
+            let new_penalty_g1 =
+                self.calculate_group_attribute_penalty_for_members(&next_g1_members, ac);
+            let new_penalty_g2 =
+                self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
+
+            delta_score -= (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+        }
+
+        delta_score
+    }
+
+    pub fn apply_swap(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {
+        let (g1_idx, p1_vec_idx) = self.locations[day][p1_idx];
+        let (g2_idx, p2_vec_idx) = self.locations[day][p2_idx];
+
+        if g1_idx == g2_idx {
+            return;
+        }
+
+        // Recalculate penalties for affected groups before the swap
+        for ac in &self.attribute_balance_constraints.clone() {
+            self.attribute_balance_penalty -=
+                self.calculate_group_attribute_penalty_for_members(&self.schedule[day][g1_idx], ac);
+            self.attribute_balance_penalty -=
+                self.calculate_group_attribute_penalty_for_members(&self.schedule[day][g2_idx], ac);
+        }
+
+        // Contact/Repetition updates
+        let g1_members = self.schedule[day][g1_idx].clone();
+        let g2_members = self.schedule[day][g2_idx].clone();
+        // p1
+        for &member in g1_members.iter() {
+            if member == p1_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p1_idx][member];
+            self.repetition_penalty += (count as i32 - 2).pow(2) - (count as i32 - 1).pow(2);
+            if count == 1 {
+                self.unique_contacts -= 1;
+            }
+            self.contact_matrix[p1_idx][member] -= 1;
+            self.contact_matrix[member][p1_idx] -= 1;
+        }
+        for &member in g2_members.iter() {
+            if member == p2_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p1_idx][member];
+            self.repetition_penalty += (count as i32).pow(2) - (count as i32 - 1).pow(2);
+            if count == 0 {
+                self.unique_contacts += 1;
+            }
+            self.contact_matrix[p1_idx][member] += 1;
+            self.contact_matrix[member][p1_idx] += 1;
+        }
+        // p2
+        for &member in g2_members.iter() {
+            if member == p2_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p2_idx][member];
+            self.repetition_penalty += (count as i32 - 2).pow(2) - (count as i32 - 1).pow(2);
+            if count == 1 {
+                self.unique_contacts -= 1;
+            }
+            self.contact_matrix[p2_idx][member] -= 1;
+            self.contact_matrix[member][p2_idx] -= 1;
+        }
+        for &member in g1_members.iter() {
+            if member == p1_idx {
+                continue;
+            }
+            let count = self.contact_matrix[p2_idx][member];
+            self.repetition_penalty += (count as i32).pow(2) - (count as i32 - 1).pow(2);
+            if count == 0 {
+                self.unique_contacts += 1;
+            }
+            self.contact_matrix[p2_idx][member] += 1;
+            self.contact_matrix[member][p2_idx] += 1;
+        }
+
+        // Perform swap
+        self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
+        self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
+        self.locations[day][p1_idx] = (g2_idx, p2_vec_idx);
+        self.locations[day][p2_idx] = (g1_idx, p1_vec_idx);
+
+        // Recalculate penalties for affected groups after the swap
+        for ac in &self.attribute_balance_constraints.clone() {
+            self.attribute_balance_penalty +=
+                self.calculate_group_attribute_penalty_for_members(&self.schedule[day][g1_idx], ac);
+            self.attribute_balance_penalty +=
+                self.calculate_group_attribute_penalty_for_members(&self.schedule[day][g2_idx], ac);
+        }
     }
 }
 

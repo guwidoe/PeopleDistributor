@@ -56,17 +56,15 @@ impl Solver for SimulatedAnnealing {
             }
 
             // --- Evaluate the swap ---
-            let mut next_state = current_state.clone();
-            next_state.swap_people(day, p1_idx, p2_idx);
-            next_state._recalculate_scores();
-
+            let score_delta = current_state.calculate_swap_delta(day, p1_idx, p2_idx);
             let current_score = current_state.weighted_score();
-            let next_score = next_state.weighted_score();
+            let next_score = current_score + score_delta;
 
             if accept_move(current_score, next_score, temperature, &mut rng) {
-                current_state = next_state;
-                if next_score > best_score {
-                    best_score = next_score;
+                current_state.apply_swap(day, p1_idx, p2_idx);
+
+                if current_state.weighted_score() > best_score {
+                    best_score = current_state.weighted_score();
                     best_state = current_state.clone();
                     no_improvement_counter = 0;
                 }
