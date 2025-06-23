@@ -144,12 +144,20 @@ impl State {
         }
 
         let mut w_repetition = 0.0;
+        if let Some(objective) = input
+            .objectives
+            .iter()
+            .find(|o| o.r#type == "minimize_repetition_penalty")
+        {
+            w_repetition = objective.weight;
+        }
+
         let mut w_gender = 0.0;
         for constraint in &input.constraints {
             match constraint {
-                Constraint::RepeatEncounter(params) => w_repetition = params.penalty_weight,
                 Constraint::AttributeBalance(params) => w_gender = params.penalty_weight,
-                // We assume one gender balance constraint for the weight, but the logic can handle multiple
+                // NOTE: RepeatEncounter constraint is not fully implemented.
+                // Penalty weight should be set via "minimize_repetition_penalty" objective.
                 _ => (),
             }
         }
@@ -531,115 +539,86 @@ impl State {
         let (g1_idx, _) = self.locations[day][p1_idx];
         let (g2_idx, _) = self.locations[day][p2_idx];
 
+        if g1_idx == g2_idx {
+            return (0, 0, 0, 0);
+        }
+
         let mut contact_delta = 0;
         let mut repetition_delta = 0;
 
         // --- Contact & Repetition Delta ---
-        // Process effect of p1 leaving g1 and p2 joining it
-        for &member_idx in &self.schedule[day][g1_idx] {
+        let g1_members = &self.schedule[day][g1_idx];
+        let g2_members = &self.schedule[day][g2_idx];
+
+        // Step 1: Account for broken contacts in original groups
+        for &member_idx in g1_members {
             if member_idx == p1_idx {
                 continue;
             }
-            // p1 no longer meets member
-            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
-            if p1_contacts == 1 {
-                contact_delta -= 1;
-            }
-            if p1_contacts > 1 {
-                let old_penalty = (p1_contacts - 1).pow(2) as i32;
-                let new_penalty = (p1_contacts - 2).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
-
-            // p2 now meets member
-            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
-            if p2_contacts == 0 {
-                contact_delta += 1;
-            }
-            if p2_contacts > 0 {
-                let old_penalty = (p2_contacts - 1).pow(2) as i32;
-                let new_penalty = (p2_contacts).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
+            let (cd, rd) = self._get_contact_deltas_for_pair(p1_idx, member_idx, -1);
+            contact_delta += cd;
+            repetition_delta += rd;
         }
-
-        // Process effect of p2 leaving g2 and p1 joining it
-        for &member_idx in &self.schedule[day][g2_idx] {
+        for &member_idx in g2_members {
             if member_idx == p2_idx {
                 continue;
             }
-            // p2 no longer meets member
-            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
-            if p2_contacts == 1 {
-                contact_delta -= 1;
-            }
-            if p2_contacts > 1 {
-                let old_penalty = (p2_contacts - 1).pow(2) as i32;
-                let new_penalty = (p2_contacts - 2).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
+            let (cd, rd) = self._get_contact_deltas_for_pair(p2_idx, member_idx, -1);
+            contact_delta += cd;
+            repetition_delta += rd;
+        }
 
-            // p1 now meets member
-            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
-            if p1_contacts == 0 {
-                contact_delta += 1;
+        // Step 2: Account for formed contacts in new groups
+        for &member_idx in g1_members {
+            if member_idx == p1_idx {
+                continue;
             }
-            if p1_contacts > 0 {
-                let old_penalty = (p1_contacts - 1).pow(2) as i32;
-                let new_penalty = (p1_contacts).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
+            let (cd, rd) = self._get_contact_deltas_for_pair(p2_idx, member_idx, 1);
+            contact_delta += cd;
+            repetition_delta += rd;
+        }
+        for &member_idx in g2_members {
+            if member_idx == p2_idx {
+                continue;
             }
+            let (cd, rd) = self._get_contact_deltas_for_pair(p1_idx, member_idx, 1);
+            contact_delta += cd;
+            repetition_delta += rd;
         }
 
         // --- Gender Balance Delta ---
         let mut gender_balance_delta = 0;
-        for constraint in &self.attribute_balance_constraints {
-            if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
-                let p1_attr_val = self.person_attributes[p1_idx][attr_idx];
-                let p2_attr_val = self.person_attributes[p2_idx][attr_idx];
+        // The logic for calculating gender balance delta needs to be correct.
+        // It should calculate the state before and after the swap for the two affected groups.
+        let g1_before = g1_members;
+        let g2_before = g2_members;
 
-                if p1_attr_val == p2_attr_val {
-                    continue;
-                }
+        // Create a temporary representation of the groups *after* the swap
+        let mut g1_after: Vec<usize> = g1_members
+            .iter()
+            .filter(|&&p| p != p1_idx)
+            .cloned()
+            .collect();
+        g1_after.push(p2_idx);
 
-                // Calculate for g1
-                let mut g1_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
-                for p_idx in &self.schedule[day][g1_idx] {
-                    let val_idx = self.person_attributes[*p_idx][attr_idx];
-                    if val_idx != usize::MAX {
-                        g1_counts[val_idx] += 1;
-                    }
-                }
-                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
-                    &mut g1_counts,
-                    constraint,
-                    attr_idx,
-                    p2_attr_val,
-                    p1_attr_val,
-                );
+        let mut g2_after: Vec<usize> = g2_members
+            .iter()
+            .filter(|&&p| p != p2_idx)
+            .cloned()
+            .collect();
+        g2_after.push(p1_idx);
 
-                // Calculate for g2
-                let mut g2_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
-                for p_idx in &self.schedule[day][g2_idx] {
-                    let val_idx = self.person_attributes[*p_idx][attr_idx];
-                    if val_idx != usize::MAX {
-                        g2_counts[val_idx] += 1;
-                    }
-                }
-                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
-                    &mut g2_counts,
-                    constraint,
-                    attr_idx,
-                    p1_attr_val,
-                    p2_attr_val,
-                );
-            }
-        }
+        let penalty_before = self._calculate_one_group_gender_penalty(g1_before)
+            + self._calculate_one_group_gender_penalty(g2_before);
+        let penalty_after = self._calculate_one_group_gender_penalty(&g1_after)
+            + self._calculate_one_group_gender_penalty(&g2_after);
 
-        // --- Constraint Penalty Delta ---
+        gender_balance_delta = penalty_after - penalty_before;
+
+        // --- Constraint Violation Delta ---
         let mut constraint_penalty_delta = 0;
-        let p1_group = &self.schedule[day][g1_idx];
-        let p2_group = &self.schedule[day][g2_idx];
+        let p1_group = g1_members;
+        let p2_group = g2_members;
 
         for &(f1, f2) in &self.forbidden_pairs {
             let p1f1 = p1_idx == f1;
@@ -647,17 +626,21 @@ impl State {
             let p2f1 = p2_idx == f1;
             let p2f2 = p2_idx == f2;
 
+            // Check if p1 moves into a group with its forbidden partner (f2)
             if (p1f1 && p2_group.contains(&f2)) || (p1f2 && p2_group.contains(&f1)) {
-                constraint_penalty_delta += 1; // p1 moves into a group with its forbidden partner
+                constraint_penalty_delta += 1;
             }
+            // Check if p1 moves out of a group with its forbidden partner (f2)
             if (p1f1 && p1_group.contains(&f2)) || (p1f2 && p1_group.contains(&f1)) {
-                constraint_penalty_delta -= 1; // p1 moves out of a group with its forbidden partner
+                constraint_penalty_delta -= 1;
             }
+            // Check if p2 moves into a group with its forbidden partner (f1)
             if (p2f1 && p1_group.contains(&f2)) || (p2f2 && p1_group.contains(&f1)) {
-                constraint_penalty_delta += 1; // p2 moves into a group with its forbidden partner
+                constraint_penalty_delta += 1;
             }
+            // Check if p2 moves out of a group with its forbidden partner (f1)
             if (p2f1 && p2_group.contains(&f2)) || (p2f2 && p2_group.contains(&f1)) {
-                constraint_penalty_delta -= 1; // p2 moves out of a group with its forbidden partner
+                constraint_penalty_delta -= 1;
             }
         }
 
@@ -667,6 +650,24 @@ impl State {
             gender_balance_delta,
             constraint_penalty_delta,
         )
+    }
+
+    /// Swaps two people within the schedule for a given day.
+    pub(crate) fn swap_people(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {
+        let (g1_idx, v1_idx) = self.locations[day][p1_idx];
+        let (g2_idx, v2_idx) = self.locations[day][p2_idx];
+
+        if g1_idx == g2_idx {
+            return; // No need to swap if they are in the same group
+        }
+
+        // Direct swap in the schedule vector
+        self.schedule[day][g1_idx][v1_idx] = p2_idx;
+        self.schedule[day][g2_idx][v2_idx] = p1_idx;
+
+        // Update the locations to match
+        self.locations[day][p1_idx] = (g2_idx, v2_idx);
+        self.locations[day][p2_idx] = (g1_idx, v1_idx);
     }
 
     /// Applies a swap to the state and updates the scores using pre-calculated deltas.
@@ -1059,6 +1060,14 @@ impl State {
             gender_balance_penalty: self.gender_balance_penalty,
             constraint_penalty: self.constraint_penalty,
         }
+    }
+
+    /// Calculates the overall weighted score based on the current state.
+    pub(crate) fn weighted_score(&self) -> f64 {
+        self.unique_contacts as f64 * self.w_contacts
+            - self.repetition_penalty as f64 * self.w_repetition
+            - self.gender_balance_penalty as f64 * self.w_gender
+            - self.constraint_penalty as f64 * self.w_constraint
     }
 }
 

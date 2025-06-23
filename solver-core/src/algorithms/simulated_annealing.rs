@@ -119,21 +119,25 @@ impl Solver for SimulatedAnnealing {
                 let (g2_idx, _) = state.locations[day][p2_idx];
 
                 if g1_idx != g2_idx {
-                    let deltas = state._calculate_score_delta(day, p1_idx, p2_idx);
-                    let (
-                        contact_delta,
-                        repetition_delta,
-                        gender_balance_delta,
-                        constraint_penalty_delta,
-                    ) = deltas;
+                    // --- This is the new, robust recalculation logic ---
+                    let score_before = state.weighted_score();
 
-                    let score_delta = contact_delta as f64 * state.w_contacts
-                        - repetition_delta as f64 * state.w_repetition
-                        - gender_balance_delta as f64 * state.w_gender
-                        - constraint_penalty_delta as f64 * state.w_constraint;
+                    // Temporarily apply the swap
+                    state.swap_people(day, p1_idx, p2_idx);
 
+                    // Recalculate all scores from scratch
+                    state._recalculate_scores();
+                    let score_after = state.weighted_score();
+
+                    let score_delta = score_after - score_before;
+
+                    // Decide whether to keep the swap
                     if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
-                        state._apply_swap(day, p1_idx, p2_idx, deltas);
+                        // Keep the swap, scores are already updated
+                    } else {
+                        // Revert the swap
+                        state.swap_people(day, p1_idx, p2_idx); // Swap them back
+                        state._recalculate_scores(); // Recalculate to restore original scores
                     }
                 }
             }
@@ -152,10 +156,7 @@ impl Solver for SimulatedAnnealing {
             }
         }
 
-        let final_score = state.unique_contacts as f64 * state.w_contacts
-            - state.repetition_penalty as f64 * state.w_repetition
-            - state.gender_balance_penalty as f64 * state.w_gender
-            - state.constraint_penalty as f64 * state.w_constraint;
+        let final_score = state.weighted_score();
 
         println!("Solver finished.");
         println!(
