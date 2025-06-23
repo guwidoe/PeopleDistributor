@@ -1,0 +1,53 @@
+{
+  "name": "Benchmark - Very Large Constrained",
+  "input": {
+    "problem": {
+      "people": [
+        {"id":"p0","attributes":{"gender":"male"}}, {"id":"p1","attributes":{"gender":"female"}},
+        {"id":"p2","attributes":{"gender":"male"}}, {"id":"p3","attributes":{"gender":"female"}},
+        {"id":"p4","attributes":{"gender":"male"}}, {"id":"p5","attributes":{"gender":"female"}},
+        {"id":"p6","attributes":{"gender":"male"}}, {"id":"p7","attributes":{"gender":"female"}},
+        {"id":"p8","attributes":{"gender":"male"}}, {"id":"p9","attributes":{"gender":"female"}},
+        {"id":"p10","attributes":{"gender":"male"}},{"id":"p11","attributes":{"gender":"female"}},
+        {"id":"p12","attributes":{"gender":"male"}},{"id":"p13","attributes":{"gender":"female"}},
+        {"id":"p14","attributes":{"gender":"male"}},{"id":"p15","attributes":{"gender":"female"}},
+        {"id":"p16","attributes":{"gender":"male"}},{"id":"p17","attributes":{"gender":"female"}},
+        {"id":"p18","attributes":{"gender":"male"}},{"id":"p19","attributes":{"gender":"female"}},
+        {"id":"p20","attributes":{"gender":"male"}},{"id":"p21","attributes":{"gender":"female"}},
+        {"id":"p22","attributes":{"gender":"male"}},{"id":"p23","attributes":{"gender":"female"}},
+        {"id":"p24","attributes":{"gender":"male"}},{"id":"p25","attributes":{"gender":"female"}},
+        {"id":"p26","attributes":{"gender":"male"}},{"id":"p27","attributes":{"gender":"female"}},
+        {"id":"p28","attributes":{"gender":"male"}},{"id":"p29","attributes":{"gender":"female"}}
+      ],
+      "groups": [
+        {"id":"g0","size":6}, {"id":"g1","size":6}, {"id":"g2","size":6},
+        {"id":"g3","size":6}, {"id": "g4","size":6}
+      ],
+      "num_sessions": 10
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+        {
+          "type": "AttributeBalance",
+          "attribute_key": "gender",
+          "group_id": "ALL",
+          "desired_values": {
+            "male": 3,
+            "female": 3
+          },
+          "penalty_weight": 10.0
+        }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 1000000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 10.0,
+        "final_temperature": 0.0001,
+        "cooling_schedule": "geometric"
+      }
+    }
+  },
+  "expected": {}
+} 

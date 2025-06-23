@@ -1,19 +1,33 @@
 use crate::algorithms::Solver;
 use crate::models::{SolverConfiguration, SolverParams, SolverResult};
 use crate::solver::{SolverError, State};
-use rand::prelude::*;
-use rand::Rng;
+use rand::rngs::ThreadRng;
+use rand::{rng, Rng};
 use std::time::Instant;
+
 pub struct SimulatedAnnealing {
-    max_iterations: u64,
-    initial_temperature: f64,
-    final_temperature: f64,
+    pub max_iterations: u64,
+    pub initial_temperature: f64,
+    pub final_temperature: f64,
+}
+
+impl SimulatedAnnealing {
+    pub fn new(params: &SolverConfiguration) -> Self {
+        let sa_params = match &params.solver_params {
+            SolverParams::SimulatedAnnealing(p) => p,
+        };
+        Self {
+            max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
+            initial_temperature: sa_params.initial_temperature,
+            final_temperature: sa_params.final_temperature,
+        }
+    }
 }
 
 impl Solver for SimulatedAnnealing {
     fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
         let start_time = Instant::now();
-        let mut rng = rand::thread_rng();
+        let mut rng = rng();
 
         let mut current_state = state.clone();
         let mut best_state = state.clone();
@@ -33,12 +47,12 @@ impl Solver for SimulatedAnnealing {
                     .powf(i as f64 / self.max_iterations as f64);
 
             // --- Choose a random move ---
-            let day = rng.gen_range(0..current_state.num_sessions as usize);
+            let day = rng.random_range(0..current_state.num_sessions as usize);
             let people_count = current_state.person_idx_to_id.len();
-            let p1_idx = rng.gen_range(0..people_count);
-            let mut p2_idx = rng.gen_range(0..people_count);
+            let p1_idx = rng.random_range(0..people_count);
+            let mut p2_idx = rng.random_range(0..people_count);
             while p1_idx == p2_idx {
-                p2_idx = rng.gen_range(0..people_count);
+                p2_idx = rng.random_range(0..people_count);
             }
 
             // --- Evaluate the swap ---
@@ -59,7 +73,7 @@ impl Solver for SimulatedAnnealing {
             }
 
             // --- Logging ---
-            if i % 1000 == 0 {
+            if i % 100000 == 0 {
                 println!(
                     "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
                     i, temperature, current_state.unique_contacts, current_state.repetition_penalty
@@ -68,7 +82,7 @@ impl Solver for SimulatedAnnealing {
 
             // --- Stop Condition ---
             no_improvement_counter += 1;
-            if no_improvement_counter > 5000 {
+            if no_improvement_counter > 1000000 {
                 // Stop if no improvement is found for a while
                 println!("Stopping early due to no improvement.");
                 break;
@@ -83,24 +97,14 @@ impl Solver for SimulatedAnnealing {
     }
 }
 
-impl SimulatedAnnealing {
-    pub fn new(params: &SolverConfiguration) -> Self {
-        let sa_params = match &params.solver_params {
-            SolverParams::SimulatedAnnealing(p) => p,
-        };
-        Self {
-            max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
-            initial_temperature: sa_params.initial_temperature,
-            final_temperature: sa_params.final_temperature,
-        }
-    }
-}
-
 fn accept_move(current_score: f64, next_score: f64, temperature: f64, rng: &mut ThreadRng) -> bool {
     if next_score > current_score {
         true
     } else {
+        if temperature == 0.0 {
+            return false;
+        }
         let probability = ((next_score - current_score) / temperature).exp();
-        rng.gen_bool(probability)
+        rng.random::<f64>() < probability
     }
 }
