@@ -489,24 +489,6 @@ impl State {
             - self.constraint_penalty as f64 * self.w_constraint
     }
 
-    /// Swaps two people within the schedule for a given day.
-    pub(crate) fn swap_people(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {
-        let (g1_idx, v1_idx) = self.locations[day][p1_idx];
-        let (g2_idx, v2_idx) = self.locations[day][p2_idx];
-
-        if g1_idx == g2_idx {
-            return; // No need to swap if they are in the same group
-        }
-
-        // Direct swap in the schedule vector
-        self.schedule[day][g1_idx][v1_idx] = p2_idx;
-        self.schedule[day][g2_idx][v2_idx] = p1_idx;
-
-        // Update the locations to match
-        self.locations[day][p1_idx] = (g2_idx, v2_idx);
-        self.locations[day][p2_idx] = (g1_idx, v1_idx);
-    }
-
     fn get_attribute_counts(&self, group_members: &[usize], attr_idx: usize) -> Vec<u32> {
         let num_values = self.attr_idx_to_val.get(attr_idx).map_or(0, |v| v.len());
         let mut counts = vec![0; num_values];
@@ -517,20 +499,6 @@ impl State {
             }
         }
         counts
-    }
-
-    fn calculate_group_attribute_penalty(
-        &self,
-        day: usize,
-        group_idx: usize,
-        ac: &AttributeBalanceParams,
-    ) -> f64 {
-        if let Some(&attr_idx) = self.attr_key_to_idx.get(&ac.attribute_key) {
-            let group_members = &self.schedule[day][group_idx];
-            let counts = self.get_attribute_counts(group_members, attr_idx);
-            return self.calculate_penalty_from_counts(&counts, ac);
-        }
-        0.0
     }
 
     fn calculate_penalty_from_counts(&self, counts: &[u32], ac: &AttributeBalanceParams) -> f64 {
@@ -948,7 +916,7 @@ mod tests {
     #[test]
     fn test_recalculate_scores_is_correct() {
         // 1. Setup
-        let mut input = create_test_input(6, vec![(2, 3)], 2);
+        let input = create_test_input(6, vec![(2, 3)], 2);
         let mut state = State::new(&input).unwrap();
         state.schedule = vec![
             vec![vec![0, 1, 2], vec![3, 4, 5]], // Day 0: 6 contacts
@@ -990,7 +958,7 @@ mod tests {
         let mut state_after_swap = state.clone();
 
         // 2. Action: Swap person 2 (from G0) with person 3 (from G1) on day 0
-        state_after_swap.swap_people(0, 2, 3);
+        state_after_swap.apply_swap(0, 2, 3);
         state_after_swap._recalculate_scores();
 
         // 3. Assert
