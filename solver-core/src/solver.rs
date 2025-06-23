@@ -61,7 +61,16 @@ pub struct State {
 
 impl State {
     pub fn new(input: &ApiInput) -> Result<Self, SolverError> {
+        // --- Pre-validation ---
         let people_count = input.problem.people.len();
+        let total_capacity: u32 = input.problem.groups.iter().map(|g| g.size).sum();
+        if (people_count as u32) > total_capacity {
+            return Err(SolverError::ValidationError(format!(
+                "Not enough group capacity for all people. People: {}, Capacity: {}",
+                people_count, total_capacity
+            )));
+        }
+
         let group_count = input.problem.groups.len();
 
         let person_id_to_idx: HashMap<String, usize> = input
@@ -226,6 +235,11 @@ impl State {
 
             // 1. Assign cliques first
             for clique in &state.cliques {
+                // Ensure no one in the clique has already been assigned (e.g. as immovable)
+                if clique.iter().any(|p_idx| assigned_in_day[*p_idx]) {
+                    continue;
+                }
+
                 let mut placed = false;
                 let mut potential_groups: Vec<usize> = (0..group_count).collect();
                 potential_groups.shuffle(&mut rng);
@@ -243,8 +257,14 @@ impl State {
                     }
                 }
                 if !placed {
-                    // This should be rare if validation passed, but as a fallback:
-                    println!("Warning: Could not place clique {:?} in any group.", clique);
+                    return Err(SolverError::ValidationError(format!(
+                        "Could not place clique {:?} in any group for day {}. Not enough space.",
+                        clique
+                            .iter()
+                            .map(|&p| &state.person_idx_to_id[p])
+                            .collect::<Vec<_>>(),
+                        day
+                    )));
                 }
             }
 
@@ -268,10 +288,10 @@ impl State {
                 }
                 person_cursor += 1;
                 if !placed {
-                    println!(
-                        "Warning: Could not place person {} in any group.",
-                        state.person_idx_to_id[person_idx]
-                    );
+                    return Err(SolverError::ValidationError(format!(
+                        "Could not place person {} in any group for day {}. All groups are full.",
+                        state.person_idx_to_id[person_idx], day
+                    )));
                 }
             }
             unassigned_people.shuffle(&mut rng); // Re-shuffle for next day
@@ -1179,7 +1199,19 @@ mod tests {
         let result = State::new(&input);
         assert!(result.is_err());
         if let Err(SolverError::ValidationError(msg)) = result {
-            assert!(msg.contains("is larger than any available group"));
+            // The validation can fail in three ways now:
+            // 1. The new check for total people vs. total capacity.
+            // 2. The original check in `_preprocess_and_validate_constraints` for clique size.
+            // 3. The new check during initial placement.
+            // We accept any of these error messages as a valid failure for this test case.
+            let is_capacity_error = msg.contains("Not enough group capacity");
+            let is_specific_error = msg.contains("is larger than any available group");
+            let is_general_error = msg.contains("Could not place clique");
+            assert!(
+                is_capacity_error || is_specific_error || is_general_error,
+                "Error message did not match expected patterns. Got: {}",
+                msg
+            );
         } else {
             panic!("Expected a ValidationError");
         }
