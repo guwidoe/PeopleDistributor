@@ -1,59 +1,47 @@
 from ortools.sat.python import cp_model
 import collections
 import time
+import random
 
 
 def solve_group_scheduling():
     """
     Solves the social group scheduling problem using the CP-SAT solver.
 
-    This function models the problem by defining variables, constraints, and the
-    objective, then uses the OR-Tools solver to find an optimal solution.
+    This is an optimized version that uses a more efficient model for the
+    objective function and enables parallel execution.
     """
     # ==============================================================================
     # 1. Problem Configuration
     # ==============================================================================
     # --- People and their attributes ---
-    # We use a simple list of people IDs. Attributes are stored separately.
-    people = [f"p{i}" for i in range(30)]  # 30 people in total
+    people = [f"p{i}" for i in range(30)]
     genders = {p: "male" if i < 15 else "female" for i, p in enumerate(people)}
 
     # --- Groups and Sessions ---
     num_groups = 5
-    group_size = 6  # Each group must have exactly 6 people
-    num_sessions = 10  # Number of days/rounds
+    group_size = 6
+    num_sessions = 10
 
     # --- Constraints and Objectives Configuration ---
-    # Pairs of people who should never be in the same group
     conflict_pairs = {("p0", "p1"), ("p5", "p6")}
-
-    # People who must be in a specific group on a specific day
-    immovable_assignments = {
-        # (person, session, group): True
-        ("p2", 0, 0): True,
-        ("p3", 0, 0): True,
-    }
-
-    # Desired gender balance for each group (soft constraint)
-    # The penalty will be applied for each person deviation from this target.
+    immovable_assignments = {("p2", 0, 0): True, ("p3", 0, 0): True}
     desired_gender_balance = {"male": 3, "female": 3}
-    gender_balance_penalty_weight = 10  # How much to penalize imbalance
+    gender_balance_penalty_weight = 10
 
     # --- Solver Configuration ---
-    solver_time_limit_seconds = 60.0
+    solver_time_limit_seconds = 15.0
+    # NEW: Set to the number of CPU cores for a significant speedup.
+    num_search_workers = 8  # e.g., 8 for an 8-core CPU
 
     # ==============================================================================
     # 2. Model Creation
     # ==============================================================================
     model = cp_model.CpModel()
-
-    # Create a variable lookup (person_id -> index)
     p_indices = {person: i for i, person in enumerate(people)}
     num_people = len(people)
 
     # --- Core Variables ---
-    # `assignments[(p, s, g)]` is a boolean variable, true if person `p`
-    # is in group `g` in session `s`.
     assignments = {}
     for p_idx in range(num_people):
         for s in range(num_sessions):
@@ -66,13 +54,11 @@ def solve_group_scheduling():
     # 3. Constraint Implementation
     # ==============================================================================
     print("Adding constraints...")
-
-    # --- Each person must be in exactly one group per session ---
+    # --- Basic structural constraints (same as before) ---
     for p_idx in range(num_people):
         for s in range(num_sessions):
             model.AddExactlyOne([assignments[(p_idx, s, g)] for g in range(num_groups)])
 
-    # --- Each group must have an exact size per session ---
     for s in range(num_sessions):
         for g in range(num_groups):
             model.Add(
@@ -80,83 +66,72 @@ def solve_group_scheduling():
                 == group_size
             )
 
-    # --- Handle immovable people (fixed assignments) ---
     for (person_id, session, group), is_assigned in immovable_assignments.items():
         if is_assigned:
-            p_idx = p_indices[person_id]
-            model.Add(assignments[(p_idx, session, group)] == 1)
+            model.Add(assignments[(p_indices[person_id], session, group)] == 1)
 
-    # --- Handle conflict pairs (people who can't be together) ---
     for s in range(num_sessions):
         for g in range(num_groups):
             for p1_id, p2_id in conflict_pairs:
                 p1_idx, p2_idx = p_indices[p1_id], p_indices[p2_id]
-                # At most one of them can be in this group.
                 model.AddAtMostOne(
                     [assignments[(p1_idx, s, g)], assignments[(p2_idx, s, g)]]
                 )
 
     # ==============================================================================
-    # 4. Objective Function: Maximize Unique Contacts & Penalize Imbalance
+    # 4. Objective Function (OPTIMIZED AND CORRECTED MODEL)
     # ==============================================================================
-    print("Building the objective function...")
+    print("Building the optimized objective function...")
 
-    # --- Create variables to track unique encounters ---
-    # `met_at_least_once[(p1, p2)]` is true if p1 and p2 meet at all.
     met_at_least_once = {}
     for p1_idx in range(num_people):
         for p2_idx in range(p1_idx + 1, num_people):
-            met_at_least_once[(p1_idx, p2_idx)] = model.NewBoolVar(
-                f"met_{p1_idx}_{p2_idx}"
-            )
+            # This variable is true if p1 and p2 meet at all.
+            pair_met = model.NewBoolVar(f"met_{p1_idx}_{p2_idx}")
+            met_at_least_once[(p1_idx, p2_idx)] = pair_met
 
-            # --- Link `met_at_least_once` to `assignments` ---
-            # For each pair of people, create intermediate booleans `met_on_day_s`
-            # `met_on_day_s` is true if they are in the same group on day `s`.
-            met_on_day = []
+            # A list of intermediate booleans, one for each time the pair could meet.
+            possible_meetings = []
             for s in range(num_sessions):
-                met_on_day_s_g = []
                 for g in range(num_groups):
-                    # `b` is true if both p1 and p2 are in group g on session s
-                    b = model.NewBoolVar(f"met_{p1_idx}_{p2_idx}_s{s}_g{g}")
-                    model.AddBoolAnd(
-                        [assignments[(p1_idx, s, g)], assignments[(p2_idx, s, g)]]
-                    ).OnlyEnforceIf(b)
-                    model.AddImplication(b, assignments[(p1_idx, s, g)])
-                    model.AddImplication(b, assignments[(p2_idx, s, g)])
-                    met_on_day_s_g.append(b)
+                    # met_in_slot is true iff both p1 and p2 are in this group and session.
+                    met_in_slot = model.NewBoolVar(
+                        f"met_in_slot_{p1_idx}_{p2_idx}_s{s}_g{g}"
+                    )
+                    possible_meetings.append(met_in_slot)
 
-                # They meet on day s if they meet in any group
-                met_this_day = model.NewBoolVar(f"met_{p1_idx}_{p2_idx}_s{s}")
-                model.AddBoolOr(met_on_day_s_g).OnlyEnforceIf(met_this_day)
-                model.AddImplication(
-                    met_this_day, model.NewBoolVar("").Not()
-                )  # This is a trick to make it work
+                    p1_in_slot = assignments[(p1_idx, s, g)]
+                    p2_in_slot = assignments[(p2_idx, s, g)]
 
-                met_on_day.append(met_this_day)
+                    # Establish the equivalence: met_in_slot <=> (p1_in_slot AND p2_in_slot)
+                    # Implication 1: met_in_slot => (p1_in_slot AND p2_in_slot)
+                    model.AddBoolAnd([p1_in_slot, p2_in_slot]).OnlyEnforceIf(
+                        met_in_slot
+                    )
 
-            # `met_at_least_once` is true if they meet on any day.
-            model.AddBoolOr(met_on_day).OnlyEnforceIf(
-                met_at_least_once[(p1_idx, p2_idx)]
-            )
-            model.AddImplication(
-                met_at_least_once[(p1_idx, p2_idx)], model.NewBoolVar("").Not()
-            )
+                    # Implication 2: (p1_in_slot AND p2_in_slot) => met_in_slot
+                    # This is expressed using the contrapositive: NOT met_in_slot => NOT(p1 AND p2)
+                    # This is the line that fixes the TypeError.
+                    model.AddBoolOr([p1_in_slot.Not(), p2_in_slot.Not()]).OnlyEnforceIf(
+                        met_in_slot.Not()
+                    )
 
-    # --- Define the total number of unique contacts ---
-    total_unique_contacts = model.NewIntVar(
-        0, num_people * (num_people - 1) // 2, "total_unique_contacts"
-    )
-    model.Add(total_unique_contacts == sum(met_at_least_once.values()))
+            # Establish the equivalence for the top-level pair meeting variable
+            # Equivalence: pair_met <=> OR(possible_meetings)
+            # Implication 1: pair_met => OR(possible_meetings)
+            model.AddBoolOr(possible_meetings).OnlyEnforceIf(pair_met)
 
-    # --- Calculate penalties for gender imbalance (soft constraint) ---
-    total_penalty = model.NewIntVar(
-        0, 10000, "total_penalty"
-    )  # A large enough upper bound
+            # Implication 2: OR(possible_meetings) => pair_met
+            # This means if any possible_meeting is true, pair_met must be true.
+            for met_var in possible_meetings:
+                model.AddImplication(met_var, pair_met)
+
+    total_unique_contacts = sum(met_at_least_once.values())
+
+    # --- Penalties (same as before, this model is already efficient) ---
     penalties = []
     for s in range(num_sessions):
         for g in range(num_groups):
-            # Count males and females in this group
             males_in_group = [
                 assignments[(p_idx, s, g)]
                 for p_idx, p_id in enumerate(people)
@@ -168,36 +143,28 @@ def solve_group_scheduling():
                 if genders[p_id] == "female"
             ]
 
-            # Calculate deviation from the desired count
-            male_deviation = model.NewIntVar(
-                -group_size, group_size, f"male_dev_s{s}_g{g}"
-            )
-            model.Add(
-                male_deviation == sum(males_in_group) - desired_gender_balance["male"]
-            )
+            male_dev = model.NewIntVar(-group_size, group_size, f"male_dev_s{s}_g{g}")
+            model.Add(male_dev == sum(males_in_group) - desired_gender_balance["male"])
+            abs_male_dev = model.NewIntVar(0, group_size, f"abs_male_dev_s{s}_g{g}")
+            model.AddAbsEquality(abs_male_dev, male_dev)
 
-            female_deviation = model.NewIntVar(
+            females_dev = model.NewIntVar(
                 -group_size, group_size, f"female_dev_s{s}_g{g}"
             )
             model.Add(
-                female_deviation
-                == sum(females_in_group) - desired_gender_balance["female"]
+                females_dev == sum(females_in_group) - desired_gender_balance["female"]
             )
+            abs_females_dev = model.NewIntVar(
+                0, group_size, f"abs_females_dev_s{s}_g{g}"
+            )
+            model.AddAbsEquality(abs_females_dev, females_dev)
 
-            # Use absolute values for penalty
-            abs_male_dev = model.NewIntVar(0, group_size, f"abs_male_dev_s{s}_g{g}")
-            model.AddAbsEquality(abs_male_dev, male_deviation)
             penalties.append(abs_male_dev)
+            penalties.append(abs_females_dev)
 
-            abs_female_dev = model.NewIntVar(0, group_size, f"abs_female_dev_s{s}_g{g}")
-            model.AddAbsEquality(abs_female_dev, female_deviation)
-            penalties.append(abs_female_dev)
+    total_penalty = sum(penalties)
 
-    model.Add(total_penalty == sum(penalties))
-
-    # --- Set the final objective function ---
-    # We want to maximize contacts and minimize penalty.
-    # Maximize(A - B) is equivalent to Maximize(A - k*B) where k is a weight.
+    # --- Final Objective ---
     model.Maximize(
         total_unique_contacts - gender_balance_penalty_weight * total_penalty
     )
@@ -208,7 +175,9 @@ def solve_group_scheduling():
     print("Solving...")
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = solver_time_limit_seconds
-    solver.parameters.log_search_progress = True  # Show solver logs
+    solver.parameters.log_search_progress = True
+    # NEW: Set number of parallel workers.
+    solver.parameters.num_search_workers = num_search_workers
 
     start_time = time.time()
     status = solver.Solve(model)
@@ -218,9 +187,13 @@ def solve_group_scheduling():
     print(f"Solving finished in {end_time - start_time:.2f} seconds.")
 
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+        # We need to manually calculate the final values as the objective is combined
+        final_contacts = solver.Value(sum(met_at_least_once.values()))
+        final_penalty_score = solver.Value(total_penalty)
+
         print(f"Objective value (Contacts - Penalty*Weight): {solver.ObjectiveValue()}")
-        print(f"Total Unique Contacts: {solver.Value(total_unique_contacts)}")
-        print(f"Total Penalty Score: {solver.Value(total_penalty)}")
+        print(f"Total Unique Contacts: {final_contacts}")
+        print(f"Total Penalty Score: {final_penalty_score}")
         print("-" * 30)
         print("Schedule:")
 
