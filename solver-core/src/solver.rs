@@ -1,9 +1,10 @@
 use crate::models::{ApiInput, AttributeBalanceParams, Constraint, SolverResult};
 use rand::seq::SliceRandom;
+use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize)]
 pub enum SolverError {
     #[error("Constraint violation: {0}")]
     ValidationError(String),
@@ -46,13 +47,12 @@ pub struct State {
     pub contact_matrix: Vec<Vec<u32>>,
     pub unique_contacts: i32,
     pub repetition_penalty: i32,
-    pub gender_balance_penalty: i32,
+    pub attribute_balance_penalty: f64,
     pub constraint_penalty: i32,
 
     // --- Weights ---
     pub w_contacts: f64,
     pub w_repetition: f64,
-    pub w_gender: f64,
     pub w_constraint: f64,
 }
 
@@ -144,13 +144,13 @@ impl State {
         }
 
         let mut w_repetition = 0.0;
-        let mut w_gender = 0.0;
-        for constraint in &input.constraints {
-            match constraint {
-                Constraint::RepeatEncounter(params) => w_repetition = params.penalty_weight,
-                Constraint::AttributeBalance(params) => w_gender = params.penalty_weight,
-                // We assume one gender balance constraint for the weight, but the logic can handle multiple
-                _ => (),
+        if let Some(constraint) = input
+            .constraints
+            .iter()
+            .find(|c| matches!(c, Constraint::RepeatEncounter(_)))
+        {
+            if let Constraint::RepeatEncounter(params) = constraint {
+                w_repetition = params.penalty_weight;
             }
         }
 
@@ -176,11 +176,10 @@ impl State {
             contact_matrix: vec![vec![0; people_count]; people_count],
             unique_contacts: 0,
             repetition_penalty: 0,
-            gender_balance_penalty: 0,
+            attribute_balance_penalty: 0.0,
             constraint_penalty: 0,
             w_contacts,
             w_repetition,
-            w_gender,
             w_constraint: 1000.0, // Hardcoded high weight for constraint violations
         };
 
@@ -250,8 +249,8 @@ impl State {
             unassigned_people.shuffle(&mut rng); // Re-shuffle for next day
         }
 
-        state.recalculate_locations_from_schedule();
-        state.recalculate_scores();
+        state._recalculate_locations_from_schedule();
+        state._recalculate_scores();
         Ok(state)
     }
 
@@ -342,7 +341,7 @@ impl State {
         Ok(())
     }
 
-    pub fn recalculate_locations_from_schedule(&mut self) {
+    pub fn _recalculate_locations_from_schedule(&mut self) {
         for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
             for (group_idx, group_vec) in day_schedule.iter().enumerate() {
                 for (vec_idx, &person_idx) in group_vec.iter().enumerate() {
@@ -352,10 +351,10 @@ impl State {
         }
     }
 
-    pub fn recalculate_scores(&mut self) {
+    pub fn _recalculate_scores(&mut self) {
         self.unique_contacts = 0;
         self.repetition_penalty = 0;
-        self.gender_balance_penalty = 0;
+        self.attribute_balance_penalty = 0.0;
 
         for row in self.contact_matrix.iter_mut() {
             for val in row.iter_mut() {
@@ -387,23 +386,23 @@ impl State {
             }
         }
 
-        // --- Gender Balance Penalty ---
-        if self.attribute_balance_constraints.is_empty() {
-            return;
-        }
-
+        // --- Attribute Balance Penalty (Generalized) ---
         for day_schedule in &self.schedule {
             for (group_idx, group_people) in day_schedule.iter().enumerate() {
                 let group_id = &self.group_idx_to_id[group_idx];
 
                 for constraint in &self.attribute_balance_constraints {
+                    // Check if the constraint applies to this group (or all groups)
                     if &constraint.group_id != group_id && constraint.group_id != "ALL" {
                         continue;
                     }
 
+                    // Find the internal index for the attribute key (e.g., "gender", "department")
                     if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
                         let num_values = self.attr_idx_to_val[attr_idx].len();
                         let mut value_counts = vec![0; num_values];
+
+                        // Count how many people with each attribute value are in the group
                         for person_idx in group_people {
                             let val_idx = self.person_attributes[*person_idx][attr_idx];
                             if val_idx != usize::MAX {
@@ -411,15 +410,21 @@ impl State {
                             }
                         }
 
+                        // Calculate the penalty for this specific constraint
+                        let mut penalty_for_this_constraint = 0.0;
                         for (desired_val_str, desired_count) in &constraint.desired_values {
                             if let Some(&val_idx) =
                                 self.attr_val_to_idx[attr_idx].get(desired_val_str)
                             {
                                 let actual_count = value_counts[val_idx];
                                 let diff = (actual_count as i32 - *desired_count as i32).abs();
-                                self.gender_balance_penalty += diff.pow(2) as i32;
+                                penalty_for_this_constraint += diff.pow(2) as f64;
                             }
                         }
+
+                        // Add the weighted penalty to the total
+                        self.attribute_balance_penalty +=
+                            penalty_for_this_constraint * constraint.penalty_weight;
                     }
                 }
             }
@@ -444,594 +449,6 @@ impl State {
                         self.constraint_penalty += 1;
                     }
                 }
-            }
-        }
-    }
-
-    fn _calculate_one_group_gender_penalty(&self, group_people: &[usize]) -> i32 {
-        if self.attribute_balance_constraints.is_empty() {
-            return 0;
-        }
-        let mut penalty = 0;
-        if let Some(constraint) = self.attribute_balance_constraints.first() {
-            if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
-                let num_values = self.attr_idx_to_val[attr_idx].len();
-                let mut value_counts = vec![0; num_values];
-                for person_idx in group_people {
-                    let val_idx = self.person_attributes[*person_idx][attr_idx];
-                    if val_idx != usize::MAX {
-                        value_counts[val_idx] += 1;
-                    }
-                }
-                for (desired_val_str, desired_count) in &constraint.desired_values {
-                    if let Some(&val_idx) = self.attr_val_to_idx[attr_idx].get(desired_val_str) {
-                        let actual_count = value_counts[val_idx];
-                        let diff = (actual_count as i32 - *desired_count as i32).abs();
-                        penalty += diff.pow(2) as i32;
-                    }
-                }
-            }
-        }
-        penalty
-    }
-
-    fn _calculate_one_group_attribute_penalty_incremental(
-        &self,
-        value_counts: &mut Vec<u32>,
-        constraint: &AttributeBalanceParams,
-        attr_idx: usize,
-        p_in_attr_val: usize,
-        p_out_attr_val: usize,
-    ) -> i32 {
-        if p_in_attr_val == p_out_attr_val {
-            return 0; // No change in attribute counts
-        }
-
-        let mut penalty_delta = 0;
-
-        // --- Process p_out ---
-        if p_out_attr_val != usize::MAX {
-            if let Some(desired_count) = constraint
-                .desired_values
-                .get(&self.attr_idx_to_val[attr_idx][p_out_attr_val])
-            {
-                let current_count = value_counts[p_out_attr_val];
-                let old_diff_sq = (current_count as i32 - *desired_count as i32).pow(2);
-                let new_diff_sq = (current_count as i32 - 1 - *desired_count as i32).pow(2);
-                penalty_delta += new_diff_sq - old_diff_sq;
-                value_counts[p_out_attr_val] -= 1;
-            }
-        }
-
-        // --- Process p_in ---
-        if p_in_attr_val != usize::MAX {
-            if let Some(desired_count) = constraint
-                .desired_values
-                .get(&self.attr_idx_to_val[attr_idx][p_in_attr_val])
-            {
-                let current_count = value_counts[p_in_attr_val];
-                let old_diff_sq = (current_count as i32 - *desired_count as i32).pow(2);
-                let new_diff_sq = (current_count as i32 + 1 - *desired_count as i32).pow(2);
-                penalty_delta += new_diff_sq - old_diff_sq;
-                value_counts[p_in_attr_val] += 1;
-            }
-        }
-
-        penalty_delta
-    }
-
-    /// Calculate the change in score if p1 and p2 were swapped on a given day.
-    /// This is the performance-critical function.
-    pub(crate) fn _calculate_score_delta(
-        &self,
-        day: usize,
-        p1_idx: usize,
-        p2_idx: usize,
-    ) -> (i32, i32, i32, i32) {
-        let (g1_idx, _) = self.locations[day][p1_idx];
-        let (g2_idx, _) = self.locations[day][p2_idx];
-
-        let mut contact_delta = 0;
-        let mut repetition_delta = 0;
-
-        // --- Contact & Repetition Delta ---
-        // Process effect of p1 leaving g1 and p2 joining it
-        for &member_idx in &self.schedule[day][g1_idx] {
-            if member_idx == p1_idx {
-                continue;
-            }
-            // p1 no longer meets member
-            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
-            if p1_contacts == 1 {
-                contact_delta -= 1;
-            }
-            if p1_contacts > 1 {
-                let old_penalty = (p1_contacts - 1).pow(2) as i32;
-                let new_penalty = (p1_contacts - 2).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
-
-            // p2 now meets member
-            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
-            if p2_contacts == 0 {
-                contact_delta += 1;
-            }
-            if p2_contacts > 0 {
-                let old_penalty = (p2_contacts - 1).pow(2) as i32;
-                let new_penalty = (p2_contacts).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
-        }
-
-        // Process effect of p2 leaving g2 and p1 joining it
-        for &member_idx in &self.schedule[day][g2_idx] {
-            if member_idx == p2_idx {
-                continue;
-            }
-            // p2 no longer meets member
-            let p2_contacts = self.contact_matrix[p2_idx][member_idx];
-            if p2_contacts == 1 {
-                contact_delta -= 1;
-            }
-            if p2_contacts > 1 {
-                let old_penalty = (p2_contacts - 1).pow(2) as i32;
-                let new_penalty = (p2_contacts - 2).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
-
-            // p1 now meets member
-            let p1_contacts = self.contact_matrix[p1_idx][member_idx];
-            if p1_contacts == 0 {
-                contact_delta += 1;
-            }
-            if p1_contacts > 0 {
-                let old_penalty = (p1_contacts - 1).pow(2) as i32;
-                let new_penalty = (p1_contacts).pow(2) as i32;
-                repetition_delta += new_penalty - old_penalty;
-            }
-        }
-
-        // --- Gender Balance Delta ---
-        let mut gender_balance_delta = 0;
-        for constraint in &self.attribute_balance_constraints {
-            if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
-                let p1_attr_val = self.person_attributes[p1_idx][attr_idx];
-                let p2_attr_val = self.person_attributes[p2_idx][attr_idx];
-
-                if p1_attr_val == p2_attr_val {
-                    continue;
-                }
-
-                // Calculate for g1
-                let mut g1_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
-                for p_idx in &self.schedule[day][g1_idx] {
-                    let val_idx = self.person_attributes[*p_idx][attr_idx];
-                    if val_idx != usize::MAX {
-                        g1_counts[val_idx] += 1;
-                    }
-                }
-                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
-                    &mut g1_counts,
-                    constraint,
-                    attr_idx,
-                    p2_attr_val,
-                    p1_attr_val,
-                );
-
-                // Calculate for g2
-                let mut g2_counts = vec![0; self.attr_idx_to_val[attr_idx].len()];
-                for p_idx in &self.schedule[day][g2_idx] {
-                    let val_idx = self.person_attributes[*p_idx][attr_idx];
-                    if val_idx != usize::MAX {
-                        g2_counts[val_idx] += 1;
-                    }
-                }
-                gender_balance_delta += self._calculate_one_group_attribute_penalty_incremental(
-                    &mut g2_counts,
-                    constraint,
-                    attr_idx,
-                    p1_attr_val,
-                    p2_attr_val,
-                );
-            }
-        }
-
-        // --- Constraint Penalty Delta ---
-        let mut constraint_penalty_delta = 0;
-        let p1_group = &self.schedule[day][g1_idx];
-        let p2_group = &self.schedule[day][g2_idx];
-
-        for &(f1, f2) in &self.forbidden_pairs {
-            let p1f1 = p1_idx == f1;
-            let p1f2 = p1_idx == f2;
-            let p2f1 = p2_idx == f1;
-            let p2f2 = p2_idx == f2;
-
-            if (p1f1 && p2_group.contains(&f2)) || (p1f2 && p2_group.contains(&f1)) {
-                constraint_penalty_delta += 1; // p1 moves into a group with its forbidden partner
-            }
-            if (p1f1 && p1_group.contains(&f2)) || (p1f2 && p1_group.contains(&f1)) {
-                constraint_penalty_delta -= 1; // p1 moves out of a group with its forbidden partner
-            }
-            if (p2f1 && p1_group.contains(&f2)) || (p2f2 && p1_group.contains(&f1)) {
-                constraint_penalty_delta += 1; // p2 moves into a group with its forbidden partner
-            }
-            if (p2f1 && p2_group.contains(&f2)) || (p2f2 && p2_group.contains(&f1)) {
-                constraint_penalty_delta -= 1; // p2 moves out of a group with its forbidden partner
-            }
-        }
-
-        (
-            contact_delta,
-            repetition_delta,
-            gender_balance_delta,
-            constraint_penalty_delta,
-        )
-    }
-
-    /// Applies a swap to the state and updates the scores using pre-calculated deltas.
-    pub(crate) fn _apply_swap(
-        &mut self,
-        day: usize,
-        p1_idx: usize,
-        p2_idx: usize,
-        (contact_delta, repetition_delta, gender_balance_delta, constraint_penalty_delta): (
-            i32,
-            i32,
-            i32,
-            i32,
-        ),
-    ) {
-        let (g1_idx, p1_vec_idx) = self.locations[day][p1_idx];
-        let (g2_idx, p2_vec_idx) = self.locations[day][p2_idx];
-
-        // --- Update Contact Matrix ---
-        let g1_members: Vec<usize> = self.schedule[day][g1_idx]
-            .iter()
-            .cloned()
-            .filter(|&p| p != p1_idx)
-            .collect();
-        let g2_members: Vec<usize> = self.schedule[day][g2_idx]
-            .iter()
-            .cloned()
-            .filter(|&p| p != p2_idx)
-            .collect();
-
-        for member_idx in g1_members {
-            self.contact_matrix[p1_idx][member_idx] -= 1;
-            self.contact_matrix[member_idx][p1_idx] -= 1;
-            self.contact_matrix[p2_idx][member_idx] += 1;
-            self.contact_matrix[member_idx][p2_idx] += 1;
-        }
-        for member_idx in g2_members {
-            self.contact_matrix[p2_idx][member_idx] -= 1;
-            self.contact_matrix[member_idx][p2_idx] -= 1;
-            self.contact_matrix[p1_idx][member_idx] += 1;
-            self.contact_matrix[member_idx][p1_idx] += 1;
-        }
-
-        // --- Perform Swap in schedule and locations---
-        self.schedule[day][g1_idx][p1_vec_idx] = p2_idx;
-        self.schedule[day][g2_idx][p2_vec_idx] = p1_idx;
-        self.locations[day][p1_idx] = (g2_idx, p2_vec_idx);
-        self.locations[day][p2_idx] = (g1_idx, p1_vec_idx);
-
-        // --- Update Scores ---
-        self.unique_contacts += contact_delta;
-        self.repetition_penalty += repetition_delta;
-        self.gender_balance_penalty += gender_balance_delta;
-        self.constraint_penalty += constraint_penalty_delta;
-    }
-
-    pub(crate) fn _calculate_multi_swap_delta(
-        &self,
-        day: usize,
-        people_from_g1: &[usize],
-        people_from_g2: &[usize],
-    ) -> (i32, i32, i32, i32) {
-        let mut contact_delta = 0;
-        let mut repetition_delta = 0;
-        let mut gender_balance_delta = 0;
-        let mut constraint_penalty_delta = 0;
-
-        let g1_idx = self.locations[day][people_from_g1[0]].0;
-        let g2_idx = self.locations[day][people_from_g2[0]].0;
-
-        // --- 1. Contact and Repetition Deltas ---
-        let g1_stayers: Vec<usize> = self.schedule[day][g1_idx]
-            .iter()
-            .cloned()
-            .filter(|p| !people_from_g1.contains(p))
-            .collect();
-        let g2_stayers: Vec<usize> = self.schedule[day][g2_idx]
-            .iter()
-            .cloned()
-            .filter(|p| !people_from_g2.contains(p))
-            .collect();
-
-        // Pairs broken in g1, formed with g2 stayers
-        for &p1 in people_from_g1 {
-            for &p2 in &g1_stayers {
-                // broken
-                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, -1);
-                contact_delta += cd;
-                repetition_delta += rd;
-            }
-            for &p2 in &g2_stayers {
-                // formed
-                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
-                contact_delta += cd;
-                repetition_delta += rd;
-            }
-        }
-        // Pairs broken in g2, formed with g1 stayers
-        for &p1 in people_from_g2 {
-            for &p2 in &g2_stayers {
-                // broken
-                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, -1);
-                contact_delta += cd;
-                repetition_delta += rd;
-            }
-            for &p2 in &g1_stayers {
-                // formed
-                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
-                contact_delta += cd;
-                repetition_delta += rd;
-            }
-        }
-        // Pairs formed between the two moving groups
-        for &p1 in people_from_g1 {
-            for &p2 in people_from_g2 {
-                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
-                contact_delta += cd;
-                repetition_delta += rd;
-            }
-        }
-
-        // --- 2. Gender and Constraint Deltas (Before/After) ---
-        let g1_before = &self.schedule[day][g1_idx];
-        let g2_before = &self.schedule[day][g2_idx];
-
-        let g1_after: Vec<usize> = g1_stayers
-            .iter()
-            .cloned()
-            .chain(people_from_g2.iter().cloned())
-            .collect();
-        let g2_after: Vec<usize> = g2_stayers
-            .iter()
-            .cloned()
-            .chain(people_from_g1.iter().cloned())
-            .collect();
-
-        let gender_before = self._calculate_one_group_gender_penalty(g1_before)
-            + self._calculate_one_group_gender_penalty(g2_before);
-        let gender_after = self._calculate_one_group_gender_penalty(&g1_after)
-            + self._calculate_one_group_gender_penalty(&g2_after);
-        gender_balance_delta = gender_after - gender_before;
-
-        let mut constraints_before = 0;
-        let mut constraints_after = 0;
-        for &(p1, p2) in &self.forbidden_pairs {
-            if g1_before.contains(&p1) && g1_before.contains(&p2) {
-                constraints_before += 1;
-            }
-            if g2_before.contains(&p1) && g2_before.contains(&p2) {
-                constraints_before += 1;
-            }
-            if g1_after.contains(&p1) && g1_after.contains(&p2) {
-                constraints_after += 1;
-            }
-            if g2_after.contains(&p1) && g2_after.contains(&p2) {
-                constraints_after += 1;
-            }
-        }
-        constraint_penalty_delta = constraints_after - constraints_before;
-
-        (
-            contact_delta,
-            repetition_delta,
-            gender_balance_delta,
-            constraint_penalty_delta,
-        )
-    }
-
-    // Helper to get contact/repetition deltas for a single pair
-    fn _get_contact_deltas_for_pair(&self, p1: usize, p2: usize, change: i32) -> (i32, i32) {
-        let mut contact_delta = 0;
-        let repetition_delta;
-
-        let current_contacts = self.contact_matrix[p1][p2];
-        let new_contacts = (current_contacts as i32 + change) as u32;
-
-        if change > 0 {
-            // Gaining contact
-            if current_contacts == 0 {
-                contact_delta += 1;
-            }
-        } else {
-            // Losing contact
-            if new_contacts == 0 {
-                contact_delta -= 1;
-            }
-        }
-
-        repetition_delta = (new_contacts.saturating_sub(1).pow(2) as i32)
-            - (current_contacts.saturating_sub(1).pow(2) as i32);
-
-        (contact_delta, repetition_delta)
-    }
-
-    pub(crate) fn _apply_multi_swap(
-        &mut self,
-        day: usize,
-        g1_idx: usize,
-        g2_idx: usize,
-        people_from_g1: &[usize],
-        people_from_g2: &[usize],
-        deltas: (i32, i32, i32, i32),
-    ) {
-        // --- 1. Update contact matrix ---
-        let g1_stayers: Vec<usize> = self.schedule[day][g1_idx]
-            .iter()
-            .cloned()
-            .filter(|p| !people_from_g1.contains(p))
-            .collect();
-        let g2_stayers: Vec<usize> = self.schedule[day][g2_idx]
-            .iter()
-            .cloned()
-            .filter(|p| !people_from_g2.contains(p))
-            .collect();
-
-        // Pairs broken
-        for &p1 in people_from_g1 {
-            for &p2 in &g1_stayers {
-                self.contact_matrix[p1][p2] -= 1;
-                self.contact_matrix[p2][p1] -= 1;
-            }
-        }
-        for &p1 in people_from_g2 {
-            for &p2 in &g2_stayers {
-                self.contact_matrix[p1][p2] -= 1;
-                self.contact_matrix[p2][p1] -= 1;
-            }
-        }
-        // Pairs formed
-        for &p1 in people_from_g1 {
-            for &p2 in &g2_stayers {
-                self.contact_matrix[p1][p2] += 1;
-                self.contact_matrix[p2][p1] += 1;
-            }
-        }
-        for &p1 in people_from_g2 {
-            for &p2 in &g1_stayers {
-                self.contact_matrix[p1][p2] += 1;
-                self.contact_matrix[p2][p1] += 1;
-            }
-        }
-        for &p1 in people_from_g1 {
-            for &p2 in people_from_g2 {
-                self.contact_matrix[p1][p2] += 1;
-                self.contact_matrix[p2][p1] += 1;
-            }
-        }
-
-        // --- 2. Update schedule ---
-        self.schedule[day][g1_idx].retain(|p| !people_from_g1.contains(p));
-        self.schedule[day][g2_idx].retain(|p| !people_from_g2.contains(p));
-        self.schedule[day][g1_idx].extend_from_slice(people_from_g2);
-        self.schedule[day][g2_idx].extend_from_slice(people_from_g1);
-
-        // --- 3. Update locations for affected groups ---
-        self.recalculate_locations_for_groups(day, &[g1_idx, g2_idx]);
-
-        // --- 4. Update scores ---
-        self.unique_contacts += deltas.0;
-        self.repetition_penalty += deltas.1;
-        self.gender_balance_penalty += deltas.2;
-        self.constraint_penalty += deltas.3;
-    }
-
-    /// Recalculates all score components from scratch based on the current schedule.
-    /// This is expensive and should only be used for initialization, debugging, or validation.
-    pub fn _recalculate_scores(&mut self) {
-        self.unique_contacts = 0;
-        self.repetition_penalty = 0;
-        self.gender_balance_penalty = 0;
-        self.constraint_penalty = 0;
-        self.contact_matrix =
-            vec![vec![0; self.person_id_to_idx.len()]; self.person_id_to_idx.len()];
-
-        self.recalculate_locations_from_schedule();
-
-        for day_schedule in &self.schedule {
-            for group in day_schedule {
-                for p1_idx in 0..group.len() {
-                    for p2_idx in (p1_idx + 1)..group.len() {
-                        let p1 = group[p1_idx];
-                        let p2 = group[p2_idx];
-                        self.contact_matrix[p1][p2] += 1;
-                        self.contact_matrix[p2][p1] += 1;
-                    }
-                }
-            }
-        }
-
-        for i in 0..self.contact_matrix.len() {
-            for j in (i + 1)..self.contact_matrix[i].len() {
-                if self.contact_matrix[i][j] > 0 {
-                    self.unique_contacts += 1;
-                }
-                if self.contact_matrix[i][j] > 1 {
-                    self.repetition_penalty += (self.contact_matrix[i][j] - 1).pow(2) as i32;
-                }
-            }
-        }
-
-        // --- Gender Balance Penalty ---
-        if self.attribute_balance_constraints.is_empty() {
-            return;
-        }
-
-        for day_schedule in &self.schedule {
-            for (group_idx, group_people) in day_schedule.iter().enumerate() {
-                let group_id = &self.group_idx_to_id[group_idx];
-
-                for constraint in &self.attribute_balance_constraints {
-                    if &constraint.group_id != group_id && constraint.group_id != "ALL" {
-                        continue;
-                    }
-
-                    if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
-                        let num_values = self.attr_idx_to_val[attr_idx].len();
-                        let mut value_counts = vec![0; num_values];
-                        for person_idx in group_people {
-                            let val_idx = self.person_attributes[*person_idx][attr_idx];
-                            if val_idx != usize::MAX {
-                                value_counts[val_idx] += 1;
-                            }
-                        }
-
-                        for (desired_val_str, desired_count) in &constraint.desired_values {
-                            if let Some(&val_idx) =
-                                self.attr_val_to_idx[attr_idx].get(desired_val_str)
-                            {
-                                let actual_count = value_counts[val_idx];
-                                let diff = (actual_count as i32 - *desired_count as i32).abs();
-                                self.gender_balance_penalty += diff.pow(2) as i32;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- Constraint Penalty ---
-        self.constraint_penalty = 0;
-        for day_schedule in &self.schedule {
-            for group in day_schedule {
-                for &(p1, p2) in &self.forbidden_pairs {
-                    let mut p1_in = false;
-                    let mut p2_in = false;
-                    for &member in group {
-                        if member == p1 {
-                            p1_in = true;
-                        }
-                        if member == p2 {
-                            p2_in = true;
-                        }
-                    }
-                    if p1_in && p2_in {
-                        self.constraint_penalty += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    fn recalculate_locations_for_groups(&mut self, day: usize, group_indices: &[usize]) {
-        for &g_idx in group_indices {
-            for (pos, &p_idx) in self.schedule[day][g_idx].iter().enumerate() {
-                self.locations[day][p_idx] = (g_idx, pos);
             }
         }
     }
@@ -1056,9 +473,35 @@ impl State {
             schedule,
             unique_contacts: self.unique_contacts,
             repetition_penalty: self.repetition_penalty,
-            gender_balance_penalty: self.gender_balance_penalty,
+            attribute_balance_penalty: self.attribute_balance_penalty as i32,
             constraint_penalty: self.constraint_penalty,
         }
+    }
+
+    /// Calculates the overall weighted score based on the current state.
+    pub(crate) fn weighted_score(&self) -> f64 {
+        self.unique_contacts as f64 * self.w_contacts
+            - self.repetition_penalty as f64 * self.w_repetition
+            - self.attribute_balance_penalty
+            - self.constraint_penalty as f64 * self.w_constraint
+    }
+
+    /// Swaps two people within the schedule for a given day.
+    pub(crate) fn swap_people(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {
+        let (g1_idx, v1_idx) = self.locations[day][p1_idx];
+        let (g2_idx, v2_idx) = self.locations[day][p2_idx];
+
+        if g1_idx == g2_idx {
+            return; // No need to swap if they are in the same group
+        }
+
+        // Direct swap in the schedule vector
+        self.schedule[day][g1_idx][v1_idx] = p2_idx;
+        self.schedule[day][g2_idx][v2_idx] = p1_idx;
+
+        // Update the locations to match
+        self.locations[day][p1_idx] = (g2_idx, v2_idx);
+        self.locations[day][p2_idx] = (g1_idx, v1_idx);
     }
 }
 
@@ -1141,11 +584,11 @@ mod tests {
                     time_limit_seconds: None,
                     no_improvement_iterations: None,
                 },
-                solver_params: Some(SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+                solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
                     initial_temperature: 1.0,
                     final_temperature: 0.1,
                     cooling_schedule: "linear".to_string(),
-                })),
+                }),
             },
         }
     }
@@ -1159,10 +602,10 @@ mod tests {
             vec![vec![0, 1, 2], vec![3, 4, 5]], // Day 0: 6 contacts
             vec![vec![0, 3, 4], vec![1, 2, 5]], // Day 1: 6 contacts
         ];
-        state.recalculate_locations_from_schedule();
+        state._recalculate_locations_from_schedule();
 
         // 2. Action
-        state.recalculate_scores();
+        state._recalculate_scores();
 
         // 3. Assert
         // Unique contacts:
@@ -1181,7 +624,7 @@ mod tests {
     #[test]
     fn test_swap_updates_scores_correctly() {
         // 1. Setup
-        let mut input = create_test_input(6, vec![(2, 3)], 2);
+        let input = create_test_input(6, vec![(2, 3)], 2);
         let mut state = State::new(&input).unwrap();
 
         // Force a known initial schedule for predictability
@@ -1189,19 +632,18 @@ mod tests {
             vec![vec![0, 1, 2], vec![3, 4, 5]], // Day 0
             vec![vec![0, 3, 4], vec![1, 2, 5]], // Day 1
         ];
-        state.recalculate_locations_from_schedule();
-        state.recalculate_scores();
+        state._recalculate_locations_from_schedule();
+        state._recalculate_scores();
 
-        let initial_schedule = state.schedule.clone();
+        let mut state_after_swap = state.clone();
 
         // 2. Action: Swap person 2 (from G0) with person 3 (from G1) on day 0
-        // This swap has a score_delta of 0. It should be accepted.
-        let deltas = state._calculate_score_delta(0, 2, 3);
-        state._apply_swap(0, 2, 3, deltas);
+        state_after_swap.swap_people(0, 2, 3);
+        state_after_swap._recalculate_scores();
 
         // 3. Assert
         assert_ne!(
-            initial_schedule, state.schedule,
+            state.schedule, state_after_swap.schedule,
             "Schedule should change after a neutral-score swap."
         );
 
@@ -1209,13 +651,13 @@ mod tests {
         // Day 0: G0=[0, 1, 3], G1=[2, 4, 5]
         let expected_day_0 = vec![vec![0, 1, 3], vec![2, 4, 5]];
         assert_eq!(
-            state.schedule[0], expected_day_0,
+            state_after_swap.schedule[0], expected_day_0,
             "Day 0 of schedule is incorrect after swap."
         );
 
         // The scores don't change for this specific swap, but they should be recalculated correctly.
-        assert_eq!(state.unique_contacts, 10);
-        assert_eq!(state.repetition_penalty, 2);
+        assert_eq!(state_after_swap.unique_contacts, 10);
+        assert_eq!(state_after_swap.repetition_penalty, 2);
     }
 
     #[test]

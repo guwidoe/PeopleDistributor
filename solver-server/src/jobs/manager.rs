@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use serde::Serialize;
 use solver_core::{models::ApiInput, run_solver};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::task;
 use uuid::Uuid;
 
@@ -23,7 +23,7 @@ pub struct Job {
 
 #[derive(Clone)]
 pub struct JobManager {
-    jobs: Arc<DashMap<Uuid, Job>>,
+    jobs: Arc<DashMap<Uuid, Arc<Mutex<Job>>>>,
 }
 
 impl JobManager {
@@ -35,32 +35,33 @@ impl JobManager {
 
     pub fn create_job(&self, input: ApiInput) -> Uuid {
         let job_id = Uuid::new_v4();
-        let job = Job {
+        let job = Arc::new(Mutex::new(Job {
             id: job_id,
             status: JobStatus::Pending,
             result: None,
-        };
+        }));
         self.jobs.insert(job_id, job.clone());
 
         let manager_clone = self.clone();
         task::spawn(async move {
-            manager_clone
-                .jobs
-                .entry(job_id)
-                .and_modify(|j| j.status = JobStatus::Running);
+            {
+                let mut j = job.lock().unwrap();
+                j.status = JobStatus::Running;
+            }
 
-            let solver_result = run_solver(input);
+            let solver_result = run_solver(&input);
 
-            manager_clone.jobs.entry(job_id).and_modify(|j| {
+            {
+                let mut j = job.lock().unwrap();
                 j.status = JobStatus::Completed;
                 j.result = serde_json::to_string(&solver_result).ok();
-            });
+            }
         });
 
         job_id
     }
 
     pub fn get_job(&self, id: Uuid) -> Option<Job> {
-        self.jobs.get(&id).map(|job| job.clone())
+        self.jobs.get(&id).map(|job| job.lock().unwrap().clone())
     }
 }

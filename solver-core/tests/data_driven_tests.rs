@@ -5,6 +5,7 @@ use solver_core::{
 };
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 #[derive(Deserialize)]
 struct TestCase {
@@ -41,7 +42,22 @@ fn run_test_case_from_file(path: &Path) {
         .unwrap_or_else(|e| panic!("Failed to parse test case {:?}: {}", path, e));
 
     println!("--- Running Test: {} ---", test_case.name);
-    let result = run_solver(test_case.input.clone());
+    let start_time = Instant::now();
+    let result = run_solver(&test_case.input);
+    let duration = start_time.elapsed();
+
+    assert!(
+        result.is_ok(),
+        "Solver failed for test case {}: {:?}",
+        test_case.name,
+        result.err()
+    );
+    let result = result.unwrap();
+
+    println!(
+        "Finished in {:.2?}. Score: {}",
+        duration, result.final_score
+    );
 
     if test_case.expected.must_stay_together_respected {
         assert_cliques_respected(&test_case.input, &result);

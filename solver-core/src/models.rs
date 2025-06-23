@@ -3,11 +3,11 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApiInput {
-    #[serde(flatten)]
     pub problem: ProblemDefinition,
+    #[serde(default)]
     pub objectives: Vec<Objective>,
+    #[serde(default)]
     pub constraints: Vec<Constraint>,
-    #[serde(flatten)]
     pub solver: SolverConfiguration,
 }
 
@@ -72,8 +72,7 @@ pub struct ImmovablePersonParams {
 pub struct SolverConfiguration {
     pub solver_type: String,
     pub stop_conditions: StopConditions,
-    #[serde(flatten)]
-    pub solver_params: Option<SolverParams>,
+    pub solver_params: SolverParams,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -102,6 +101,6 @@ pub struct SolverResult {
     pub schedule: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
     pub unique_contacts: i32,
     pub repetition_penalty: i32,
-    pub gender_balance_penalty: i32,
+    pub attribute_balance_penalty: i32,
     pub constraint_penalty: i32,
 }

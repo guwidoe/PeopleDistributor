@@ -1,169 +1,106 @@
 use crate::algorithms::Solver;
-use crate::models::{ApiInput, SimulatedAnnealingParams, SolverParams, SolverResult};
-use crate::solver::State;
-use rand::seq::IndexedRandom;
+use crate::models::{SolverConfiguration, SolverParams, SolverResult};
+use crate::solver::{SolverError, State};
+use rand::prelude::*;
 use rand::Rng;
-
+use std::time::Instant;
 pub struct SimulatedAnnealing {
-    params: SimulatedAnnealingParams,
     max_iterations: u64,
+    initial_temperature: f64,
+    final_temperature: f64,
+}
+
+impl Solver for SimulatedAnnealing {
+    fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
+        let start_time = Instant::now();
+        let mut rng = rand::thread_rng();
+
+        let mut current_state = state.clone();
+        let mut best_state = state.clone();
+        let mut best_score = state.weighted_score();
+        let mut no_improvement_counter = 0;
+
+        println!(
+            "Initial state: Contacts={}, Repetition={}, AttributeBalance={:.2}",
+            current_state.unique_contacts,
+            current_state.repetition_penalty,
+            current_state.attribute_balance_penalty
+        );
+
+        for i in 0..self.max_iterations {
+            let temperature = self.initial_temperature
+                * (self.final_temperature / self.initial_temperature)
+                    .powf(i as f64 / self.max_iterations as f64);
+
+            // --- Choose a random move ---
+            let day = rng.gen_range(0..current_state.num_sessions as usize);
+            let people_count = current_state.person_idx_to_id.len();
+            let p1_idx = rng.gen_range(0..people_count);
+            let mut p2_idx = rng.gen_range(0..people_count);
+            while p1_idx == p2_idx {
+                p2_idx = rng.gen_range(0..people_count);
+            }
+
+            // --- Evaluate the swap ---
+            let mut next_state = current_state.clone();
+            next_state.swap_people(day, p1_idx, p2_idx);
+            next_state._recalculate_scores();
+
+            let current_score = current_state.weighted_score();
+            let next_score = next_state.weighted_score();
+
+            if accept_move(current_score, next_score, temperature, &mut rng) {
+                current_state = next_state;
+                if next_score > best_score {
+                    best_score = next_score;
+                    best_state = current_state.clone();
+                    no_improvement_counter = 0;
+                }
+            }
+
+            // --- Logging ---
+            if i % 1000 == 0 {
+                println!(
+                    "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
+                    i, temperature, current_state.unique_contacts, current_state.repetition_penalty
+                );
+            }
+
+            // --- Stop Condition ---
+            no_improvement_counter += 1;
+            if no_improvement_counter > 5000 {
+                // Stop if no improvement is found for a while
+                println!("Stopping early due to no improvement.");
+                break;
+            }
+        }
+
+        let final_score = best_state.weighted_score();
+        let elapsed = start_time.elapsed().as_secs_f64();
+        println!("Solver finished in {:.2} seconds.", elapsed);
+
+        Ok(best_state.to_solver_result(final_score))
+    }
 }
 
 impl SimulatedAnnealing {
-    pub fn new(input: &ApiInput) -> Self {
-        let params = if let Some(SolverParams::SimulatedAnnealing(p)) = &input.solver.solver_params
-        {
-            p.clone()
-        } else {
-            // Provide default SA params if not specified
-            SimulatedAnnealingParams {
-                initial_temperature: 1.0,
-                final_temperature: 0.001,
-                cooling_schedule: "geometric".to_string(),
-            }
+    pub fn new(params: &SolverConfiguration) -> Self {
+        let sa_params = match &params.solver_params {
+            SolverParams::SimulatedAnnealing(p) => p,
         };
-        let max_iterations = input
-            .solver
-            .stop_conditions
-            .max_iterations
-            .unwrap_or(100_000);
         Self {
-            params,
-            max_iterations,
+            max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
+            initial_temperature: sa_params.initial_temperature,
+            final_temperature: sa_params.final_temperature,
         }
     }
 }
 
-impl Solver for SimulatedAnnealing {
-    fn solve(&self, state: &mut State) -> SolverResult {
-        let mut rng = rand::rng();
-        let mut temp = self.params.initial_temperature;
-        let final_temp = self.params.final_temperature;
-        let cooling_rate = (final_temp / temp).powf(1.0 / self.max_iterations as f64);
-
-        println!("Simulated Annealing starting...");
-        println!(" -> Initial Temperature: {}", temp);
-        println!(" -> Max Iterations: {}", self.max_iterations);
-        println!(
-            " -> Initial Scores: Contacts={}, Repetition Penalty={}, Gender Balance Penalty={}",
-            state.unique_contacts, state.repetition_penalty, state.gender_balance_penalty
-        );
-
-        // Main simulated annealing loop
-        for _ in 0..self.max_iterations {
-            let move_type = rng.random::<f32>();
-
-            if !state.cliques.is_empty() && move_type < 0.5 {
-                // --- Perform a Clique Swap ---
-                let clique_idx = rng.random_range(0..state.cliques.len());
-                let clique_to_move = state.cliques[clique_idx].clone();
-                let day = rng.random_range(0..state.num_sessions as usize);
-                let g1_idx = state.locations[day][clique_to_move[0]].0;
-
-                let potential_g2s: Vec<usize> = (0..state.group_idx_to_id.len())
-                    .filter(|&g| g != g1_idx)
-                    .collect();
-                if potential_g2s.is_empty() {
-                    continue;
-                }
-                let g2_idx = potential_g2s[rng.random_range(0..potential_g2s.len())];
-
-                let g2_individuals: Vec<usize> = state.schedule[day][g2_idx]
-                    .iter()
-                    .cloned()
-                    .filter(|p| state.person_to_clique_id[*p].is_none())
-                    .collect();
-
-                if g2_individuals.len() >= clique_to_move.len() {
-                    let people_from_g2: Vec<usize> = g2_individuals
-                        .choose_multiple(&mut rng, clique_to_move.len())
-                        .cloned()
-                        .collect();
-                    let deltas =
-                        state._calculate_multi_swap_delta(day, &clique_to_move, &people_from_g2);
-                    let (
-                        contact_delta,
-                        repetition_delta,
-                        gender_balance_delta,
-                        constraint_penalty_delta,
-                    ) = deltas;
-                    let score_delta = contact_delta as f64 * state.w_contacts
-                        - repetition_delta as f64 * state.w_repetition
-                        - gender_balance_delta as f64 * state.w_gender
-                        - constraint_penalty_delta as f64 * state.w_constraint;
-
-                    if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
-                        state._apply_multi_swap(
-                            day,
-                            g1_idx,
-                            g2_idx,
-                            &clique_to_move,
-                            &people_from_g2,
-                            deltas,
-                        );
-                    }
-                }
-            } else {
-                // --- Perform a Single Person Swap ---
-                let p1_idx = rng.random_range(0..state.person_idx_to_id.len());
-                let p2_idx = rng.random_range(0..state.person_idx_to_id.len());
-
-                if state.person_to_clique_id[p1_idx].is_some()
-                    || state.person_to_clique_id[p2_idx].is_some()
-                {
-                    continue; // For simplicity, only swap individuals not in cliques
-                }
-
-                let day = rng.random_range(0..state.num_sessions as usize);
-                let (g1_idx, _) = state.locations[day][p1_idx];
-                let (g2_idx, _) = state.locations[day][p2_idx];
-
-                if g1_idx != g2_idx {
-                    let deltas = state._calculate_score_delta(day, p1_idx, p2_idx);
-                    let (
-                        contact_delta,
-                        repetition_delta,
-                        gender_balance_delta,
-                        constraint_penalty_delta,
-                    ) = deltas;
-
-                    let score_delta = contact_delta as f64 * state.w_contacts
-                        - repetition_delta as f64 * state.w_repetition
-                        - gender_balance_delta as f64 * state.w_gender
-                        - constraint_penalty_delta as f64 * state.w_constraint;
-
-                    if score_delta >= 0.0 || rng.random::<f64>() < (score_delta / temp).exp() {
-                        state._apply_swap(day, p1_idx, p2_idx, deltas);
-                    }
-                }
-            }
-
-            // Cool down temperature
-            match self.params.cooling_schedule.as_str() {
-                "geometric" => temp *= cooling_rate,
-                "linear" => {
-                    temp -=
-                        (self.params.initial_temperature - final_temp) / self.max_iterations as f64
-                }
-                _ => temp *= cooling_rate, // Default to geometric
-            }
-            if temp < final_temp {
-                temp = final_temp;
-            }
-        }
-
-        let final_score = state.unique_contacts as f64 * state.w_contacts
-            - state.repetition_penalty as f64 * state.w_repetition
-            - state.gender_balance_penalty as f64 * state.w_gender
-            - state.constraint_penalty as f64 * state.w_constraint;
-
-        println!("Solver finished.");
-        println!(
-            " -> Final Scores: Contacts={}, Repetition Penalty={}, Gender Balance Penalty={}",
-            state.unique_contacts, state.repetition_penalty, state.gender_balance_penalty
-        );
-        println!(" -> Final Weighted Score: {}", final_score);
-
-        state.to_solver_result(final_score)
+fn accept_move(current_score: f64, next_score: f64, temperature: f64, rng: &mut ThreadRng) -> bool {
+    if next_score > current_score {
+        true
+    } else {
+        let probability = ((next_score - current_score) / temperature).exp();
+        rng.gen_bool(probability)
     }
 }
