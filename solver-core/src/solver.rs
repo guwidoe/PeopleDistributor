@@ -729,10 +729,15 @@ impl State {
         people_from_g1: &[usize],
         people_from_g2: &[usize],
     ) -> (i32, i32, i32, i32) {
-        let mut deltas = (0, 0, 0, 0);
+        let mut contact_delta = 0;
+        let mut repetition_delta = 0;
+        let mut gender_balance_delta = 0;
+        let mut constraint_penalty_delta = 0;
+
         let g1_idx = self.locations[day][people_from_g1[0]].0;
         let g2_idx = self.locations[day][people_from_g2[0]].0;
 
+        // --- 1. Contact and Repetition Deltas ---
         let g1_stayers: Vec<usize> = self.schedule[day][g1_idx]
             .iter()
             .cloned()
@@ -744,77 +749,96 @@ impl State {
             .filter(|p| !people_from_g2.contains(p))
             .collect();
 
-        // 1. Interactions between moving people and stayers
-        for &p_from_g1 in people_from_g1 {
-            for &p_stayer_g1 in &g1_stayers {
-                // p_from_g1 leaves p_stayer_g1
-                let d = self.get_contact_deltas(p_from_g1, p_stayer_g1, -1);
-                deltas = (
-                    deltas.0 + d.0,
-                    deltas.1 + d.1,
-                    deltas.2 + d.2,
-                    deltas.3 + d.3,
-                );
+        // Pairs broken in g1, formed with g2 stayers
+        for &p1 in people_from_g1 {
+            for &p2 in &g1_stayers {
+                // broken
+                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, -1);
+                contact_delta += cd;
+                repetition_delta += rd;
             }
-            for &p_stayer_g2 in &g2_stayers {
-                // p_from_g1 meets p_stayer_g2
-                let d = self.get_contact_deltas(p_from_g1, p_stayer_g2, 1);
-                deltas = (
-                    deltas.0 + d.0,
-                    deltas.1 + d.1,
-                    deltas.2 + d.2,
-                    deltas.3 + d.3,
-                );
+            for &p2 in &g2_stayers {
+                // formed
+                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
+                contact_delta += cd;
+                repetition_delta += rd;
             }
         }
-        for &p_from_g2 in people_from_g2 {
-            for &p_stayer_g2 in &g2_stayers {
-                // p_from_g2 leaves p_stayer_g2
-                let d = self.get_contact_deltas(p_from_g2, p_stayer_g2, -1);
-                deltas = (
-                    deltas.0 + d.0,
-                    deltas.1 + d.1,
-                    deltas.2 + d.2,
-                    deltas.3 + d.3,
-                );
+        // Pairs broken in g2, formed with g1 stayers
+        for &p1 in people_from_g2 {
+            for &p2 in &g2_stayers {
+                // broken
+                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, -1);
+                contact_delta += cd;
+                repetition_delta += rd;
             }
-            for &p_stayer_g1 in &g1_stayers {
-                // p_from_g2 meets p_stayer_g1
-                let d = self.get_contact_deltas(p_from_g2, p_stayer_g1, 1);
-                deltas = (
-                    deltas.0 + d.0,
-                    deltas.1 + d.1,
-                    deltas.2 + d.2,
-                    deltas.3 + d.3,
-                );
+            for &p2 in &g1_stayers {
+                // formed
+                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
+                contact_delta += cd;
+                repetition_delta += rd;
             }
         }
-
-        // 2. Interactions between moving people from different groups
+        // Pairs formed between the two moving groups
         for &p1 in people_from_g1 {
             for &p2 in people_from_g2 {
-                // They now meet
-                let d = self.get_contact_deltas(p1, p2, 1);
-                deltas = (
-                    deltas.0 + d.0,
-                    deltas.1 + d.1,
-                    deltas.2 + d.2,
-                    deltas.3 + d.3,
-                );
+                let (cd, rd) = self._get_contact_deltas_for_pair(p1, p2, 1);
+                contact_delta += cd;
+                repetition_delta += rd;
             }
         }
 
-        // 3. Attribute balance delta (approximation, full calc is complex)
-        // This part is hard to make fully incremental without significant complexity.
-        // For now, we accept the approximation.
+        // --- 2. Gender and Constraint Deltas (Before/After) ---
+        let g1_before = &self.schedule[day][g1_idx];
+        let g2_before = &self.schedule[day][g2_idx];
 
-        deltas
+        let g1_after: Vec<usize> = g1_stayers
+            .iter()
+            .cloned()
+            .chain(people_from_g2.iter().cloned())
+            .collect();
+        let g2_after: Vec<usize> = g2_stayers
+            .iter()
+            .cloned()
+            .chain(people_from_g1.iter().cloned())
+            .collect();
+
+        let gender_before = self._calculate_one_group_gender_penalty(g1_before)
+            + self._calculate_one_group_gender_penalty(g2_before);
+        let gender_after = self._calculate_one_group_gender_penalty(&g1_after)
+            + self._calculate_one_group_gender_penalty(&g2_after);
+        gender_balance_delta = gender_after - gender_before;
+
+        let mut constraints_before = 0;
+        let mut constraints_after = 0;
+        for &(p1, p2) in &self.forbidden_pairs {
+            if g1_before.contains(&p1) && g1_before.contains(&p2) {
+                constraints_before += 1;
+            }
+            if g2_before.contains(&p1) && g2_before.contains(&p2) {
+                constraints_before += 1;
+            }
+            if g1_after.contains(&p1) && g1_after.contains(&p2) {
+                constraints_after += 1;
+            }
+            if g2_after.contains(&p1) && g2_after.contains(&p2) {
+                constraints_after += 1;
+            }
+        }
+        constraint_penalty_delta = constraints_after - constraints_before;
+
+        (
+            contact_delta,
+            repetition_delta,
+            gender_balance_delta,
+            constraint_penalty_delta,
+        )
     }
 
-    // Helper for multi-swap delta calc
-    fn get_contact_deltas(&self, p1: usize, p2: usize, change: i32) -> (i32, i32, i32, i32) {
+    // Helper to get contact/repetition deltas for a single pair
+    fn _get_contact_deltas_for_pair(&self, p1: usize, p2: usize, change: i32) -> (i32, i32) {
         let mut contact_delta = 0;
-        let mut repetition_delta = 0;
+        let repetition_delta;
 
         let current_contacts = self.contact_matrix[p1][p2];
         let new_contacts = (current_contacts as i32 + change) as u32;
@@ -824,21 +848,17 @@ impl State {
             if current_contacts == 0 {
                 contact_delta += 1;
             }
-            if current_contacts > 0 {
-                repetition_delta += new_contacts.saturating_sub(1).pow(2) as i32
-                    - current_contacts.saturating_sub(1).pow(2) as i32;
-            }
         } else {
             // Losing contact
             if new_contacts == 0 {
                 contact_delta -= 1;
             }
-            if current_contacts > 1 {
-                repetition_delta += new_contacts.saturating_sub(1).pow(2) as i32
-                    - current_contacts.saturating_sub(1).pow(2) as i32;
-            }
         }
-        (contact_delta, repetition_delta, 0, 0) // Attr/constraint delta handled separately
+
+        repetition_delta = (new_contacts.saturating_sub(1).pow(2) as i32)
+            - (current_contacts.saturating_sub(1).pow(2) as i32);
+
+        (contact_delta, repetition_delta)
     }
 
     pub(crate) fn _apply_multi_swap(
@@ -848,12 +868,172 @@ impl State {
         g2_idx: usize,
         people_from_g1: &[usize],
         people_from_g2: &[usize],
+        deltas: (i32, i32, i32, i32),
     ) {
+        // --- 1. Update contact matrix ---
+        let g1_stayers: Vec<usize> = self.schedule[day][g1_idx]
+            .iter()
+            .cloned()
+            .filter(|p| !people_from_g1.contains(p))
+            .collect();
+        let g2_stayers: Vec<usize> = self.schedule[day][g2_idx]
+            .iter()
+            .cloned()
+            .filter(|p| !people_from_g2.contains(p))
+            .collect();
+
+        // Pairs broken
+        for &p1 in people_from_g1 {
+            for &p2 in &g1_stayers {
+                self.contact_matrix[p1][p2] -= 1;
+                self.contact_matrix[p2][p1] -= 1;
+            }
+        }
+        for &p1 in people_from_g2 {
+            for &p2 in &g2_stayers {
+                self.contact_matrix[p1][p2] -= 1;
+                self.contact_matrix[p2][p1] -= 1;
+            }
+        }
+        // Pairs formed
+        for &p1 in people_from_g1 {
+            for &p2 in &g2_stayers {
+                self.contact_matrix[p1][p2] += 1;
+                self.contact_matrix[p2][p1] += 1;
+            }
+        }
+        for &p1 in people_from_g2 {
+            for &p2 in &g1_stayers {
+                self.contact_matrix[p1][p2] += 1;
+                self.contact_matrix[p2][p1] += 1;
+            }
+        }
+        for &p1 in people_from_g1 {
+            for &p2 in people_from_g2 {
+                self.contact_matrix[p1][p2] += 1;
+                self.contact_matrix[p2][p1] += 1;
+            }
+        }
+
+        // --- 2. Update schedule ---
         self.schedule[day][g1_idx].retain(|p| !people_from_g1.contains(p));
         self.schedule[day][g2_idx].retain(|p| !people_from_g2.contains(p));
         self.schedule[day][g1_idx].extend_from_slice(people_from_g2);
         self.schedule[day][g2_idx].extend_from_slice(people_from_g1);
+
+        // --- 3. Update locations for affected groups ---
+        self.recalculate_locations_for_groups(day, &[g1_idx, g2_idx]);
+
+        // --- 4. Update scores ---
+        self.unique_contacts += deltas.0;
+        self.repetition_penalty += deltas.1;
+        self.gender_balance_penalty += deltas.2;
+        self.constraint_penalty += deltas.3;
+    }
+
+    /// Recalculates all score components from scratch based on the current schedule.
+    /// This is expensive and should only be used for initialization, debugging, or validation.
+    pub fn _recalculate_scores(&mut self) {
+        self.unique_contacts = 0;
+        self.repetition_penalty = 0;
+        self.gender_balance_penalty = 0;
+        self.constraint_penalty = 0;
+        self.contact_matrix =
+            vec![vec![0; self.person_id_to_idx.len()]; self.person_id_to_idx.len()];
+
         self.recalculate_locations_from_schedule();
+
+        for day_schedule in &self.schedule {
+            for group in day_schedule {
+                for p1_idx in 0..group.len() {
+                    for p2_idx in (p1_idx + 1)..group.len() {
+                        let p1 = group[p1_idx];
+                        let p2 = group[p2_idx];
+                        self.contact_matrix[p1][p2] += 1;
+                        self.contact_matrix[p2][p1] += 1;
+                    }
+                }
+            }
+        }
+
+        for i in 0..self.contact_matrix.len() {
+            for j in (i + 1)..self.contact_matrix[i].len() {
+                if self.contact_matrix[i][j] > 0 {
+                    self.unique_contacts += 1;
+                }
+                if self.contact_matrix[i][j] > 1 {
+                    self.repetition_penalty += (self.contact_matrix[i][j] - 1).pow(2) as i32;
+                }
+            }
+        }
+
+        // --- Gender Balance Penalty ---
+        if self.attribute_balance_constraints.is_empty() {
+            return;
+        }
+
+        for day_schedule in &self.schedule {
+            for (group_idx, group_people) in day_schedule.iter().enumerate() {
+                let group_id = &self.group_idx_to_id[group_idx];
+
+                for constraint in &self.attribute_balance_constraints {
+                    if &constraint.group_id != group_id && constraint.group_id != "ALL" {
+                        continue;
+                    }
+
+                    if let Some(&attr_idx) = self.attr_key_to_idx.get(&constraint.attribute_key) {
+                        let num_values = self.attr_idx_to_val[attr_idx].len();
+                        let mut value_counts = vec![0; num_values];
+                        for person_idx in group_people {
+                            let val_idx = self.person_attributes[*person_idx][attr_idx];
+                            if val_idx != usize::MAX {
+                                value_counts[val_idx] += 1;
+                            }
+                        }
+
+                        for (desired_val_str, desired_count) in &constraint.desired_values {
+                            if let Some(&val_idx) =
+                                self.attr_val_to_idx[attr_idx].get(desired_val_str)
+                            {
+                                let actual_count = value_counts[val_idx];
+                                let diff = (actual_count as i32 - *desired_count as i32).abs();
+                                self.gender_balance_penalty += diff.pow(2) as i32;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Constraint Penalty ---
+        self.constraint_penalty = 0;
+        for day_schedule in &self.schedule {
+            for group in day_schedule {
+                for &(p1, p2) in &self.forbidden_pairs {
+                    let mut p1_in = false;
+                    let mut p2_in = false;
+                    for &member in group {
+                        if member == p1 {
+                            p1_in = true;
+                        }
+                        if member == p2 {
+                            p2_in = true;
+                        }
+                    }
+                    if p1_in && p2_in {
+                        self.constraint_penalty += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    fn recalculate_locations_for_groups(&mut self, day: usize, group_indices: &[usize]) {
+        for &g_idx in group_indices {
+            for (pos, &p_idx) in self.schedule[day][g_idx].iter().enumerate() {
+                self.locations[day][p_idx] = (g_idx, pos);
+            }
+        }
     }
 
     pub fn to_solver_result(&self, final_score: f64) -> SolverResult {

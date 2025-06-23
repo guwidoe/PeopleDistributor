@@ -99,6 +99,7 @@ impl Solver for SimulatedAnnealing {
                             g2_idx,
                             &clique_to_move,
                             &people_from_g2,
+                            deltas,
                         );
                     }
                 }
