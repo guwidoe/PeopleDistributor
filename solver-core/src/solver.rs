@@ -213,10 +213,6 @@ impl State {
                     day_schedule[group_idx].push(person_idx);
                     assigned_in_day[person_idx] = true;
                     group_cursors[group_idx] += 1;
-                    // Remove from unassigned
-                    if let Some(pos) = unassigned_people.iter().position(|x| *x == person_idx) {
-                        unassigned_people.remove(pos);
-                    }
                 } else {
                     return Err(SolverError::ValidationError(format!(
                         "Cannot place immovable person {} in group {}: group is full.",
@@ -224,6 +220,9 @@ impl State {
                     )));
                 }
             }
+
+            // After assigning immovables, remove them from the unassigned list
+            unassigned_people.retain(|p_idx| !assigned_in_day[*p_idx]);
 
             // 1. Assign cliques first
             for clique in &state.cliques {
@@ -391,15 +390,17 @@ impl State {
                 let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
                     SolverError::ValidationError(format!("Group '{}' not found.", params.group_id))
                 })?;
-                let s_idx = params.session as usize;
 
-                if s_idx >= self.num_sessions as usize {
-                    return Err(SolverError::ValidationError(format!(
-                        "Session index {} out of bounds for immovable person {}.",
-                        s_idx, params.person_id
-                    )));
+                for &session in &params.sessions {
+                    let s_idx = session as usize;
+                    if s_idx >= self.num_sessions as usize {
+                        return Err(SolverError::ValidationError(format!(
+                            "Session index {} out of bounds for immovable person {}.",
+                            s_idx, params.person_id
+                        )));
+                    }
+                    self.immovable_people.insert((*p_idx, s_idx), *g_idx);
                 }
-                self.immovable_people.insert((*p_idx, s_idx), *g_idx);
             }
         }
 
@@ -826,7 +827,10 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            self.repetition_penalty += (count as i32 - 2).pow(2) - (count as i32 - 1).pow(2);
+            self.repetition_penalty -= (count as i32 - 1).pow(2);
+            if count > 1 {
+                self.repetition_penalty += (count as i32 - 2).pow(2);
+            }
             if count == 1 {
                 self.unique_contacts -= 1;
             }
@@ -838,7 +842,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            self.repetition_penalty += (count as i32).pow(2) - (count as i32 - 1).pow(2);
+            self.repetition_penalty -= (count as i32 - 1).pow(2);
+            self.repetition_penalty += (count as i32).pow(2);
             if count == 0 {
                 self.unique_contacts += 1;
             }
@@ -851,7 +856,10 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            self.repetition_penalty += (count as i32 - 2).pow(2) - (count as i32 - 1).pow(2);
+            self.repetition_penalty -= (count as i32 - 1).pow(2);
+            if count > 1 {
+                self.repetition_penalty += (count as i32 - 2).pow(2);
+            }
             if count == 1 {
                 self.unique_contacts -= 1;
             }
@@ -863,7 +871,8 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            self.repetition_penalty += (count as i32).pow(2) - (count as i32 - 1).pow(2);
+            self.repetition_penalty -= (count as i32 - 1).pow(2);
+            self.repetition_penalty += (count as i32).pow(2);
             if count == 0 {
                 self.unique_contacts += 1;
             }

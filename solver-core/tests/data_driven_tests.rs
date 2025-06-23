@@ -153,30 +153,32 @@ fn assert_immovable_person_respected(input: &ApiInput, result: &SolverResult) {
         .collect();
 
     for constraint in immovable_constraints {
-        let session_key = format!("session_{}", constraint.session);
-        let session_schedule = result.schedule.get(&session_key).unwrap_or_else(|| {
-            panic!(
-                "Session {} not found in schedule for immovable person check",
-                session_key
-            )
-        });
+        for &session in &constraint.sessions {
+            let session_key = format!("session_{}", session);
+            let session_schedule = result.schedule.get(&session_key).unwrap_or_else(|| {
+                panic!(
+                    "Session {} not found in schedule for immovable person check",
+                    session_key
+                )
+            });
 
-        let person_group = session_schedule
-            .iter()
-            .find(|(_group_id, members)| members.contains(&constraint.person_id));
+            let person_group = session_schedule
+                .iter()
+                .find(|(_group_id, members)| members.contains(&constraint.person_id));
 
-        assert!(
-            person_group.is_some(),
-            "Immovable person {} not found in any group for session {}",
-            constraint.person_id,
-            constraint.session
-        );
+            assert!(
+                person_group.is_some(),
+                "Immovable person {} not found in any group for session {}",
+                constraint.person_id,
+                session
+            );
 
-        let (group_id, _members) = person_group.unwrap();
-        assert_eq!(
-            *group_id, constraint.group_id,
-            "Immovable person {} is in group {} instead of {} for session {}",
-            constraint.person_id, group_id, constraint.group_id, constraint.session
-        );
+            let (group_id, _members) = person_group.unwrap();
+            assert_eq!(
+                *group_id, constraint.group_id,
+                "Immovable person {} is in group {} instead of {} for session {}",
+                constraint.person_id, group_id, constraint.group_id, session
+            );
+        }
     }
 }

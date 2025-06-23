@@ -65,7 +65,7 @@ pub struct AttributeBalanceParams {
 pub struct ImmovablePersonParams {
     pub person_id: String,
     pub group_id: String,
-    pub session: u32,
+    pub sessions: Vec<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
