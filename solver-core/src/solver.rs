@@ -564,12 +564,13 @@ impl State {
         }
     }
 
-    /// Calculates the overall weighted score based on the current state.
-    pub(crate) fn weighted_score(&self) -> f64 {
-        self.unique_contacts as f64 * self.w_contacts
-            - self.repetition_penalty as f64 * self.w_repetition
-            - self.attribute_balance_penalty
-            - self.constraint_penalty as f64 * self.w_constraint
+    /// Calculates the overall cost of the current state, which the optimizer will try to minimize.
+    /// It combines maximizing unique contacts (by negating it) and minimizing penalties.
+    pub(crate) fn calculate_cost(&self) -> f64 {
+        (self.repetition_penalty as f64 * self.w_repetition)
+            + self.attribute_balance_penalty
+            + (self.constraint_penalty as f64 * self.w_constraint)
+            - (self.unique_contacts as f64 * self.w_contacts)
     }
 
     fn get_attribute_counts(&self, group_members: &[usize], attr_idx: usize) -> Vec<u32> {
@@ -679,7 +680,9 @@ impl State {
         0.0
     }
 
-    pub fn calculate_swap_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> f64 {
+    /// Calculates the change in the total cost function if a swap were to be performed.
+    /// A negative delta indicates an improvement (a lower cost).
+    pub fn calculate_swap_cost_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> f64 {
         let (g1_idx, _) = self.locations[day][p1_idx];
         let (g2_idx, _) = self.locations[day][p2_idx];
 
@@ -687,21 +690,26 @@ impl State {
             return 0.0;
         }
 
-        let mut delta_score = 0.0;
+        let mut delta_cost = 0.0;
 
-        // Contact/Repetition Delta
+        // --- Contact/Repetition Delta ---
         let g1_members = &self.schedule[day][g1_idx];
         let g2_members = &self.schedule[day][g2_idx];
-        // p1
+
+        // --- Changes for p1 (loses contacts with g1, gains with g2) ---
         for &member in g1_members.iter() {
             if member == p1_idx {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            delta_score +=
-                self.w_repetition * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
-            if count == 1 {
-                delta_score -= self.w_contacts;
+            if count > 0 {
+                // Repetition penalty change: (new_penalty - old_penalty)
+                delta_cost += self.w_repetition
+                    * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                if count == 1 {
+                    // Unique contacts: losing one, so cost increases
+                    delta_cost += self.w_contacts;
+                }
             }
         }
         for &member in g2_members.iter() {
@@ -709,22 +717,27 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p1_idx][member];
-            delta_score +=
+            // Repetition penalty change: (new_penalty - old_penalty)
+            delta_cost +=
                 self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 0 {
-                delta_score += self.w_contacts;
+                // Unique contacts: gaining one, so cost decreases
+                delta_cost -= self.w_contacts;
             }
         }
-        // p2
+
+        // --- Changes for p2 (loses contacts with g2, gains with g1) ---
         for &member in g2_members.iter() {
             if member == p2_idx {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            delta_score +=
-                self.w_repetition * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
-            if count == 1 {
-                delta_score -= self.w_contacts;
+            if count > 0 {
+                delta_cost += self.w_repetition
+                    * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                if count == 1 {
+                    delta_cost += self.w_contacts;
+                }
             }
         }
         for &member in g1_members.iter() {
@@ -732,10 +745,10 @@ impl State {
                 continue;
             }
             let count = self.contact_matrix[p2_idx][member];
-            delta_score +=
+            delta_cost +=
                 self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
             if count == 0 {
-                delta_score += self.w_contacts;
+                delta_cost -= self.w_contacts;
             }
         }
 
@@ -762,7 +775,9 @@ impl State {
             let new_penalty_g2 =
                 self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
 
-            delta_score -= (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+            let delta_penalty =
+                (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+            delta_cost += delta_penalty * ac.penalty_weight;
         }
 
         // Hard Constraint Delta - Cliques
@@ -770,13 +785,13 @@ impl State {
             let clique = &self.cliques[c_id];
             // If p2 is not in the same clique, this swap would break the clique
             if self.person_to_clique_id[p2_idx] != Some(c_id) {
-                delta_score -= self.w_constraint * clique.len() as f64;
+                delta_cost += self.w_constraint * clique.len() as f64;
             }
         } else if let Some(c_id) = self.person_to_clique_id[p2_idx] {
             // Same logic if p2 is in a clique and p1 is not
             let clique = &self.cliques[c_id];
             if self.person_to_clique_id[p1_idx] != Some(c_id) {
-                delta_score -= self.w_constraint * clique.len() as f64;
+                delta_cost += self.w_constraint * clique.len() as f64;
             }
         }
 
@@ -792,10 +807,10 @@ impl State {
 
             // Penalty before swap
             if g1_members.contains(&p1) && g1_members.contains(&p2) {
-                delta_score += self.w_constraint;
+                delta_cost -= self.w_constraint;
             }
             if g2_members.contains(&p1) && g2_members.contains(&p2) {
-                delta_score += self.w_constraint;
+                delta_cost -= self.w_constraint;
             }
 
             // Penalty after swap
@@ -812,14 +827,14 @@ impl State {
                 .collect();
             next_g2_members.push(p1_idx);
             if next_g1_members.contains(&p1) && next_g1_members.contains(&p2) {
-                delta_score -= self.w_constraint;
+                delta_cost += self.w_constraint;
             }
             if next_g2_members.contains(&p1) && next_g2_members.contains(&p2) {
-                delta_score -= self.w_constraint;
+                delta_cost += self.w_constraint;
             }
         }
 
-        delta_score
+        delta_cost
     }
 
     pub fn apply_swap(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {

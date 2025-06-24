@@ -1,7 +1,6 @@
 use crate::algorithms::Solver;
 use crate::models::{SolverConfiguration, SolverParams, SolverResult};
 use crate::solver::{SolverError, State};
-use rand::rngs::ThreadRng;
 use rand::{rng, Rng};
 use std::time::Instant;
 
@@ -31,7 +30,7 @@ impl Solver for SimulatedAnnealing {
 
         let mut current_state = state.clone();
         let mut best_state = state.clone();
-        let mut best_score = state.weighted_score();
+        let mut best_cost = state.calculate_cost();
         let mut no_improvement_counter = 0;
 
         if state.logging.log_initial_state {
@@ -61,23 +60,21 @@ impl Solver for SimulatedAnnealing {
 
             // Ensure we don't pick an immovable person for a swap
             let p1_idx = swappable_people[rng.random_range(0..swappable_people.len())];
-            let p2_idx = loop {
-                let idx = swappable_people[rng.random_range(0..swappable_people.len())];
-                if idx != p1_idx {
-                    break idx;
-                }
-            };
+            let mut p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+            while p1_idx == p2_idx {
+                p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+            }
 
             // --- Evaluate the swap ---
-            let score_delta = current_state.calculate_swap_delta(day, p1_idx, p2_idx);
-            let current_score = current_state.weighted_score();
-            let next_score = current_score + score_delta;
+            let delta_cost = current_state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
+            let current_cost = current_state.calculate_cost();
+            let next_cost = current_cost + delta_cost;
 
-            if accept_move(current_score, next_score, temperature, &mut rng) {
+            if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
                 current_state.apply_swap(day, p1_idx, p2_idx);
 
-                if current_state.weighted_score() > best_score {
-                    best_score = current_state.weighted_score();
+                if next_cost < best_cost {
+                    best_cost = next_cost;
                     best_state = current_state.clone();
                     no_improvement_counter = 0;
                 }
@@ -105,35 +102,23 @@ impl Solver for SimulatedAnnealing {
             }
         }
 
-        let final_score = best_state.weighted_score();
+        let final_cost = best_state.calculate_cost();
         let elapsed = start_time.elapsed().as_secs_f64();
 
         if state.logging.log_duration_and_score {
             println!(
                 "Solver finished in {:.2} seconds. Final score: {:.2}",
-                elapsed, final_score
+                elapsed, final_cost
             );
         }
 
         best_state.validate_scores();
-        let result = best_state.to_solver_result(final_score);
+        let result = best_state.to_solver_result(final_cost);
 
         if state.logging.display_final_schedule {
             println!("{}", result.display());
         }
 
         Ok(result)
-    }
-}
-
-fn accept_move(current_score: f64, next_score: f64, temperature: f64, rng: &mut ThreadRng) -> bool {
-    if next_score > current_score {
-        true
-    } else {
-        if temperature == 0.0 {
-            return false;
-        }
-        let probability = ((next_score - current_score) / temperature).exp();
-        rng.random::<f64>() < probability
     }
 }

@@ -191,17 +191,17 @@
         "solver": {
             "solver_type": "SimulatedAnnealing",
             "stop_conditions": {
-                "max_iterations": 1000000
+                "max_iterations": 100000
             },
             "solver_params": {
                 "solver_type": "SimulatedAnnealing",
-                "initial_temperature": 100.0,
-                "final_temperature": 0.1,
+                "initial_temperature": 1.0,
+                "final_temperature": 0.0001,
                 "cooling_schedule": "geometric"
             },
             "logging": {
-                "log_frequency": 100000,
-                "display_final_schedule": true
+                "log_frequency": 0,
+                "display_final_schedule": false
             }
         }
     },

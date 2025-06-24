@@ -1,0 +1,47 @@
+{
+    "name": "Constraint - Cannot Be Together",
+    "input": {
+      "problem": {
+        "people": [
+          { "id": "p0", "attributes": {} },
+          { "id": "p1", "attributes": {} },
+          { "id": "p2", "attributes": {} },
+          { "id": "p3", "attributes": {} },
+          { "id": "p4", "attributes": {} },
+          { "id": "p5", "attributes": {} }
+        ],
+        "groups": [
+          { "id": "g0", "size": 2 },
+          { "id": "g1", "size": 2 },
+          { "id": "g2", "size": 2 }
+        ],
+        "num_sessions": 2
+      },
+      "objectives": [],
+      "constraints": [
+        {
+          "type": "CannotBeTogether",
+          "people": ["p0", "p1", "p2"]
+        }
+      ],
+      "solver": {
+        "solver_type": "SimulatedAnnealing",
+        "stop_conditions": { "max_iterations": 1000 },
+        "solver_params": {
+          "solver_type": "SimulatedAnnealing",
+          "initial_temperature": 1.0,
+          "final_temperature": 0.001,
+          "cooling_schedule": "geometric"
+        },
+        "logging": {
+          "log_frequency": 0,
+          "log_initial_state": false,
+          "log_duration_and_score": false,
+          "display_final_schedule": false
+        }
+      }
+    },
+    "expected": {
+      "cannot_be_together_respected": true
+    }
+  } 

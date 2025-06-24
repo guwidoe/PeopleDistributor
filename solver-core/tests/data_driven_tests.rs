@@ -4,7 +4,21 @@ use solver_core::{
     run_solver,
 };
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Deserialize)]
+enum TestMode {
+    #[serde(rename = "all")]
+    All,
+    #[serde(rename = "filter")]
+    Filter,
+}
+
+#[derive(Debug, Deserialize)]
+struct TestSettings {
+    mode: TestMode,
+    filter_patterns: Vec<String>,
+}
 
 #[derive(Deserialize)]
 struct TestCase {
@@ -26,29 +40,48 @@ struct ExpectedMetrics {
 
 #[test]
 fn run_data_driven_tests() {
+    let settings_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("test_settings.yaml");
+    let settings_file =
+        fs::read_to_string(settings_path).expect("Unable to read test_settings.yaml");
+    let settings: TestSettings =
+        serde_yaml::from_str(&settings_file).expect("Unable to parse test_settings.yaml");
+
     let paths = fs::read_dir("tests/test_cases").unwrap();
 
     for path in paths {
         let path = path.unwrap().path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-            run_test_case_from_file(&path);
+            let file_content = fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("Failed to read test case file {:?}: {}", path, e));
+            let test_case: TestCase = serde_json::from_str(&file_content)
+                .unwrap_or_else(|e| panic!("Failed to parse test case {:?}: {}", path, e));
+
+            let should_run = match settings.mode {
+                TestMode::All => true,
+                TestMode::Filter => settings
+                    .filter_patterns
+                    .iter()
+                    .any(|pattern| test_case.name.contains(pattern)),
+            };
+
+            if should_run {
+                println!("--- Running Test: {} ---", test_case.name);
+                run_test_case(&test_case, &path);
+            }
         }
     }
 }
 
-fn run_test_case_from_file(path: &Path) {
-    let file_content = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("Failed to read test case file {:?}: {}", path, e));
-    let test_case: TestCase = serde_json::from_str(&file_content)
-        .unwrap_or_else(|e| panic!("Failed to parse test case {:?}: {}", path, e));
-
-    println!("--- Running Test: {} ---", test_case.name);
+fn run_test_case(test_case: &TestCase, path: &Path) {
     let result = run_solver(&test_case.input);
 
     assert!(
         result.is_ok(),
-        "Solver failed for test case {}: {:?}",
+        "Solver failed for test case {} ({:?}): {:?}",
         test_case.name,
+        path,
         result.err()
     );
     let result = result.unwrap();

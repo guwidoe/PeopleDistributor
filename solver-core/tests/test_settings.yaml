@@ -1,0 +1,27 @@
+# test_settings.yaml
+#
+# Configuration for running data-driven tests in solver-core.
+#
+# mode: "all"      - Runs all .json files in the test_cases directory.
+# mode: "filter"   - Runs only the tests whose names match one of the
+#                  strings in `filter_patterns`.
+#
+# filter_patterns: A list of strings to match against the "name" field
+#                  in the JSON test case files. This is only used
+#                  when the mode is "filter".
+
+mode: "all"
+
+# filter_patterns:
+#   A list of strings to match against test case names. This is only
+#   used when `mode` is set to "filter".
+#   Example: ["Benchmark", "Constraint"]
+filter_patterns: []
+# --- Example for Filtering ---
+# To run only specific tests, change the mode and add patterns like this:
+#
+# mode: "filter"
+# filter_patterns:
+#   - "Benchmark - Large"
+#   - "Immovable Person"
+#
