@@ -21,10 +21,18 @@ struct TestSettings {
     filter_patterns: Vec<String>,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug)]
 struct TestOptions {
     #[serde(default = "default_loop_count")]
     loop_count: u32,
+}
+
+impl Default for TestOptions {
+    fn default() -> Self {
+        Self {
+            loop_count: default_loop_count(),
+        }
+    }
 }
 
 fn default_loop_count() -> u32 {
@@ -144,7 +152,7 @@ fn run_test_case(test_case: &TestCase, path: &Path) {
             );
         }
     }
-
+    io::stdout().flush().unwrap();
     if loop_count > 1 {
         // Clear the line and print final status
         println!("\r  All {} runs passed.        ", loop_count);
