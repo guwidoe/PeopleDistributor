@@ -1,6 +1,7 @@
 use crate::algorithms::Solver;
 use crate::models::{SolverConfiguration, SolverParams, SolverResult};
 use crate::solver::{SolverError, State};
+use rand::seq::SliceRandom;
 use rand::{rng, Rng};
 use std::time::Instant;
 
@@ -49,33 +50,101 @@ impl Solver for SimulatedAnnealing {
             // --- Choose a random move ---
             let day = rng.random_range(0..current_state.num_sessions as usize);
 
-            let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
-                .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
-                .collect();
+            // Decide whether to attempt a clique swap or regular swap
+            let clique_swap_probability = current_state.calculate_clique_swap_probability();
+            let should_attempt_clique_swap = rng.random::<f64>() < clique_swap_probability;
 
-            if swappable_people.len() < 2 {
-                continue;
-            }
+            if should_attempt_clique_swap && !current_state.cliques.is_empty() {
+                // --- Attempt Clique Swap ---
+                let clique_idx = rng.random_range(0..current_state.cliques.len());
+                let clique = &current_state.cliques[clique_idx];
 
-            // Ensure we don't pick an immovable person for a swap
-            let p1_idx = swappable_people[rng.random_range(0..swappable_people.len())];
-            let mut p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
-            while p1_idx == p2_idx {
-                p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
-            }
+                // Find which group the clique is currently in
+                let current_group = current_state.locations[day][clique[0]].0;
 
-            // --- Evaluate the swap ---
-            let delta_cost = current_state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
-            let current_cost = current_state.calculate_cost();
-            let next_cost = current_cost + delta_cost;
+                // Find a different group to swap with
+                let num_groups = current_state.group_idx_to_id.len();
+                let possible_target_groups: Vec<usize> = (0..num_groups)
+                    .filter(|&g| g != current_group)
+                    .filter(|&g| {
+                        current_state.is_clique_swap_feasible(day, clique_idx, current_group, g)
+                    })
+                    .collect();
 
-            if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
-                current_state.apply_swap(day, p1_idx, p2_idx);
+                if !possible_target_groups.is_empty() {
+                    let target_group =
+                        possible_target_groups[rng.random_range(0..possible_target_groups.len())];
+                    let mut non_clique_people =
+                        current_state.find_non_clique_movable_people(day, target_group);
 
-                if next_cost < best_cost {
-                    best_cost = next_cost;
-                    best_state = current_state.clone();
-                    no_improvement_counter = 0;
+                    if non_clique_people.len() >= clique.len() {
+                        // Randomly select exactly clique.len() people to swap
+                        non_clique_people.shuffle(&mut rng);
+                        let target_people: Vec<usize> =
+                            non_clique_people.into_iter().take(clique.len()).collect();
+
+                        // Calculate delta cost for clique swap
+                        let delta_cost = current_state.calculate_clique_swap_cost_delta(
+                            day,
+                            clique_idx,
+                            current_group,
+                            target_group,
+                            &target_people,
+                        );
+
+                        let current_cost = current_state.calculate_cost();
+                        let next_cost = current_cost + delta_cost;
+
+                        // Accept or reject the clique swap
+                        if delta_cost < 0.0
+                            || rng.random::<f64>() < (-delta_cost / temperature).exp()
+                        {
+                            current_state.apply_clique_swap(
+                                day,
+                                clique_idx,
+                                current_group,
+                                target_group,
+                                &target_people,
+                            );
+
+                            if next_cost < best_cost {
+                                best_cost = next_cost;
+                                best_state = current_state.clone();
+                                no_improvement_counter = 0;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // --- Regular Single Person Swap ---
+                let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
+                    .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
+                    .collect();
+
+                if swappable_people.len() < 2 {
+                    continue;
+                }
+
+                // Ensure we don't pick an immovable person for a swap
+                let p1_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+                let mut p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+                while p1_idx == p2_idx {
+                    p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
+                }
+
+                // --- Evaluate the swap ---
+                let delta_cost = current_state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
+                let current_cost = current_state.calculate_cost();
+                let next_cost = current_cost + delta_cost;
+
+                if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
+                    current_state.apply_swap(day, p1_idx, p2_idx);
+
+                    if next_cost < best_cost {
+                        best_cost = next_cost;
+                        best_state = current_state.clone();
+                        no_improvement_counter = 0;
+                    }
                 }
             }
 

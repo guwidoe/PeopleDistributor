@@ -1028,6 +1028,241 @@ impl State {
             self.calculate_cost()
         )
     }
+
+    /// Calculate the probability of attempting a clique swap based on clique density
+    pub fn calculate_clique_swap_probability(&self) -> f64 {
+        let total_people = self.person_idx_to_id.len();
+        let people_in_cliques = self
+            .person_to_clique_id
+            .iter()
+            .filter(|clique_id| clique_id.is_some())
+            .count();
+
+        if people_in_cliques == 0 || total_people == 0 {
+            return 0.0; // No cliques, no clique swaps
+        }
+
+        let clique_ratio = people_in_cliques as f64 / total_people as f64;
+        // Probability scales with clique density, maxing out at 0.3 when all people are in cliques
+        (clique_ratio * 0.3).min(0.3)
+    }
+
+    /// Find all non-clique, movable people in a specific group for a given day
+    pub fn find_non_clique_movable_people(&self, day: usize, group_idx: usize) -> Vec<usize> {
+        self.schedule[day][group_idx]
+            .iter()
+            .filter(|&&person_idx| {
+                // Person must not be in a clique
+                self.person_to_clique_id[person_idx].is_none() &&
+                // Person must not be immovable for this day
+                !self.immovable_people.contains_key(&(person_idx, day))
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Check if a clique swap is feasible between two groups
+    pub fn is_clique_swap_feasible(
+        &self,
+        day: usize,
+        clique_idx: usize,
+        from_group: usize,
+        to_group: usize,
+    ) -> bool {
+        let clique = &self.cliques[clique_idx];
+        let non_clique_people_in_to_group = self.find_non_clique_movable_people(day, to_group);
+
+        // Need at least as many non-clique people in target group as clique size
+        non_clique_people_in_to_group.len() >= clique.len()
+    }
+
+    /// Calculate the cost delta for swapping a clique with non-clique people
+    pub fn calculate_clique_swap_cost_delta(
+        &self,
+        day: usize,
+        clique_idx: usize,
+        from_group: usize,
+        to_group: usize,
+        target_people: &[usize],
+    ) -> f64 {
+        let clique = &self.cliques[clique_idx];
+
+        if clique.len() != target_people.len() {
+            return f64::INFINITY; // Invalid swap
+        }
+
+        let mut delta_cost = 0.0;
+        let from_group_members = &self.schedule[day][from_group];
+        let to_group_members = &self.schedule[day][to_group];
+
+        // Calculate contact/repetition delta for each person in the clique
+        for &clique_person in clique {
+            // Lost contacts: clique person with remaining people in from_group
+            for &other_person in from_group_members {
+                if other_person == clique_person || clique.contains(&other_person) {
+                    continue; // Skip self and other clique members
+                }
+                let count = self.contact_matrix[clique_person][other_person];
+                if count > 0 {
+                    delta_cost += self.w_repetition
+                        * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                    if count == 1 {
+                        delta_cost += self.w_contacts; // Losing unique contact
+                    }
+                }
+            }
+
+            // Gained contacts: clique person with remaining people in to_group
+            for &other_person in to_group_members {
+                if clique.contains(&other_person) || target_people.contains(&other_person) {
+                    continue; // Skip other clique members and people being swapped out
+                }
+                let count = self.contact_matrix[clique_person][other_person];
+                delta_cost +=
+                    self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                if count == 0 {
+                    delta_cost -= self.w_contacts; // Gaining unique contact
+                }
+            }
+        }
+
+        // Calculate contact/repetition delta for each target person
+        for &target_person in target_people {
+            // Lost contacts: target person with remaining people in to_group
+            for &other_person in to_group_members {
+                if other_person == target_person
+                    || target_people.contains(&other_person)
+                    || clique.contains(&other_person)
+                {
+                    continue;
+                }
+                let count = self.contact_matrix[target_person][other_person];
+                if count > 0 {
+                    delta_cost += self.w_repetition
+                        * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                    if count == 1 {
+                        delta_cost += self.w_contacts; // Losing unique contact
+                    }
+                }
+            }
+
+            // Gained contacts: target person with remaining people in from_group
+            for &other_person in from_group_members {
+                if clique.contains(&other_person) || target_people.contains(&other_person) {
+                    continue;
+                }
+                let count = self.contact_matrix[target_person][other_person];
+                delta_cost +=
+                    self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                if count == 0 {
+                    delta_cost -= self.w_contacts; // Gaining unique contact
+                }
+            }
+        }
+
+        // Attribute balance penalty delta (simplified - would need full recalculation for precision)
+        // This is an approximation for performance
+        delta_cost += self.calculate_attribute_balance_delta_for_groups(
+            day,
+            from_group,
+            to_group,
+            clique,
+            target_people,
+        );
+
+        // No constraint penalty delta for clique swaps since cliques stay together
+
+        delta_cost
+    }
+
+    /// Simplified attribute balance delta calculation for clique swaps
+    fn calculate_attribute_balance_delta_for_groups(
+        &self,
+        day: usize,
+        from_group: usize,
+        to_group: usize,
+        clique: &[usize],
+        target_people: &[usize],
+    ) -> f64 {
+        let mut delta = 0.0;
+
+        for ac in &self.attribute_balance_constraints {
+            // Only consider constraints that apply to these groups
+            if ac.group_id != "ALL"
+                && ac.group_id != self.group_idx_to_id[from_group]
+                && ac.group_id != self.group_idx_to_id[to_group]
+            {
+                continue;
+            }
+
+            let from_group_members = &self.schedule[day][from_group];
+            let to_group_members = &self.schedule[day][to_group];
+
+            // Calculate old penalties
+            let old_from_penalty =
+                self.calculate_group_attribute_penalty_for_members(from_group_members, ac);
+            let old_to_penalty =
+                self.calculate_group_attribute_penalty_for_members(to_group_members, ac);
+
+            // Calculate new group compositions
+            let mut new_from_members: Vec<usize> = from_group_members
+                .iter()
+                .filter(|&&p| !clique.contains(&p))
+                .cloned()
+                .collect();
+            new_from_members.extend_from_slice(target_people);
+
+            let mut new_to_members: Vec<usize> = to_group_members
+                .iter()
+                .filter(|&&p| !target_people.contains(&p))
+                .cloned()
+                .collect();
+            new_to_members.extend_from_slice(clique);
+
+            // Calculate new penalties
+            let new_from_penalty =
+                self.calculate_group_attribute_penalty_for_members(&new_from_members, ac);
+            let new_to_penalty =
+                self.calculate_group_attribute_penalty_for_members(&new_to_members, ac);
+
+            delta += (new_from_penalty + new_to_penalty) - (old_from_penalty + old_to_penalty);
+        }
+
+        delta
+    }
+
+    /// Apply a clique swap, moving the clique to a new group and swapping with target people
+    pub fn apply_clique_swap(
+        &mut self,
+        day: usize,
+        clique_idx: usize,
+        from_group: usize,
+        to_group: usize,
+        target_people: &[usize],
+    ) {
+        let clique = self.cliques[clique_idx].clone(); // Clone to avoid borrow checker issues
+
+        if clique.len() != target_people.len() {
+            return; // Invalid swap, should not happen if prechecked
+        }
+
+        // Update the schedule by removing and adding people to groups
+        // Remove clique members from from_group
+        self.schedule[day][from_group].retain(|&p| !clique.contains(&p));
+        // Remove target people from to_group
+        self.schedule[day][to_group].retain(|&p| !target_people.contains(&p));
+
+        // Add target people to from_group
+        self.schedule[day][from_group].extend_from_slice(target_people);
+        // Add clique members to to_group
+        self.schedule[day][to_group].extend_from_slice(&clique);
+
+        // Update locations lookup
+        self._recalculate_locations_from_schedule();
+
+        // Recalculate all scores for accuracy (clique swaps are complex, so we use full recalc)
+        self._recalculate_scores();
+    }
 }
 
 // Helper struct for Disjoint Set Union
@@ -1261,11 +1496,184 @@ mod tests {
 
         let result = State::new(&input);
         assert!(result.is_err());
-        if let Err(SolverError::ValidationError(msg)) = result {
-            assert!(msg.contains("Forbidden pair"));
-            assert!(msg.contains("are in the same clique"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Forbidden pair (p0, p1) are in the same clique"));
+    }
+
+    #[test]
+    fn test_clique_swap_probability_calculation() {
+        // Test with no cliques
+        let input_no_cliques = create_test_input(10, vec![(2, 5)], 1);
+        let state_no_cliques = State::new(&input_no_cliques).unwrap();
+        assert_eq!(state_no_cliques.calculate_clique_swap_probability(), 0.0);
+
+        // Test with some cliques
+        let mut input_with_cliques = create_test_input(10, vec![(2, 5)], 1);
+        input_with_cliques.constraints = vec![
+            Constraint::MustStayTogether {
+                people: vec!["p0".into(), "p1".into()],
+            },
+            Constraint::MustStayTogether {
+                people: vec!["p2".into(), "p3".into()],
+            },
+        ];
+        let state_with_cliques = State::new(&input_with_cliques).unwrap();
+        let probability = state_with_cliques.calculate_clique_swap_probability();
+
+        // 4 people in cliques out of 10 total = 0.4 ratio
+        // Expected probability: 0.4 * 0.3 = 0.12
+        assert!((probability - 0.12).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_find_non_clique_movable_people() {
+        let mut input = create_test_input(8, vec![(2, 4)], 2);
+        input.constraints = vec![
+            Constraint::MustStayTogether {
+                people: vec!["p0".into(), "p1".into()],
+            },
+            Constraint::ImmovablePerson(crate::models::ImmovablePersonParams {
+                person_id: "p2".into(),
+                group_id: "g0_0".into(),
+                sessions: vec![0, 1],
+            }),
+        ];
+        let state = State::new(&input).unwrap();
+
+        // Find non-clique movable people in group 0 for day 0
+        let non_clique_people = state.find_non_clique_movable_people(0, 0);
+
+        // Should exclude p0, p1 (clique members) and p2 (immovable)
+        assert!(!non_clique_people.contains(&0)); // p0 in clique
+        assert!(!non_clique_people.contains(&1)); // p1 in clique
+        assert!(!non_clique_people.contains(&2)); // p2 immovable
+
+        // Should only include movable non-clique people
+        for &person_idx in &non_clique_people {
+            assert!(state.person_to_clique_id[person_idx].is_none());
+            assert!(!state.immovable_people.contains_key(&(person_idx, 0)));
+        }
+    }
+
+    #[test]
+    fn test_clique_swap_feasibility() {
+        let mut input = create_test_input(10, vec![(2, 5)], 1);
+        input.constraints = vec![Constraint::MustStayTogether {
+            people: vec!["p0".into(), "p1".into(), "p2".into()],
+        }];
+        let state = State::new(&input).unwrap();
+
+        // Find the clique (should be clique 0)
+        let clique_idx = 0;
+        let clique_group = state.locations[0][0].0; // Group where p0 is located
+        let other_group = if clique_group == 0 { 1 } else { 0 };
+
+        // Check feasibility - need at least 3 non-clique people in target group
+        let is_feasible = state.is_clique_swap_feasible(0, clique_idx, clique_group, other_group);
+
+        // Should be feasible since we have enough non-clique people
+        let non_clique_in_other = state.find_non_clique_movable_people(0, other_group);
+        if non_clique_in_other.len() >= 3 {
+            assert!(is_feasible);
         } else {
-            panic!("Expected a ValidationError");
+            assert!(!is_feasible);
+        }
+    }
+
+    #[test]
+    fn test_clique_swap_delta_calculation() {
+        let mut input = create_test_input(8, vec![(2, 4)], 1);
+        input.constraints = vec![Constraint::MustStayTogether {
+            people: vec!["p0".into(), "p1".into()],
+        }];
+        let mut state = State::new(&input).unwrap();
+
+        // Recalculate scores to ensure we have a baseline
+        state._recalculate_scores();
+        let initial_cost = state.calculate_cost();
+
+        let clique_idx = 0;
+        let clique_group = state.locations[0][0].0;
+        let other_group = if clique_group == 0 { 1 } else { 0 };
+        let non_clique_people = state.find_non_clique_movable_people(0, other_group);
+
+        if non_clique_people.len() >= 2 {
+            let target_people: Vec<usize> = non_clique_people.into_iter().take(2).collect();
+
+            // Calculate delta
+            let delta = state.calculate_clique_swap_cost_delta(
+                0,
+                clique_idx,
+                clique_group,
+                other_group,
+                &target_people,
+            );
+
+            // Apply the swap and verify the delta was correct
+            let mut test_state = state.clone();
+            test_state.apply_clique_swap(0, clique_idx, clique_group, other_group, &target_people);
+            test_state.validate_scores(); // Ensure scores are consistent
+
+            let actual_new_cost = test_state.calculate_cost();
+            let expected_new_cost = initial_cost + delta;
+
+            // Allow small floating point differences
+            assert!(
+                (actual_new_cost - expected_new_cost).abs() < 0.01,
+                "Delta calculation incorrect: expected {}, got {}, delta was {}",
+                expected_new_cost,
+                actual_new_cost,
+                delta
+            );
+        }
+    }
+
+    #[test]
+    fn test_clique_swap_preserves_clique_integrity() {
+        let mut input = create_test_input(10, vec![(2, 5)], 1);
+        input.constraints = vec![Constraint::MustStayTogether {
+            people: vec!["p0".into(), "p1".into(), "p2".into()],
+        }];
+        let mut state = State::new(&input).unwrap();
+
+        let clique_idx = 0;
+        let clique_group = state.locations[0][0].0;
+        let other_group = if clique_group == 0 { 1 } else { 0 };
+        let non_clique_people = state.find_non_clique_movable_people(0, other_group);
+
+        if non_clique_people.len() >= 3 {
+            let target_people: Vec<usize> = non_clique_people.into_iter().take(3).collect();
+            let clique_members = state.cliques[clique_idx].clone();
+
+            // Apply clique swap
+            state.apply_clique_swap(0, clique_idx, clique_group, other_group, &target_people);
+
+            // Verify all clique members are in the same group after swap
+            let first_member_group = state.locations[0][clique_members[0]].0;
+            for &member in &clique_members {
+                assert_eq!(
+                    state.locations[0][member].0, first_member_group,
+                    "Clique member {} not in same group as other members",
+                    member
+                );
+            }
+
+            // Verify they're in the target group
+            assert_eq!(
+                first_member_group, other_group,
+                "Clique not moved to target group"
+            );
+
+            // Verify target people are in the original group
+            for &target_person in &target_people {
+                assert_eq!(
+                    state.locations[0][target_person].0, clique_group,
+                    "Target person {} not moved to clique's original group",
+                    target_person
+                );
+            }
         }
     }
 }
