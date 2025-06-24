@@ -8,6 +8,8 @@ pub struct SimulatedAnnealing {
     pub max_iterations: u64,
     pub initial_temperature: f64,
     pub final_temperature: f64,
+    pub time_limit_seconds: Option<u64>,
+    pub no_improvement_iterations: Option<u64>,
 }
 
 impl SimulatedAnnealing {
@@ -19,6 +21,8 @@ impl SimulatedAnnealing {
             max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
             initial_temperature: sa_params.initial_temperature,
             final_temperature: sa_params.final_temperature,
+            time_limit_seconds: params.stop_conditions.time_limit_seconds,
+            no_improvement_iterations: params.stop_conditions.no_improvement_iterations,
         }
     }
 }
@@ -93,12 +97,26 @@ impl Solver for SimulatedAnnealing {
                 }
             }
 
-            // --- Stop Condition ---
+            // --- Stop Conditions ---
             no_improvement_counter += 1;
-            if no_improvement_counter > 1000000 {
-                // Stop if no improvement is found for a while
-                println!("Stopping early due to no improvement.");
-                break;
+            if let Some(no_improvement_limit) = self.no_improvement_iterations {
+                if no_improvement_counter > no_improvement_limit {
+                    println!(
+                        "Stopping early: no improvement for {} iterations.",
+                        no_improvement_limit
+                    );
+                    break;
+                }
+            }
+
+            if let Some(time_limit) = self.time_limit_seconds {
+                if start_time.elapsed().as_secs() >= time_limit {
+                    println!(
+                        "Stopping early: time limit of {} seconds reached.",
+                        time_limit
+                    );
+                    break;
+                }
             }
         }
 
