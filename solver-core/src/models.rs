@@ -128,20 +128,6 @@ pub struct SolverResult {
 impl SolverResult {
     pub fn display(&self) -> String {
         let mut output = String::new();
-        output.push_str(&format!("Final Score: {:.2}\n", self.final_score));
-        output.push_str(&format!("- Unique Contacts: {}\n", self.unique_contacts));
-        output.push_str(&format!(
-            "- Repetition Penalty: {}\n",
-            self.repetition_penalty
-        ));
-        output.push_str(&format!(
-            "- Attribute Balance Penalty: {}\n",
-            self.attribute_balance_penalty
-        ));
-        output.push_str(&format!(
-            "- Constraint Penalty: {}\n\n",
-            self.constraint_penalty
-        ));
 
         let mut sorted_sessions: Vec<_> = self.schedule.keys().collect();
         sorted_sessions.sort_by_key(|a| {

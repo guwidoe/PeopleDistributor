@@ -38,8 +38,11 @@ impl Solver for SimulatedAnnealing {
         let mut best_cost = state.calculate_cost();
         let mut no_improvement_counter = 0;
 
-        if state.logging.log_initial_state {
-            println!("Initial {}", current_state.format_score_breakdown());
+        if state.logging.log_initial_score_breakdown {
+            println!(
+                "Initial state score breakdown: {}",
+                state.format_score_breakdown()
+            );
         }
 
         for i in 0..self.max_iterations {
@@ -197,11 +200,6 @@ impl Solver for SimulatedAnnealing {
                 "Solver finished in {:.2} seconds. Final score: {:.2}",
                 elapsed, final_cost
             );
-        }
-
-        // Log score breakdowns based on the new dedicated options
-        if state.logging.log_initial_score_breakdown {
-            println!("Initial {}", state.format_score_breakdown());
         }
 
         if state.logging.log_final_score_breakdown {
