@@ -47,7 +47,7 @@
                 "cooling_schedule": "geometric"
             },
             "logging": {
-                "display_final_schedule": true
+                "display_final_schedule": false
             }
         }
     },
