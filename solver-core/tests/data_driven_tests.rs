@@ -75,17 +75,7 @@ fn run_data_driven_tests() {
 }
 
 fn run_test_case(test_case: &TestCase, path: &Path) {
-    // Check if this test has more than 29 people
-    let num_people = test_case.input.problem.people.len();
-    let should_log_score_breakdown = num_people > 29;
-
-    // Create a mutable copy of the input to modify logging settings if needed
-    let mut input = test_case.input.clone();
-    if should_log_score_breakdown {
-        input.solver.logging.log_initial_state = true;
-    }
-
-    let result = run_solver(&input);
+    let result = run_solver(&test_case.input);
 
     assert!(
         result.is_ok(),

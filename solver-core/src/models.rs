@@ -107,6 +107,12 @@ pub struct LoggingOptions {
     pub log_duration_and_score: bool,
     #[serde(default)]
     pub display_final_schedule: bool,
+    #[serde(default)]
+    pub log_initial_score_breakdown: bool,
+    #[serde(default)]
+    pub log_final_score_breakdown: bool,
+    #[serde(default)]
+    pub log_stop_condition: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

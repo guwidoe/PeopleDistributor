@@ -165,20 +165,24 @@ impl Solver for SimulatedAnnealing {
             no_improvement_counter += 1;
             if let Some(no_improvement_limit) = self.no_improvement_iterations {
                 if no_improvement_counter > no_improvement_limit {
-                    println!(
-                        "Stopping early: no improvement for {} iterations.",
-                        no_improvement_limit
-                    );
+                    if state.logging.log_stop_condition {
+                        println!(
+                            "Stopping early: no improvement for {} iterations.",
+                            no_improvement_limit
+                        );
+                    }
                     break;
                 }
             }
 
             if let Some(time_limit) = self.time_limit_seconds {
                 if start_time.elapsed().as_secs() >= time_limit {
-                    println!(
-                        "Stopping early: time limit of {} seconds reached.",
-                        time_limit
-                    );
+                    if state.logging.log_stop_condition {
+                        println!(
+                            "Stopping early: time limit of {} seconds reached.",
+                            time_limit
+                        );
+                    }
                     break;
                 }
             }
@@ -194,8 +198,12 @@ impl Solver for SimulatedAnnealing {
             );
         }
 
-        // Log final state score breakdown if initial state was logged
-        if state.logging.log_initial_state {
+        // Log score breakdowns based on the new dedicated options
+        if state.logging.log_initial_score_breakdown {
+            println!("Initial {}", state.format_score_breakdown());
+        }
+
+        if state.logging.log_final_score_breakdown {
             println!("Final {}", best_state.format_score_breakdown());
         }
 
