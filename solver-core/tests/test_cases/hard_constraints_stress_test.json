@@ -21,14 +21,26 @@
       { "type": "CannotBeTogether", "people": ["p0", "p6"] },
       { "type": "CannotBeTogether", "people": ["p2", "p7"] },
       { "type": "CannotBeTogether", "people": ["p4", "p8"] },
-      { "type": "CannotBeTogether", "people": ["p6", "p7"] }
+      { "type": "CannotBeTogether", "people": ["p6", "p7"] },
+      {
+        "type": "ImmovablePerson",
+        "person_id": "p9",
+        "group_id": "g0",
+        "sessions": [0]
+      },
+      {
+        "type": "ImmovablePerson",
+        "person_id": "p10",
+        "group_id": "g1",
+        "sessions": [1, 2]
+      }
     ],
     "solver": {
       "solver_type": "SimulatedAnnealing",
       "stop_conditions": { "max_iterations": 100000 },
       "solver_params": {
         "solver_type": "SimulatedAnnealing",
-        "initial_temperature": 50.0,
+        "initial_temperature": 1.0,
         "final_temperature": 0.0001,
         "cooling_schedule": "geometric"
       },
@@ -38,7 +50,7 @@
         "display_final_schedule": false,
         "log_initial_score_breakdown": false,
         "log_final_score_breakdown": false,
-        "log_stop_condition": true,
+        "log_stop_condition": false,
         "log_initial_state": false
       }
     }
@@ -46,6 +58,7 @@
   "expected": {
     "must_stay_together_respected": true,
     "cannot_be_together_respected": true,
+    "immovable_person_respected": true,
     "max_constraint_penalty": 0
   },
   "test_options": {

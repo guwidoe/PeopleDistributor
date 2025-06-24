@@ -201,44 +201,58 @@ impl State {
 
         // --- Initialize with a random assignment (clique-aware) ---
         let mut rng = rand::rng();
-        let mut unassigned_people: Vec<usize> = (0..people_count)
-            .filter(|p| state.person_to_clique_id[*p].is_none())
-            .collect();
-        unassigned_people.shuffle(&mut rng);
 
         for (day, day_schedule) in state.schedule.iter_mut().enumerate() {
-            let mut assigned_in_day = vec![false; people_count];
             let mut group_cursors = vec![0; group_count];
+            let mut assigned_in_day = vec![false; people_count];
 
-            // 0. Assign immovable people for this day
+            // --- Step 1: Place all immovable people first ---
             for (person_idx, group_idx) in state
                 .immovable_people
                 .iter()
                 .filter(|((_, s_idx), _)| *s_idx == day)
                 .map(|((p_idx, _), g_idx)| (*p_idx, *g_idx))
             {
+                if assigned_in_day[person_idx] {
+                    continue;
+                } // Already placed as part of a clique
+
                 let group_size = input.problem.groups[group_idx].size as usize;
                 if group_cursors[group_idx] < group_size {
-                    day_schedule[group_idx].push(person_idx);
-                    assigned_in_day[person_idx] = true;
-                    group_cursors[group_idx] += 1;
+                    // If this person is in a clique, we must place the whole clique
+                    if let Some(clique_id) = state.person_to_clique_id[person_idx] {
+                        let clique = &state.cliques[clique_id];
+                        if group_cursors[group_idx] + clique.len() <= group_size {
+                            for &p_in_clique in clique {
+                                day_schedule[group_idx].push(p_in_clique);
+                                assigned_in_day[p_in_clique] = true;
+                            }
+                            group_cursors[group_idx] += clique.len();
+                        } else {
+                            return Err(SolverError::ValidationError(format!(
+                                "Not enough space for immovable clique."
+                            )));
+                        }
+                    } else {
+                        // Just a single immovable person
+                        day_schedule[group_idx].push(person_idx);
+                        assigned_in_day[person_idx] = true;
+                        group_cursors[group_idx] += 1;
+                    }
                 } else {
                     return Err(SolverError::ValidationError(format!(
-                        "Cannot place immovable person {} in group {}: group is full.",
-                        state.person_idx_to_id[person_idx], state.group_idx_to_id[group_idx]
+                        "Not enough space for immovable person."
                     )));
                 }
             }
 
-            // After assigning immovables, remove them from the unassigned list
-            unassigned_people.retain(|p_idx| !assigned_in_day[*p_idx]);
-
-            // 1. Assign cliques first
-            for clique in &state.cliques {
-                // Ensure no one in the clique has already been assigned (e.g. as immovable)
-                if clique.iter().any(|p_idx| assigned_in_day[*p_idx]) {
+            // --- Step 2: Place remaining cliques ---
+            let mut potential_cliques: Vec<&Vec<usize>> = state.cliques.iter().collect();
+            potential_cliques.shuffle(&mut rng);
+            for clique in potential_cliques {
+                if assigned_in_day[clique[0]] {
                     continue;
-                }
+                } // Already placed (e.g. part of immovable)
 
                 let mut placed = false;
                 let mut potential_groups: Vec<usize> = (0..group_count).collect();
@@ -258,25 +272,20 @@ impl State {
                 }
                 if !placed {
                     return Err(SolverError::ValidationError(format!(
-                        "Could not place clique {:?} in any group for day {}. Not enough space.",
-                        clique
-                            .iter()
-                            .map(|&p| &state.person_idx_to_id[p])
-                            .collect::<Vec<_>>(),
-                        day
+                        "Could not place clique"
                     )));
                 }
             }
 
-            // 2. Assign remaining individuals
-            let mut person_cursor = 0;
-            while person_cursor < unassigned_people.len() {
-                let person_idx = unassigned_people[person_cursor];
-                let mut placed = false;
+            // --- Step 3: Place all remaining individuals ---
+            let mut unassigned_people: Vec<usize> =
+                (0..people_count).filter(|p| !assigned_in_day[*p]).collect();
+            unassigned_people.shuffle(&mut rng);
 
+            for person_idx in unassigned_people {
+                let mut placed = false;
                 let mut potential_groups: Vec<usize> = (0..group_count).collect();
                 potential_groups.shuffle(&mut rng);
-
                 for group_idx in potential_groups {
                     let group_size = input.problem.groups[group_idx].size as usize;
                     if group_cursors[group_idx] < group_size {
@@ -286,15 +295,12 @@ impl State {
                         break;
                     }
                 }
-                person_cursor += 1;
                 if !placed {
                     return Err(SolverError::ValidationError(format!(
-                        "Could not place person {} in any group for day {}. All groups are full.",
-                        state.person_idx_to_id[person_idx], day
+                        "Could not place person"
                     )));
                 }
             }
-            unassigned_people.shuffle(&mut rng); // Re-shuffle for next day
         }
 
         state._recalculate_locations_from_schedule();
@@ -1170,9 +1176,102 @@ impl State {
             target_people,
         );
 
-        // No constraint penalty delta for clique swaps since cliques stay together
+        // Calculate constraint penalty delta for clique swaps
+        delta_cost += self.calculate_clique_swap_constraint_penalty_delta(
+            day,
+            clique,
+            target_people,
+            from_group,
+            to_group,
+        );
 
         delta_cost
+    }
+
+    /// Calculate constraint penalty delta for clique swaps
+    fn calculate_clique_swap_constraint_penalty_delta(
+        &self,
+        day: usize,
+        clique: &[usize],
+        target_people: &[usize],
+        from_group: usize,
+        to_group: usize,
+    ) -> f64 {
+        let mut delta = 0.0;
+
+        // Get the affected group memberships before and after the swap
+        let from_group_members = &self.schedule[day][from_group];
+        let to_group_members = &self.schedule[day][to_group];
+
+        // Calculate new group compositions after swap
+        let mut new_from_members: Vec<usize> = from_group_members
+            .iter()
+            .filter(|&&p| !clique.contains(&p))
+            .cloned()
+            .collect();
+        new_from_members.extend_from_slice(target_people);
+
+        let mut new_to_members: Vec<usize> = to_group_members
+            .iter()
+            .filter(|&&p| !target_people.contains(&p))
+            .cloned()
+            .collect();
+        new_to_members.extend_from_slice(clique);
+
+        // Check CannotBeTogether constraints
+        for &(person1, person2) in &self.forbidden_pairs {
+            // Old constraint penalty contributions
+            let old_penalty = if (from_group_members.contains(&person1)
+                && from_group_members.contains(&person2))
+                || (to_group_members.contains(&person1) && to_group_members.contains(&person2))
+            {
+                self.w_constraint // Constraint violated in current state
+            } else {
+                0.0 // Constraint satisfied in current state
+            };
+
+            // New constraint penalty contributions
+            let new_penalty = if (new_from_members.contains(&person1)
+                && new_from_members.contains(&person2))
+                || (new_to_members.contains(&person1) && new_to_members.contains(&person2))
+            {
+                self.w_constraint // Constraint violated in new state
+            } else {
+                0.0 // Constraint satisfied in new state
+            };
+
+            delta += new_penalty - old_penalty;
+        }
+
+        // Check ImmovablePerson constraints for the affected people
+        for &person in clique.iter().chain(target_people.iter()) {
+            if let Some(&required_group) = self.immovable_people.get(&(person, day)) {
+                let current_group = self.locations[day][person].0;
+                let new_group = if clique.contains(&person) {
+                    to_group
+                } else {
+                    from_group
+                };
+
+                // Old penalty
+                let old_penalty = if current_group != required_group {
+                    self.w_constraint
+                } else {
+                    0.0
+                };
+
+                // New penalty
+                let new_penalty = if new_group != required_group {
+                    self.w_constraint
+                } else {
+                    0.0
+                };
+
+                delta += new_penalty - old_penalty;
+            }
+        }
+
+        delta
     }
 
     /// Simplified attribute balance delta calculation for clique swaps

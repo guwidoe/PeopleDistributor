@@ -10,18 +10,15 @@
 #                  in the JSON test case files. This is only used
 #                  when the mode is "filter".
 
-mode: "all"
+# mode: "all"
 
 # filter_patterns:
 #   A list of strings to match against test case names. This is only
 #   used when `mode` is set to "filter".
 #   Example: ["Benchmark", "Constraint"]
-filter_patterns: []
+#   filter_patterns: []
 # --- Example for Filtering ---
 # To run only specific tests, change the mode and add patterns like this:
 #
-# mode: "filter"
-# filter_patterns:
-#   - "Benchmark - Large"
-#   - "Immovable Person"
-#
+mode: "all"
+filter_patterns: []

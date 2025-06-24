@@ -119,13 +119,14 @@ impl Solver for SimulatedAnnealing {
                 // --- Regular Single Person Swap ---
                 let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
                     .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
+                    .filter(|&p_idx| current_state.person_to_clique_id[p_idx].is_none())
                     .collect();
 
                 if swappable_people.len() < 2 {
                     continue;
                 }
 
-                // Ensure we don't pick an immovable person for a swap
+                // Pick two non-clique, non-immovable people for a swap
                 let p1_idx = swappable_people[rng.random_range(0..swappable_people.len())];
                 let mut p2_idx = swappable_people[rng.random_range(0..swappable_people.len())];
                 while p1_idx == p2_idx {
