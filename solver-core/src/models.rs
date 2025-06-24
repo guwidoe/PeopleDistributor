@@ -42,8 +42,20 @@ pub enum Constraint {
     RepeatEncounter(RepeatEncounterParams),
     AttributeBalance(AttributeBalanceParams),
     ImmovablePerson(ImmovablePersonParams),
-    MustStayTogether { people: Vec<String> },
-    CannotBeTogether { people: Vec<String> },
+    MustStayTogether {
+        people: Vec<String>,
+        #[serde(default = "default_constraint_weight")]
+        penalty_weight: f64,
+    },
+    CannotBeTogether {
+        people: Vec<String>,
+        #[serde(default = "default_constraint_weight")]
+        penalty_weight: f64,
+    },
+}
+
+fn default_constraint_weight() -> f64 {
+    1000.0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

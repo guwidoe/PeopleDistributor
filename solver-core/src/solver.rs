@@ -51,12 +51,17 @@ pub struct State {
     pub unique_contacts: i32,
     pub repetition_penalty: i32,
     pub attribute_balance_penalty: f64,
-    pub constraint_penalty: i32,
+    pub constraint_penalty: i32, // Kept for backward compatibility, but now calculated as sum
+    // --- Individual Constraint Penalties (unweighted counts) ---
+    pub clique_violations: Vec<i32>,         // Violations per clique
+    pub forbidden_pair_violations: Vec<i32>, // Violations per forbidden pair
+    pub immovable_violations: i32,           // Total immovable person violations
 
     // --- Weights ---
     pub w_contacts: f64,
     pub w_repetition: f64,
-    pub w_constraint: f64,
+    pub clique_weights: Vec<f64>,         // Weight for each clique
+    pub forbidden_pair_weights: Vec<f64>, // Weight for each forbidden pair
 }
 
 impl State {
@@ -192,9 +197,13 @@ impl State {
             repetition_penalty: 0,
             attribute_balance_penalty: 0.0,
             constraint_penalty: 0,
+            clique_violations: Vec::new(), // Will be resized after constraint preprocessing
+            forbidden_pair_violations: Vec::new(), // Will be resized after constraint preprocessing
+            immovable_violations: 0,
             w_contacts,
             w_repetition,
-            w_constraint: 1000.0, // Hardcoded high weight for constraint violations
+            clique_weights: Vec::new(),
+            forbidden_pair_weights: Vec::new(),
         };
 
         state._preprocess_and_validate_constraints(input)?;
@@ -321,7 +330,11 @@ impl State {
         let mut person_to_clique_id = vec![None; people_count];
 
         for constraint in &input.constraints {
-            if let Constraint::MustStayTogether { people } = constraint {
+            if let Constraint::MustStayTogether {
+                people,
+                penalty_weight: _,
+            } = constraint
+            {
                 if people.len() < 2 {
                     continue;
                 }
@@ -346,6 +359,7 @@ impl State {
         }
 
         self.cliques = Vec::new();
+        self.clique_weights = Vec::new();
         let mut clique_id_counter = 0;
         for (_, clique_members) in cliques.into_iter().filter(|(_, v)| v.len() > 1) {
             // Validate clique size against group sizes
@@ -367,17 +381,47 @@ impl State {
                 )));
             }
 
+            // Find the penalty weight for this clique
+            let mut clique_weight = 1000.0; // Default weight
+            for constraint in &input.constraints {
+                if let Constraint::MustStayTogether {
+                    people,
+                    penalty_weight,
+                } = constraint
+                {
+                    let constraint_person_indices: Vec<usize> = people
+                        .iter()
+                        .filter_map(|p_id| self.person_id_to_idx.get(p_id))
+                        .copied()
+                        .collect();
+
+                    // Check if this constraint matches this clique
+                    if constraint_person_indices
+                        .iter()
+                        .all(|&p_idx| clique_members.contains(&p_idx))
+                    {
+                        clique_weight = *penalty_weight;
+                        break;
+                    }
+                }
+            }
+
             for &member_idx in &clique_members {
                 person_to_clique_id[member_idx] = Some(clique_id_counter);
             }
             self.cliques.push(clique_members);
+            self.clique_weights.push(clique_weight);
             clique_id_counter += 1;
         }
         self.person_to_clique_id = person_to_clique_id;
 
         // --- Process `CannotBeTogether` (Forbidden Pairs) ---
         for constraint in &input.constraints {
-            if let Constraint::CannotBeTogether { people } = constraint {
+            if let Constraint::CannotBeTogether {
+                people,
+                penalty_weight,
+            } = constraint
+            {
                 for i in 0..people.len() {
                     for j in (i + 1)..people.len() {
                         let p1_idx = *self.person_id_to_idx.get(&people[i]).unwrap();
@@ -389,13 +433,19 @@ impl State {
                             self.person_to_clique_id[p2_idx],
                         ) {
                             if c1 == c2 {
+                                let clique_member_ids: Vec<String> = self.cliques[c1]
+                                    .iter()
+                                    .map(|id| self.person_idx_to_id[*id].clone())
+                                    .collect();
                                 return Err(SolverError::ValidationError(format!(
-                                    "Forbidden pair ({}, {}) are in the same clique.",
-                                    people[i], people[j]
+                                    "CannotBeTogether constraint conflicts with MustStayTogether: people {:?} are in the same clique {:?}",
+                                    people, clique_member_ids
                                 )));
                             }
                         }
+
                         self.forbidden_pairs.push((p1_idx, p2_idx));
+                        self.forbidden_pair_weights.push(*penalty_weight);
                     }
                 }
             }
@@ -429,6 +479,10 @@ impl State {
                 }
             }
         }
+
+        // Initialize constraint violation vectors with correct sizes
+        self.clique_violations = vec![0; self.cliques.len()];
+        self.forbidden_pair_violations = vec![0; self.forbidden_pairs.len()];
 
         Ok(())
     }
@@ -522,27 +576,8 @@ impl State {
             }
         }
 
-        // --- Constraint Penalty ---
-        self.constraint_penalty = 0;
-        for day_schedule in &self.schedule {
-            for group in day_schedule {
-                for &(p1, p2) in &self.forbidden_pairs {
-                    let mut p1_in = false;
-                    let mut p2_in = false;
-                    for &member in group {
-                        if member == p1 {
-                            p1_in = true;
-                        }
-                        if member == p2 {
-                            p2_in = true;
-                        }
-                    }
-                    if p1_in && p2_in {
-                        self.constraint_penalty += 1;
-                    }
-                }
-            }
-        }
+        // --- Individual Constraint Penalties ---
+        self._recalculate_constraint_penalty();
     }
 
     pub fn to_solver_result(&self, final_score: f64) -> SolverResult {
@@ -573,9 +608,37 @@ impl State {
     /// Calculates the overall cost of the current state, which the optimizer will try to minimize.
     /// It combines maximizing unique contacts (by negating it) and minimizing penalties.
     pub(crate) fn calculate_cost(&self) -> f64 {
+        // Calculate weighted constraint penalty
+        let mut weighted_constraint_penalty = 0.0;
+        let mut violation_count = 0;
+
+        for day_schedule in &self.schedule {
+            for group in day_schedule {
+                for (pair_idx, &(p1, p2)) in self.forbidden_pairs.iter().enumerate() {
+                    let mut p1_in = false;
+                    let mut p2_in = false;
+                    for &member in group {
+                        if member == p1 {
+                            p1_in = true;
+                        }
+                        if member == p2 {
+                            p2_in = true;
+                        }
+                    }
+                    if p1_in && p2_in {
+                        weighted_constraint_penalty += self.forbidden_pair_weights[pair_idx];
+                        violation_count += 1;
+                    }
+                }
+            }
+        }
+
+        // Verify the unweighted count matches our cached value
+        debug_assert_eq!(violation_count, self.constraint_penalty);
+
         (self.repetition_penalty as f64 * self.w_repetition)
             + self.attribute_balance_penalty
-            + (self.constraint_penalty as f64 * self.w_constraint)
+            + weighted_constraint_penalty
             - (self.unique_contacts as f64 * self.w_contacts)
     }
 
@@ -652,10 +715,19 @@ impl State {
     }
 
     fn _recalculate_constraint_penalty(&mut self) {
-        self.constraint_penalty = 0;
+        // Reset all constraint penalties
+        for violation in &mut self.clique_violations {
+            *violation = 0;
+        }
+        for violation in &mut self.forbidden_pair_violations {
+            *violation = 0;
+        }
+        self.immovable_violations = 0;
+
+        // Calculate forbidden pair violations
         for day_schedule in &self.schedule {
             for group in day_schedule {
-                for &(p1, p2) in &self.forbidden_pairs {
+                for (pair_idx, &(p1, p2)) in self.forbidden_pairs.iter().enumerate() {
                     let mut p1_in = false;
                     let mut p2_in = false;
                     for &member in group {
@@ -667,11 +739,42 @@ impl State {
                         }
                     }
                     if p1_in && p2_in {
-                        self.constraint_penalty += 1;
+                        self.forbidden_pair_violations[pair_idx] += 1;
                     }
                 }
             }
         }
+
+        // Calculate clique violations (when clique members are separated)
+        for (clique_idx, clique) in self.cliques.iter().enumerate() {
+            for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
+                let mut group_counts = vec![0; day_schedule.len()];
+
+                // Count how many clique members are in each group
+                for &member in clique {
+                    let (group_idx, _) = self.locations[day_idx][member];
+                    group_counts[group_idx] += 1;
+                }
+
+                // Count violations: total clique members minus the largest group
+                let max_in_one_group = *group_counts.iter().max().unwrap_or(&0);
+                let separated_members = clique.len() as i32 - max_in_one_group;
+                self.clique_violations[clique_idx] += separated_members;
+            }
+        }
+
+        // Calculate immovable person violations
+        for ((person_idx, session_idx), required_group_idx) in &self.immovable_people {
+            let (actual_group_idx, _) = self.locations[*session_idx][*person_idx];
+            if actual_group_idx != *required_group_idx {
+                self.immovable_violations += 1;
+            }
+        }
+
+        // Update the legacy constraint_penalty field for backward compatibility
+        self.constraint_penalty = self.forbidden_pair_violations.iter().sum::<i32>()
+            + self.clique_violations.iter().sum::<i32>()
+            + self.immovable_violations;
     }
 
     fn calculate_group_attribute_penalty_for_members(
@@ -791,18 +894,18 @@ impl State {
             let clique = &self.cliques[c_id];
             // If p2 is not in the same clique, this swap would break the clique
             if self.person_to_clique_id[p2_idx] != Some(c_id) {
-                delta_cost += self.w_constraint * clique.len() as f64;
+                delta_cost += self.clique_weights[c_id] * clique.len() as f64;
             }
         } else if let Some(c_id) = self.person_to_clique_id[p2_idx] {
             // Same logic if p2 is in a clique and p1 is not
             let clique = &self.cliques[c_id];
             if self.person_to_clique_id[p1_idx] != Some(c_id) {
-                delta_cost += self.w_constraint * clique.len() as f64;
+                delta_cost += self.clique_weights[c_id] * clique.len() as f64;
             }
         }
 
         // Hard Constraint Delta - Forbidden Pairs
-        for &(p1, p2) in &self.forbidden_pairs {
+        for (pair_idx, &(p1, p2)) in self.forbidden_pairs.iter().enumerate() {
             let p1_is_swapped = p1_idx == p1 || p2_idx == p1;
             let p2_is_swapped = p1_idx == p2 || p2_idx == p2;
 
@@ -811,12 +914,14 @@ impl State {
                 continue;
             }
 
+            let pair_weight = self.forbidden_pair_weights[pair_idx];
+
             // Penalty before swap
             if g1_members.contains(&p1) && g1_members.contains(&p2) {
-                delta_cost -= self.w_constraint;
+                delta_cost -= pair_weight;
             }
             if g2_members.contains(&p1) && g2_members.contains(&p2) {
-                delta_cost -= self.w_constraint;
+                delta_cost -= pair_weight;
             }
 
             // Penalty after swap
@@ -833,10 +938,10 @@ impl State {
                 .collect();
             next_g2_members.push(p1_idx);
             if next_g1_members.contains(&p1) && next_g1_members.contains(&p2) {
-                delta_cost += self.w_constraint;
+                delta_cost += pair_weight;
             }
             if next_g2_members.contains(&p1) && next_g2_members.contains(&p2) {
-                delta_cost += self.w_constraint;
+                delta_cost += pair_weight;
             }
         }
 
@@ -1022,17 +1127,58 @@ impl State {
 
     /// Formats the current score breakdown as a well-structured multi-line format
     pub fn format_score_breakdown(&self) -> String {
-        format!(
-            "Score Breakdown:\n  UniqueContacts: {} (weight: {:.1})\n  RepetitionPenalty: {} (weight: {:.1})\n  AttributeBalancePenalty: {:.2}\n  ConstraintPenalty: {} (weight: {:.1})\n  Total: {:.2}",
+        let mut breakdown = format!(
+            "Score Breakdown:\n  UniqueContacts: {} (weight: {:.1})\n  RepetitionPenalty: {} (weight: {:.1})\n  AttributeBalancePenalty: {:.2}",
             self.unique_contacts,
             self.w_contacts,
             self.repetition_penalty,
             self.w_repetition,
-            self.attribute_balance_penalty,
-            self.constraint_penalty,
-            self.w_constraint,
-            self.calculate_cost()
-        )
+            self.attribute_balance_penalty
+        );
+
+        // Add individual constraint penalties
+        let mut has_constraints = false;
+
+        // Forbidden pair violations
+        for (pair_idx, &violation_count) in self.forbidden_pair_violations.iter().enumerate() {
+            if violation_count > 0 {
+                let weight = self.forbidden_pair_weights[pair_idx];
+                breakdown.push_str(&format!(
+                    "\n  CannotBeTogether[{}]: {} (weight: {:.1})",
+                    pair_idx, violation_count, weight
+                ));
+                has_constraints = true;
+            }
+        }
+
+        // Clique violations
+        for (clique_idx, &violation_count) in self.clique_violations.iter().enumerate() {
+            if violation_count > 0 {
+                let weight = self.clique_weights[clique_idx];
+                breakdown.push_str(&format!(
+                    "\n  MustStayTogether[{}]: {} (weight: {:.1})",
+                    clique_idx, violation_count, weight
+                ));
+                has_constraints = true;
+            }
+        }
+
+        // Immovable person violations
+        if self.immovable_violations > 0 {
+            breakdown.push_str(&format!(
+                "\n  ImmovablePerson: {} (weight: 1000.0)",
+                self.immovable_violations
+            ));
+            has_constraints = true;
+        }
+
+        // If no constraint violations, show that constraints are satisfied
+        if !has_constraints {
+            breakdown.push_str("\n  Constraints: All satisfied");
+        }
+
+        breakdown.push_str(&format!("\n  Total: {:.2}", self.calculate_cost()));
+        breakdown
     }
 
     /// Calculate the probability of attempting a clique swap based on clique density
@@ -1072,7 +1218,7 @@ impl State {
         &self,
         day: usize,
         clique_idx: usize,
-        from_group: usize,
+        _from_group: usize,
         to_group: usize,
     ) -> bool {
         let clique = &self.cliques[clique_idx];
@@ -1219,13 +1365,15 @@ impl State {
         new_to_members.extend_from_slice(clique);
 
         // Check CannotBeTogether constraints
-        for &(person1, person2) in &self.forbidden_pairs {
+        for (pair_idx, &(person1, person2)) in self.forbidden_pairs.iter().enumerate() {
+            let pair_weight = self.forbidden_pair_weights[pair_idx];
+
             // Old constraint penalty contributions
             let old_penalty = if (from_group_members.contains(&person1)
                 && from_group_members.contains(&person2))
                 || (to_group_members.contains(&person1) && to_group_members.contains(&person2))
             {
-                self.w_constraint // Constraint violated in current state
+                pair_weight // Constraint violated in current state
             } else {
                 0.0 // Constraint satisfied in current state
             };
@@ -1235,7 +1383,7 @@ impl State {
                 && new_from_members.contains(&person2))
                 || (new_to_members.contains(&person1) && new_to_members.contains(&person2))
             {
-                self.w_constraint // Constraint violated in new state
+                pair_weight // Constraint violated in new state
             } else {
                 0.0 // Constraint satisfied in new state
             };
@@ -1253,16 +1401,16 @@ impl State {
                     from_group
                 };
 
-                // Old penalty
+                // Old penalty (using default weight for immovable person constraints)
                 let old_penalty = if current_group != required_group {
-                    self.w_constraint
+                    1000.0 // Default hard constraint weight for immovable people
                 } else {
                     0.0
                 };
 
                 // New penalty
                 let new_penalty = if new_group != required_group {
-                    self.w_constraint
+                    1000.0 // Default hard constraint weight for immovable people
                 } else {
                     0.0
                 };
@@ -1526,12 +1674,15 @@ mod tests {
         input.constraints = vec![
             Constraint::MustStayTogether {
                 people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
             },
             Constraint::MustStayTogether {
                 people: vec!["p1".into(), "p2".into()],
+                penalty_weight: 1000.0,
             },
             Constraint::MustStayTogether {
                 people: vec!["p4".into(), "p5".into()],
+                penalty_weight: 1000.0,
             },
         ];
 
@@ -1558,6 +1709,7 @@ mod tests {
         let mut input = create_test_input(5, vec![(1, 3)], 1);
         input.constraints = vec![Constraint::MustStayTogether {
             people: vec!["p0".into(), "p1".into(), "p2".into(), "p3".into()],
+            penalty_weight: 1000.0,
         }];
 
         let result = State::new(&input);
@@ -1587,9 +1739,11 @@ mod tests {
         input.constraints = vec![
             Constraint::MustStayTogether {
                 people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
             },
             Constraint::CannotBeTogether {
                 people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
             },
         ];
 
@@ -1598,7 +1752,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("Forbidden pair (p0, p1) are in the same clique"));
+            .contains("CannotBeTogether constraint conflicts with MustStayTogether"));
     }
 
     #[test]
@@ -1613,9 +1767,11 @@ mod tests {
         input_with_cliques.constraints = vec![
             Constraint::MustStayTogether {
                 people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
             },
             Constraint::MustStayTogether {
                 people: vec!["p2".into(), "p3".into()],
+                penalty_weight: 1000.0,
             },
         ];
         let state_with_cliques = State::new(&input_with_cliques).unwrap();
@@ -1632,6 +1788,7 @@ mod tests {
         input.constraints = vec![
             Constraint::MustStayTogether {
                 people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
             },
             Constraint::ImmovablePerson(crate::models::ImmovablePersonParams {
                 person_id: "p2".into(),
@@ -1661,6 +1818,7 @@ mod tests {
         let mut input = create_test_input(10, vec![(2, 5)], 1);
         input.constraints = vec![Constraint::MustStayTogether {
             people: vec!["p0".into(), "p1".into(), "p2".into()],
+            penalty_weight: 1000.0,
         }];
         let state = State::new(&input).unwrap();
 
@@ -1686,6 +1844,7 @@ mod tests {
         let mut input = create_test_input(8, vec![(2, 4)], 1);
         input.constraints = vec![Constraint::MustStayTogether {
             people: vec!["p0".into(), "p1".into()],
+            penalty_weight: 1000.0,
         }];
         let mut state = State::new(&input).unwrap();
 
@@ -1734,6 +1893,7 @@ mod tests {
         let mut input = create_test_input(10, vec![(2, 5)], 1);
         input.constraints = vec![Constraint::MustStayTogether {
             people: vec!["p0".into(), "p1".into(), "p2".into()],
+            penalty_weight: 1000.0,
         }];
         let mut state = State::new(&input).unwrap();
 

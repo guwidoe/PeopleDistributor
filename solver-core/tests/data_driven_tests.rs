@@ -156,7 +156,7 @@ fn assert_cliques_respected(input: &ApiInput, result: &SolverResult) {
         .constraints
         .iter()
         .filter_map(|c| match c {
-            solver_core::models::Constraint::MustStayTogether { people } => Some(people),
+            solver_core::models::Constraint::MustStayTogether { people, .. } => Some(people),
             _ => None,
         })
         .collect();
@@ -193,7 +193,7 @@ fn assert_forbidden_pairs_respected(input: &ApiInput, result: &SolverResult) {
         .constraints
         .iter()
         .filter_map(|c| match c {
-            solver_core::models::Constraint::CannotBeTogether { people } => Some(people),
+            solver_core::models::Constraint::CannotBeTogether { people, .. } => Some(people),
             _ => None,
         })
         .collect();
