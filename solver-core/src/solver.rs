@@ -1013,6 +1013,21 @@ impl State {
             );
         }
     }
+
+    /// Formats the current score breakdown as a well-structured multi-line format
+    pub fn format_score_breakdown(&self) -> String {
+        format!(
+            "Score Breakdown:\n  UniqueContacts: {} (weight: {:.1})\n  RepetitionPenalty: {} (weight: {:.1})\n  AttributeBalancePenalty: {:.2}\n  ConstraintPenalty: {} (weight: {:.1})\n  Total: {:.2}",
+            self.unique_contacts,
+            self.w_contacts,
+            self.repetition_penalty,
+            self.w_repetition,
+            self.attribute_balance_penalty,
+            self.constraint_penalty,
+            self.w_constraint,
+            self.calculate_cost()
+        )
+    }
 }
 
 // Helper struct for Disjoint Set Union

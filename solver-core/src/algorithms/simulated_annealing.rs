@@ -38,12 +38,7 @@ impl Solver for SimulatedAnnealing {
         let mut no_improvement_counter = 0;
 
         if state.logging.log_initial_state {
-            println!(
-                "Initial state: Contacts={}, Repetition={}, AttributeBalance={:.2}",
-                current_state.unique_contacts,
-                current_state.repetition_penalty,
-                current_state.attribute_balance_penalty
-            );
+            println!("Initial {}", current_state.format_score_breakdown());
         }
 
         for i in 0..self.max_iterations {
@@ -128,6 +123,11 @@ impl Solver for SimulatedAnnealing {
                 "Solver finished in {:.2} seconds. Final score: {:.2}",
                 elapsed, final_cost
             );
+        }
+
+        // Log final state score breakdown if initial state was logged
+        if state.logging.log_initial_state {
+            println!("Final {}", best_state.format_score_breakdown());
         }
 
         best_state.validate_scores();
