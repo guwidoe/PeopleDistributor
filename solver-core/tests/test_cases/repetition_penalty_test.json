@@ -1,0 +1,58 @@
+{
+  "name": "Repetition Penalty Test",
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "p0", "attributes": {} },
+        { "id": "p1", "attributes": {} },
+        { "id": "p2", "attributes": {} },
+        { "id": "p3", "attributes": {} },
+        { "id": "p4", "attributes": {} },
+        { "id": "p5", "attributes": {} },
+        { "id": "p6", "attributes": {} },
+        { "id": "p7", "attributes": {} }
+      ],
+      "groups": [
+        { "id": "g0", "size": 4 },
+        { "id": "g1", "size": 4 }
+      ],
+      "num_sessions": 5
+    },
+    "objectives": [
+      {
+        "type": "maximize_unique_contacts",
+        "weight": 1.0
+      }
+    ],
+    "constraints": [
+      {
+        "type": "RepeatEncounter",
+        "max_allowed_encounters": 1,
+        "penalty_function": "squared",
+        "penalty_weight": 10.0
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": {
+        "max_iterations": 10000
+      },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 100.0,
+        "final_temperature": 0.1,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_duration_and_score": true,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": true,
+        "log_stop_condition": false,
+        "log_initial_state": false
+      }
+    }
+  },
+  "expected": {}
+} 

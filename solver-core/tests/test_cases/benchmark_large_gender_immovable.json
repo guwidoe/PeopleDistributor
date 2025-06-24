@@ -202,10 +202,10 @@
             "logging": {
                 "log_frequency": 0,
                 "log_initial_state": false,
-                "log_duration_and_score": false,
+                "log_duration_and_score": true,
                 "display_final_schedule": false,
-                "log_initial_score_breakdown": false,
-                "log_final_score_breakdown": false,
+                "log_initial_score_breakdown": true,
+                "log_final_score_breakdown": true,
                 "log_stop_condition": false
             }
         }
