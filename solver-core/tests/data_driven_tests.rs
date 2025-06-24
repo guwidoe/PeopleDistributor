@@ -4,6 +4,7 @@ use solver_core::{
     run_solver,
 };
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize)]
@@ -20,14 +21,29 @@ struct TestSettings {
     filter_patterns: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Default)]
+struct TestOptions {
+    #[serde(default = "default_loop_count")]
+    loop_count: u32,
+}
+
+fn default_loop_count() -> u32 {
+    1
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct TestCase {
     name: String,
     input: ApiInput,
+    #[serde(default)]
     expected: ExpectedMetrics,
+    #[serde(default)]
+    test_options: TestOptions,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Default)]
+#[allow(dead_code)]
 struct ExpectedMetrics {
     #[serde(default)]
     must_stay_together_respected: bool,
@@ -55,8 +71,13 @@ fn run_data_driven_tests() {
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
             let file_content = fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("Failed to read test case file {:?}: {}", path, e));
-            let test_case: TestCase = serde_json::from_str(&file_content)
-                .unwrap_or_else(|e| panic!("Failed to parse test case {:?}: {}", path, e));
+            let test_case: TestCase = serde_json::from_str(&file_content).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to parse test case \"{}\": {}",
+                    path.to_str().unwrap(),
+                    e
+                )
+            });
 
             let should_run = match settings.mode {
                 TestMode::All => true,
@@ -67,7 +88,6 @@ fn run_data_driven_tests() {
             };
 
             if should_run {
-                println!("--- Running Test: {} ---", test_case.name);
                 run_test_case(&test_case, &path);
             }
         }
@@ -75,36 +95,59 @@ fn run_data_driven_tests() {
 }
 
 fn run_test_case(test_case: &TestCase, path: &Path) {
-    let result = run_solver(&test_case.input);
-
-    assert!(
-        result.is_ok(),
-        "Solver failed for test case {} ({:?}): {:?}",
-        test_case.name,
-        path,
-        result.err()
-    );
-    let result = result.unwrap();
-
-    if test_case.expected.must_stay_together_respected {
-        assert_cliques_respected(&test_case.input, &result);
-    }
-
-    if test_case.expected.cannot_be_together_respected {
-        assert_forbidden_pairs_respected(&test_case.input, &result);
-    }
-
-    if test_case.expected.immovable_person_respected {
-        assert_immovable_person_respected(&test_case.input, &result);
-    }
-
-    if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
-        assert!(
-            result.constraint_penalty as u32 <= max_penalty,
-            "Constraint penalty {} exceeds maximum of {}",
-            result.constraint_penalty,
-            max_penalty
+    let loop_count = test_case.test_options.loop_count;
+    if loop_count > 1 {
+        println!(
+            "--- Running Test: {} ({} times) ---",
+            test_case.name, loop_count
         );
+    } else {
+        println!("--- Running Test: {} ---", test_case.name);
+    }
+
+    for i in 0..loop_count {
+        if loop_count > 1 {
+            // Print progress on the same line
+            print!("\r  Run {}/{}...", i + 1, loop_count);
+            io::stdout().flush().unwrap();
+        }
+
+        let result = run_solver(&test_case.input);
+
+        assert!(
+            result.is_ok(),
+            "Solver failed for test case {} ({:?}): {:?}",
+            test_case.name,
+            path,
+            result.err()
+        );
+        let result = result.unwrap();
+
+        if test_case.expected.must_stay_together_respected {
+            assert_cliques_respected(&test_case.input, &result);
+        }
+
+        if test_case.expected.cannot_be_together_respected {
+            assert_forbidden_pairs_respected(&test_case.input, &result);
+        }
+
+        if test_case.expected.immovable_person_respected {
+            assert_immovable_person_respected(&test_case.input, &result);
+        }
+
+        if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
+            assert!(
+                result.constraint_penalty as u32 <= max_penalty,
+                "Constraint penalty {} exceeds maximum of {}",
+                result.constraint_penalty,
+                max_penalty
+            );
+        }
+    }
+
+    if loop_count > 1 {
+        // Clear the line and print final status
+        println!("\r  All {} runs passed.        ", loop_count);
     }
 }
 

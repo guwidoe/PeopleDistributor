@@ -90,6 +90,9 @@
     }
   },
   "expected": {
-    "must_stay_together_respected": true
-  }
+    "must_stay_together_respected": true,
+    "cannot_be_together_respected": true,
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
 } 

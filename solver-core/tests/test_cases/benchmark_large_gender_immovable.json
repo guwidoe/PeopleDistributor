@@ -210,5 +210,8 @@
             }
         }
     },
-    "expected": {}
+    "expected": {
+        "max_constraint_penalty": 1000
+    },
+    "test_options": {}
 } 

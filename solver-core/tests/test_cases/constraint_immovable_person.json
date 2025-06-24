@@ -59,5 +59,6 @@
     },
     "expected": {
         "immovable_person_respected": true
-    }
+    },
+    "test_options": {}
 } 

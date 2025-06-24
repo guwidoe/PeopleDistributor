@@ -42,10 +42,8 @@
       }
     }
   },
-  "expected": {},
-  "test_settings": {
-    "log_test_name": false,
-    "log_duration_and_score": false,
-    "display_final_schedule": false
-  }
+  "expected": {
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
 } 

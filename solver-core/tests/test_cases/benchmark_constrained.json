@@ -57,5 +57,9 @@
       }
     }
   },
-  "expected": {}
+  "expected": {
+    "max_constraint_penalty": 0,
+    "immovable_person_respected": true
+  },
+  "test_options": {}
 } 

@@ -50,5 +50,6 @@
             }
         }
     },
-    "expected": {}
+    "expected": {},
+    "test_options": {}
 } 
