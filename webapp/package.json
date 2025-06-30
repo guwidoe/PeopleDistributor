@@ -8,9 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "build-wasm": "GETRANDOM_JS=1 wasm-pack build --target web ../solver-wasm"
+    "build-wasm": "cd ../solver-wasm && GETRANDOM_JS=1 wasm-pack build --target web"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^24.0.7",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",

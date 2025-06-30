@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import {
+import type {
+  AppState,
+  Problem,
+  Solution,
+  SolverState,
+  Notification,
+} from "../types";
+
+// Re-export types for easier access
+export type {
   AppState,
   Problem,
   Solution,
@@ -134,10 +143,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }));
 
     // Auto-remove notification after duration
-    if (newNotification.duration > 0) {
+    const duration = newNotification.duration;
+    if (duration && duration > 0) {
       setTimeout(() => {
         get().removeNotification(id);
-      }, newNotification.duration);
+      }, duration);
     }
   },
 

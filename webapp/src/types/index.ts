@@ -107,7 +107,7 @@ export interface ConstraintFormData {
 
 // WASM Module types
 export interface WasmModule {
-  solve: (problem: Problem) => Solution;
-  validate_problem: (problem: Problem) => { valid: boolean; errors: string[] };
-  get_default_settings: () => SolverSettings;
+  solve: (problem_json: string) => string;
+  validate_problem: (problem_json: string) => string;
+  get_default_settings: () => string;
 }
