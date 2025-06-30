@@ -6,9 +6,6 @@
     "solver_wasm.js",
     "solver_wasm.d.ts"
   ],
-  "module": "solver_wasm.js",
-  "types": "solver_wasm.d.ts",
-  "sideEffects": [
-    "./snippets/*"
-  ]
+  "browser": "solver_wasm.js",
+  "types": "solver_wasm.d.ts"
 }

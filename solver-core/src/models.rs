@@ -661,6 +661,8 @@ pub struct SolverResult {
     pub attribute_balance_penalty: i32,
     /// Total penalty points for constraint violations
     pub constraint_penalty: i32,
+    /// Number of iterations without improvement at the end of the run
+    pub no_improvement_count: u64,
 }
 
 impl SolverResult {

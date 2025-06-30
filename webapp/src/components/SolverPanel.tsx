@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
-import type { SolverSettings } from '../types';
+import type { SolverSettings, SolverState } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
 
@@ -9,6 +9,7 @@ export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const cancelledRef = useRef(false);
+  const solverCompletedRef = useRef(false);
   const [solverSettings, setSolverSettings] = useState<SolverSettings>({
     solver_type: "SimulatedAnnealing",
     stop_conditions: {
@@ -67,6 +68,7 @@ export function SolverPanel() {
     try {
       // Reset cancellation flag
       cancelledRef.current = false;
+      solverCompletedRef.current = false;
       
       startSolver();
       addNotification({
@@ -83,7 +85,10 @@ export function SolverPanel() {
 
       // Progress callback to update the UI in real-time
       const progressCallback = (progress: ProgressUpdate): boolean => {
-        console.log(`Progress: iteration ${progress.iteration}, score ${progress.best_score.toFixed(2)}, no_improvement ${progress.no_improvement_count}`);
+        // Ignore progress updates if solver has already completed
+        if (solverCompletedRef.current) {
+          return false;
+        }
         
         setSolverState({
           currentIteration: progress.iteration,
@@ -94,7 +99,6 @@ export function SolverPanel() {
         
         // Check if solver was cancelled
         if (cancelledRef.current) {
-          console.log('Solver cancelled by user');
           return false; // Stop the solver
         }
         
@@ -102,7 +106,10 @@ export function SolverPanel() {
       };
 
       // Run the solver with progress updates using Web Worker
-      const solution = await solverWorkerService.solveWithProgress(problemWithSettings, progressCallback);
+      const { solution, lastProgress } = await solverWorkerService.solveWithProgress(problemWithSettings, progressCallback);
+      
+      // Mark solver as completed to prevent late progress updates
+      solverCompletedRef.current = true;
       
       // Check if the solver was cancelled
       if (cancelledRef.current) {
@@ -121,6 +128,14 @@ export function SolverPanel() {
       // Update the solution and mark as complete
       setSolution(solution);
       
+      // Determine the final no improvement count
+      const finalNoImprovementCount = lastProgress 
+        ? lastProgress.no_improvement_count 
+        : solverState.noImprovementCount;
+
+      // Add a small delay to ensure any late progress messages are ignored
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       // Update final solver state with actual final values from solution
       setSolverState({ 
         isRunning: false, 
@@ -128,6 +143,7 @@ export function SolverPanel() {
         currentIteration: solution.iteration_count,
         elapsedTime: solution.elapsed_time_ms,
         bestScore: solution.final_score,
+        noImprovementCount: finalNoImprovementCount,
       });
 
       addNotification({
@@ -181,6 +197,7 @@ export function SolverPanel() {
   const handleResetSolver = () => {
     // Reset cancellation flag
     cancelledRef.current = false;
+    solverCompletedRef.current = false;
     resetSolver();
     addNotification({
       type: 'info',
@@ -191,24 +208,18 @@ export function SolverPanel() {
 
   const getProgressPercentage = () => {
     if (!solverSettings.stop_conditions.max_iterations) return 0;
-    const percentage = Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
-    console.log(`Iteration progress: ${solverState.currentIteration}/${solverSettings.stop_conditions.max_iterations} = ${percentage}%`);
-    return percentage;
+    return Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
   };
 
   const getTimeProgressPercentage = () => {
     if (!solverSettings.stop_conditions.time_limit_seconds) return 0;
     const timeLimit = solverSettings.stop_conditions.time_limit_seconds;
-    const percentage = Math.min((solverState.elapsedTime / 1000 / timeLimit) * 100, 100);
-    console.log(`Time progress: ${(solverState.elapsedTime / 1000).toFixed(1)}s/${timeLimit}s = ${percentage}%`);
-    return percentage;
+    return Math.min((solverState.elapsedTime / 1000 / timeLimit) * 100, 100);
   };
 
   const getNoImprovementProgressPercentage = () => {
     if (!solverSettings.stop_conditions.no_improvement_iterations) return 0;
-    const percentage = Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
-    console.log(`No improvement progress: ${solverState.noImprovementCount}/${solverSettings.stop_conditions.no_improvement_iterations} = ${percentage}%`);
-    return percentage;
+    return Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
   };
 
   return (

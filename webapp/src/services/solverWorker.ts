@@ -27,15 +27,12 @@ export class SolverWorkerService {
     }
 
     try {
-      console.log("Creating new worker...");
       this.worker = new Worker("/solver-worker.js");
       this.setupMessageHandler();
 
-      console.log("Sending INIT message to worker...");
       // Initialize the worker
       await this.sendMessage("INIT", {});
       this.isInitialized = true;
-      console.log("Solver worker initialized successfully");
     } catch (error) {
       console.error("Failed to initialize solver worker:", error);
       this.worker = null;
@@ -77,7 +74,20 @@ export class SolverWorkerService {
 
         case "SOLVE_SUCCESS":
           if (pending) {
-            pending.resolve(data.result);
+            // The worker now returns both the result and the last progress JSON
+            const { result, lastProgressJson } = data;
+
+            let lastProgress: ProgressUpdate | null = null;
+            if (lastProgressJson) {
+              try {
+                lastProgress = JSON.parse(lastProgressJson);
+              } catch (e) {
+                console.error("Failed to parse last progress update:", e);
+              }
+            }
+
+            // Resolve with both the final result and the last progress update
+            pending.resolve({ result, lastProgress });
             this.pendingMessages.delete(id);
           }
           break;
@@ -144,13 +154,13 @@ export class SolverWorkerService {
       useProgress: false,
     });
     const rustResult = JSON.parse(resultJson);
-    return this.convertRustResultToSolution(rustResult);
+    return this.convertRustResultToSolution(rustResult, null);
   }
 
   async solveWithProgress(
     problem: Problem,
     progressCallback?: ProgressCallback
-  ): Promise<Solution> {
+  ): Promise<{ solution: Solution; lastProgress: ProgressUpdate | null }> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -158,7 +168,9 @@ export class SolverWorkerService {
     const problemJson = JSON.stringify(
       this.convertProblemToRustFormat(problem)
     );
-    const resultJson = await this.sendMessage(
+
+    // The promise now resolves with an object { result, lastProgress }
+    const { result, lastProgress } = await this.sendMessage(
       "SOLVE",
       {
         problemJson,
@@ -167,14 +179,15 @@ export class SolverWorkerService {
       progressCallback
     );
 
-    const rustResult = JSON.parse(resultJson);
-    return this.convertRustResultToSolution(rustResult);
+    const rustResult = JSON.parse(result);
+    const solution = this.convertRustResultToSolution(rustResult, lastProgress);
+
+    // Return both the solution and the last progress update
+    return { solution, lastProgress };
   }
 
   async cancel(): Promise<void> {
     if (!this.worker) return;
-
-    console.log("Cancelling solver worker...");
 
     // Reject all pending messages with a specific cancellation error
     this.pendingMessages.forEach(({ reject }) => {
@@ -187,12 +200,9 @@ export class SolverWorkerService {
     this.worker = null;
     this.isInitialized = false;
 
-    console.log("Worker terminated, reinitializing...");
-
     // Reinitialize for future use
     try {
       await this.initialize();
-      console.log("Worker reinitialized successfully");
     } catch (error) {
       console.error("Failed to reinitialize worker after cancellation:", error);
       // Don't throw here - cancellation succeeded even if reinitialization failed
@@ -205,7 +215,8 @@ export class SolverWorkerService {
     const solverSettings = { ...problem.settings };
 
     // The UI sends solver_params as { "SimulatedAnnealing": { ... } }
-    // But Rust expects { "solver_type": "SimulatedAnnealing", ... }
+    // But Rust expects { "solver_type": "SimulatedAnnealing", initial_temperature: ..., etc }
+    // due to the #[serde(tag = "solver_type")] attribute on the SolverParams enum
     if (
       solverSettings.solver_params &&
       typeof solverSettings.solver_params === "object"
@@ -215,6 +226,7 @@ export class SolverWorkerService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
+        // For serde tagged enum, we need the tag field plus the inner fields flattened
         (solverSettings.solver_params as any) = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
@@ -240,7 +252,10 @@ export class SolverWorkerService {
   }
 
   // Convert Rust solver result to our Solution format
-  private convertRustResultToSolution(rustResult: any): Solution {
+  private convertRustResultToSolution(
+    rustResult: any,
+    lastProgress?: ProgressUpdate | null
+  ): Solution {
     // Convert the schedule format to assignments
     const assignments: any[] = [];
 
@@ -259,6 +274,9 @@ export class SolverWorkerService {
       }
     }
 
+    // Use the provided lastProgress if available, otherwise fall back to the stored one
+    const progressToUse = lastProgress || this.lastProgressUpdate;
+
     return {
       assignments,
       final_score: rustResult.final_score,
@@ -266,8 +284,8 @@ export class SolverWorkerService {
       repetition_penalty: rustResult.repetition_penalty,
       attribute_balance_penalty: rustResult.attribute_balance_penalty,
       constraint_penalty: rustResult.constraint_penalty,
-      iteration_count: this.lastProgressUpdate?.iteration || 0,
-      elapsed_time_ms: (this.lastProgressUpdate?.elapsed_seconds || 0) * 1000,
+      iteration_count: progressToUse?.iteration || 0,
+      elapsed_time_ms: (progressToUse?.elapsed_seconds || 0) * 1000,
     };
   }
 

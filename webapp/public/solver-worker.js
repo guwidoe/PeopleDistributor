@@ -48,19 +48,14 @@ async function initWasm() {
 self.onmessage = async function(e) {
   const { type, id, data } = e.data;
   
-  console.log(`Worker received message: ${type} with id: ${id}`);
-  
   try {
     switch (type) {
       case 'INIT':
-        console.log('Worker initializing WASM...');
         await initWasm();
-        console.log('Worker WASM initialization complete');
         self.postMessage({ type: 'INIT_SUCCESS', id });
         break;
         
       case 'SOLVE':
-        console.log('Worker starting solve...');
         const { problemJson, useProgress } = data;
         
         if (!wasmModule) {
@@ -72,30 +67,42 @@ self.onmessage = async function(e) {
         }
         
         if (useProgress) {
-          console.log('Worker solving with progress...');
+          let lastProgressJson = null;
+          let progressCallCount = 0;
+          
           // Create a progress callback that sends updates to the main thread
           const progressCallback = (progressJson) => {
+            progressCallCount++;
+            lastProgressJson = progressJson;
+            
             self.postMessage({ 
               type: 'PROGRESS', 
               id, 
               data: { progressJson } 
             });
+            
             return true; // Always continue for now - cancellation will be handled differently
           };
           
           const result = wasmModule.solve_with_progress(problemJson, progressCallback);
-          console.log('Worker solve completed');
-          self.postMessage({ type: 'SOLVE_SUCCESS', id, data: { result } });
+
+          // Send a final progress update if we have one
+          if (lastProgressJson) {
+            self.postMessage({ 
+              type: 'PROGRESS', 
+              id, 
+              data: { progressJson: lastProgressJson } 
+            });
+          }
+
+          self.postMessage({ type: 'SOLVE_SUCCESS', id, data: { result, lastProgressJson } });
         } else {
-          console.log('Worker solving without progress...');
           const result = wasmModule.solve(problemJson);
-          console.log('Worker solve completed');
           self.postMessage({ type: 'SOLVE_SUCCESS', id, data: { result } });
         }
         break;
         
       case 'CANCEL':
-        console.log('Worker handling cancellation...');
         // For now, we'll implement cancellation by terminating and restarting the worker
         // A more sophisticated approach would involve modifying the WASM to check a cancellation flag
         self.postMessage({ type: 'CANCELLED', id });

@@ -449,6 +449,7 @@ impl Solver for SimulatedAnnealing {
         let mut best_cost = state.calculate_cost();
         let mut no_improvement_counter = 0;
         let mut last_callback_time = get_start_time();
+        let mut final_iteration = 0;
 
         if state.logging.log_initial_score_breakdown {
             println!(
@@ -458,9 +459,12 @@ impl Solver for SimulatedAnnealing {
         }
 
         for i in 0..self.max_iterations {
+            final_iteration = i;
             let temperature = self.initial_temperature
                 * (self.final_temperature / self.initial_temperature)
                     .powf(i as f64 / self.max_iterations as f64);
+
+            let mut improvement_found = false;
 
             // Send progress update if callback is provided - every 0.1 seconds for responsiveness
             if let Some(callback) = &progress_callback {
@@ -562,6 +566,7 @@ impl Solver for SimulatedAnnealing {
                                 best_cost = next_cost;
                                 best_state = current_state.clone();
                                 no_improvement_counter = 0;
+                                improvement_found = true;
                             }
                         }
                     }
@@ -596,6 +601,7 @@ impl Solver for SimulatedAnnealing {
                         best_cost = next_cost;
                         best_state = current_state.clone();
                         no_improvement_counter = 0;
+                        improvement_found = true;
                     }
                 }
             }
@@ -615,9 +621,12 @@ impl Solver for SimulatedAnnealing {
             // }
 
             // --- Stop Conditions ---
-            no_improvement_counter += 1;
+            if !improvement_found {
+                no_improvement_counter += 1;
+            }
+
             if let Some(no_improvement_limit) = self.no_improvement_iterations {
-                if no_improvement_counter > no_improvement_limit {
+                if no_improvement_counter >= no_improvement_limit {
                     if state.logging.log_stop_condition {
                         println!(
                             "Stopping early: no improvement for {no_improvement_limit} iterations."
@@ -635,6 +644,29 @@ impl Solver for SimulatedAnnealing {
                     break;
                 }
             }
+        }
+
+        // Send final progress update if callback is provided
+        if let Some(callback) = &progress_callback {
+            let final_temperature = self.initial_temperature
+                * (self.final_temperature / self.initial_temperature)
+                    .powf(final_iteration as f64 / self.max_iterations as f64);
+
+            let final_progress = ProgressUpdate {
+                iteration: final_iteration,
+                max_iterations: self.max_iterations,
+                temperature: final_temperature,
+                current_score: best_cost,
+                best_score: best_cost,
+                current_contacts: best_state.unique_contacts,
+                best_contacts: best_state.unique_contacts,
+                repetition_penalty: best_state.repetition_penalty,
+                elapsed_seconds: get_elapsed_seconds(start_time),
+                no_improvement_count: no_improvement_counter,
+            };
+
+            // Call the callback one final time (ignore return value since we're done)
+            callback(&final_progress);
         }
 
         let final_cost = best_cost; // Use tracked best cost instead of recalculating
@@ -659,7 +691,7 @@ impl Solver for SimulatedAnnealing {
         }
 
         best_state.validate_scores();
-        let result = best_state.to_solver_result(final_cost);
+        let result = best_state.to_solver_result(final_cost, no_improvement_counter);
 
         if state.logging.display_final_schedule {
             println!("{}", result.display());

@@ -851,6 +851,7 @@ impl State {
     /// # Arguments
     ///
     /// * `final_score` - The final optimization score to include in the result
+    /// * `no_improvement_count` - The number of iterations since the last improvement
     ///
     /// # Returns
     ///
@@ -858,6 +859,7 @@ impl State {
     /// - The schedule in `HashMap<String, HashMap<String, Vec<String>>>` format
     /// - Detailed scoring information (unique contacts, penalties, etc.)
     /// - The provided final score value
+    /// - The number of iterations since the last improvement
     ///
     /// # Schedule Format
     ///
@@ -885,7 +887,7 @@ impl State {
     /// #     },
     /// # };
     /// # let state = State::new(&input)?;
-    /// let result = state.to_solver_result(0.0); // Score is calculated inside to_solver_result
+    /// let result = state.to_solver_result(0.0, 0); // Score is calculated inside to_solver_result
     ///
     /// // Access the results
     /// println!("Final score: {}", result.final_score);
@@ -900,7 +902,7 @@ impl State {
     /// }
     /// # Ok::<(), solver_core::solver::SolverError>(())
     /// ```
-    pub fn to_solver_result(&self, final_score: f64) -> SolverResult {
+    pub fn to_solver_result(&self, final_score: f64, no_improvement_count: u64) -> SolverResult {
         let mut schedule_output = HashMap::new();
         for (day, day_schedule) in self.schedule.iter().enumerate() {
             let session_key = format!("session_{}", day);
@@ -922,6 +924,7 @@ impl State {
             repetition_penalty: self.repetition_penalty,
             attribute_balance_penalty: self.attribute_balance_penalty as i32,
             constraint_penalty: self.constraint_penalty,
+            no_improvement_count,
         }
     }
 
