@@ -191,7 +191,7 @@
         "solver": {
             "solver_type": "SimulatedAnnealing",
             "stop_conditions": {
-                "max_iterations": 100000
+                "max_iterations": 1000
             },
             "solver_params": {
                 "solver_type": "SimulatedAnnealing",

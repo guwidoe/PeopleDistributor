@@ -1,7 +1,7 @@
 use crate::algorithms::simulated_annealing::SimulatedAnnealing;
 use crate::algorithms::Solver;
-use crate::models::{ApiInput, SolverResult};
 use crate::solver::{SolverError, State};
+pub use models::{ApiInput, SolverResult};
 
 pub mod algorithms;
 pub mod models;

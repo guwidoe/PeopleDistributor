@@ -150,7 +150,7 @@ impl SolverResult {
         let mut sorted_sessions: Vec<_> = self.schedule.keys().collect();
         sorted_sessions.sort_by_key(|a| {
             a.split('_')
-                .last()
+                .next_back()
                 .unwrap_or("0")
                 .parse::<usize>()
                 .unwrap_or(0)
@@ -168,7 +168,7 @@ impl SolverResult {
                 for group_key in sorted_groups {
                     if let Some(people) = groups.get(group_key) {
                         let people_list = people.join(", ");
-                        output.push_str(&format!("{}: {}\n", group_key, people_list));
+                        output.push_str(&format!("{group_key}: {people_list}\n"));
                     }
                 }
             }

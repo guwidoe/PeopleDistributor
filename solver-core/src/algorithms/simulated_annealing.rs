@@ -15,9 +15,7 @@ pub struct SimulatedAnnealing {
 
 impl SimulatedAnnealing {
     pub fn new(params: &SolverConfiguration) -> Self {
-        let sa_params = match &params.solver_params {
-            SolverParams::SimulatedAnnealing(p) => p,
-        };
+        let SolverParams::SimulatedAnnealing(sa_params) = &params.solver_params;
         Self {
             max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
             initial_temperature: sa_params.initial_temperature,
@@ -171,8 +169,7 @@ impl Solver for SimulatedAnnealing {
                 if no_improvement_counter > no_improvement_limit {
                     if state.logging.log_stop_condition {
                         println!(
-                            "Stopping early: no improvement for {} iterations.",
-                            no_improvement_limit
+                            "Stopping early: no improvement for {no_improvement_limit} iterations."
                         );
                     }
                     break;
@@ -183,8 +180,7 @@ impl Solver for SimulatedAnnealing {
                 if start_time.elapsed().as_secs() >= time_limit {
                     if state.logging.log_stop_condition {
                         println!(
-                            "Stopping early: time limit of {} seconds reached.",
-                            time_limit
+                            "Stopping early: time limit of {time_limit} seconds reached."
                         );
                     }
                     break;
@@ -197,8 +193,7 @@ impl Solver for SimulatedAnnealing {
 
         if state.logging.log_duration_and_score {
             println!(
-                "Solver finished in {:.2} seconds. Final score: {:.2}",
-                elapsed, final_cost
+                "Solver finished in {elapsed:.2} seconds. Final score: {final_cost:.2}"
             );
         }
 

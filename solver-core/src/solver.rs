@@ -599,11 +599,11 @@ impl State {
             }
         }
 
-        // Calculate unique contacts (count pairs with exactly 1 contact)
+        // Calculate unique contacts (count pairs with at least 1 contact)
         self.unique_contacts = 0;
         for i in 0..people_count {
             for j in (i + 1)..people_count {
-                if self.contact_matrix[i][j] == 1 {
+                if self.contact_matrix[i][j] > 0 {
                     self.unique_contacts += 1;
                 }
             }
@@ -1088,9 +1088,7 @@ impl State {
                     self.contact_matrix[member][p1_idx] -= 1;
 
                     // Update unique contacts count
-                    if old_count == 2 {
-                        self.unique_contacts += 1; // Now a unique contact
-                    } else if old_count == 1 {
+                    if old_count == 1 {
                         self.unique_contacts -= 1; // No longer any contact
                     }
 
@@ -1118,8 +1116,6 @@ impl State {
                 // Update unique contacts count
                 if old_count == 0 {
                     self.unique_contacts += 1; // New unique contact
-                } else if old_count == 1 {
-                    self.unique_contacts -= 1; // No longer unique
                 }
 
                 // Update repetition penalty
@@ -1142,9 +1138,7 @@ impl State {
                     self.contact_matrix[member][p2_idx] -= 1;
 
                     // Update unique contacts count
-                    if old_count == 2 {
-                        self.unique_contacts += 1; // Now a unique contact
-                    } else if old_count == 1 {
+                    if old_count == 1 {
                         self.unique_contacts -= 1; // No longer any contact
                     }
 
@@ -1172,8 +1166,6 @@ impl State {
                 // Update unique contacts count
                 if old_count == 0 {
                     self.unique_contacts += 1; // New unique contact
-                } else if old_count == 1 {
-                    self.unique_contacts -= 1; // No longer unique
                 }
 
                 // Update repetition penalty
@@ -1754,10 +1746,10 @@ mod tests {
         state._recalculate_scores();
 
         // 3. Assert
-        // Unique contacts:
-        // Day 0: (0,1), (0,2), (1,2), (3,4), (3,5), (4,5) -> 6 unique
-        // Day 1: (0,3), (0,4), (3,4), (1,2), (1,5), (2,5) -> 6 unique
-        // Total unique pairs: (0,1), (0,2), (0,3), (0,4), (1,2), (1,5), (2,5), (3,4), (3,5), (4,5) -> 10 unique
+        // Contacts:
+        // Day 0: (0,1), (0,2), (1,2), (3,4), (3,5), (4,5)
+        // Day 1: (0,3), (0,4), (3,4), (1,2), (1,5), (2,5)
+        // Total pairs met at least once: (0,1), (0,2), (0,3), (0,4), (1,2), (1,5), (2,5), (3,4), (3,5), (4,5) -> 10 pairs
         //
         // Repetition penalty:
         // (1,2) appears twice -> (2-1)^2 = 1
@@ -1801,7 +1793,7 @@ mod tests {
             "Day 0 of schedule is incorrect after swap."
         );
 
-        // The scores don't change for this specific swap, but they should be recalculated correctly.
+        // For this specific swap, the scores don't change, but they should be recalculated correctly.
         assert_eq!(state_after_swap.unique_contacts, 10);
         assert_eq!(state_after_swap.repetition_penalty, 2);
     }
