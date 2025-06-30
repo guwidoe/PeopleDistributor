@@ -61,7 +61,8 @@ export function NotificationContainer() {
         return (
           <div
             key={notification.id}
-            className={`${getBgColor(notification.type)} border rounded-lg p-4 shadow-lg animate-slide-up`}
+            className={`${getBgColor(notification.type)} border rounded-lg p-4 shadow-lg animate-slide-up bg-white/70 backdrop-blur-lg`}
+            style={{ boxShadow: '0 4px 24px 0 rgba(0,0,0,0.10)' }}
           >
             <div className="flex items-start space-x-3">
               <Icon className={`h-5 w-5 mt-0.5 ${getIconColor(notification.type)}`} />
@@ -69,7 +70,7 @@ export function NotificationContainer() {
                 <h4 className="text-sm font-medium text-gray-900">
                   {notification.title}
                 </h4>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-700 mt-1">
                   {notification.message}
                 </p>
               </div>

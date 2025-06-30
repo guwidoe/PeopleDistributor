@@ -537,6 +537,48 @@ pub struct LoggingOptions {
     pub log_stop_condition: bool,
 }
 
+/// Progress update information sent during solver execution.
+///
+/// This structure contains real-time information about the solver's progress
+/// that can be used to update progress bars, charts, and other UI elements
+/// while the optimization is running.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProgressUpdate {
+    /// Current iteration number (0-based)
+    pub iteration: u64,
+    /// Total number of iterations planned
+    pub max_iterations: u64,
+    /// Current temperature (for simulated annealing)
+    pub temperature: f64,
+    /// Current solution cost/score
+    pub current_score: f64,
+    /// Best solution cost/score found so far
+    pub best_score: f64,
+    /// Number of unique contacts in current solution
+    pub current_contacts: i32,
+    /// Number of unique contacts in best solution
+    pub best_contacts: i32,
+    /// Current repetition penalty
+    pub repetition_penalty: i32,
+    /// Time elapsed since solver started (in seconds)
+    pub elapsed_seconds: f64,
+    /// Number of iterations without improvement
+    pub no_improvement_count: u64,
+}
+
+/// Callback function type for receiving progress updates during solver execution.
+///
+/// The solver will call this function periodically during optimization to report
+/// progress. The callback should return `true` to continue solving or `false`
+/// to request early termination.
+///
+/// Callback function type for receiving progress updates during solver execution.
+///
+/// The solver will call this function periodically during optimization to report
+/// progress. The callback should return `true` to continue solving or `false`
+/// to request early termination.
+pub type ProgressCallback = Box<dyn Fn(&ProgressUpdate) -> bool + Send>;
+
 /// The result returned by the optimization solver.
 ///
 /// Contains the optimized schedule along with detailed scoring information

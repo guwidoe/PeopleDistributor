@@ -23,7 +23,9 @@
 //! This provides smooth temperature decay from high exploration to low exploitation.
 
 use crate::algorithms::Solver;
-use crate::models::{SolverConfiguration, SolverParams, SolverResult};
+use crate::models::{
+    ProgressCallback, ProgressUpdate, SolverConfiguration, SolverParams, SolverResult,
+};
 use crate::solver::{SolverError, State};
 use rand::seq::SliceRandom;
 use rand::{rng, Rng};
@@ -375,7 +377,11 @@ impl Solver for SimulatedAnnealing {
     /// - Increase constraint penalty weights
     /// - Monitor clique swap acceptance rates
     /// - Use longer optimization times
-    fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
+    fn solve(
+        &self,
+        state: &mut State,
+        progress_callback: Option<&ProgressCallback>,
+    ) -> Result<SolverResult, SolverError> {
         let start_time = Instant::now();
         let mut rng = rng();
 
@@ -395,6 +401,31 @@ impl Solver for SimulatedAnnealing {
             let temperature = self.initial_temperature
                 * (self.final_temperature / self.initial_temperature)
                     .powf(i as f64 / self.max_iterations as f64);
+
+            // Send progress update if callback is provided
+            if let Some(callback) = &progress_callback {
+                let current_cost = current_state.calculate_cost();
+                let progress = ProgressUpdate {
+                    iteration: i,
+                    max_iterations: self.max_iterations,
+                    temperature,
+                    current_score: current_cost,
+                    best_score: best_cost,
+                    current_contacts: current_state.unique_contacts,
+                    best_contacts: best_state.unique_contacts,
+                    repetition_penalty: current_state.repetition_penalty,
+                    elapsed_seconds: start_time.elapsed().as_secs_f64(),
+                    no_improvement_count: no_improvement_counter,
+                };
+
+                // If callback returns false, stop early
+                if !callback(&progress) {
+                    if state.logging.log_stop_condition {
+                        println!("Stopping early: progress callback requested termination.");
+                    }
+                    break;
+                }
+            }
 
             // --- Choose a random move ---
             let day = rng.random_range(0..current_state.num_sessions as usize);

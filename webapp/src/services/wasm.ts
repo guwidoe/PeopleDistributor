@@ -1,4 +1,27 @@
-import type { Problem, Solution, SolverSettings, WasmModule } from "../types";
+import type {
+  Problem,
+  Solution,
+  SolverSettings,
+  WasmModule,
+  Assignment,
+} from "../types";
+
+// Progress update interface matching the Rust ProgressUpdate struct
+export interface ProgressUpdate {
+  iteration: number;
+  max_iterations: number;
+  temperature: number;
+  current_score: number;
+  best_score: number;
+  current_contacts: number;
+  best_contacts: number;
+  repetition_penalty: number;
+  elapsed_seconds: number;
+  no_improvement_count: number;
+}
+
+// Progress callback type
+export type ProgressCallback = (progress: ProgressUpdate) => boolean;
 
 class WasmService {
   private module: WasmModule | null = null;
@@ -52,12 +75,69 @@ class WasmService {
     }
 
     try {
-      const problemJson = JSON.stringify(problem);
+      const problemJson = JSON.stringify(
+        this.convertProblemToRustFormat(problem)
+      );
+      console.log("Solver input JSON:", problemJson);
       const resultJson = this.module.solve(problemJson);
-      return JSON.parse(resultJson);
+      const rustResult = JSON.parse(resultJson);
+      return this.convertRustResultToSolution(rustResult);
     } catch (error) {
       console.error("WASM solve error:", error);
-      throw new Error("Failed to solve problem");
+      throw new Error(
+        `Failed to solve problem: ${
+          error instanceof Error ? error.stack || error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  async solveWithProgress(
+    problem: Problem,
+    progressCallback?: ProgressCallback
+  ): Promise<Solution> {
+    if (!this.module && !this.initializationFailed) {
+      await this.initialize();
+    }
+
+    if (!this.module) {
+      throw new Error(
+        "WASM module not available - please build it first with 'npm run build-wasm'"
+      );
+    }
+
+    try {
+      const problemJson = JSON.stringify(
+        this.convertProblemToRustFormat(problem)
+      );
+      console.log("Solver input JSON:", problemJson);
+
+      // Create a wrapper callback that handles JSON parsing
+      const wasmProgressCallback = progressCallback
+        ? (progressJson: string): boolean => {
+            try {
+              const progress: ProgressUpdate = JSON.parse(progressJson);
+              return progressCallback(progress);
+            } catch (error) {
+              console.error("Failed to parse progress update:", error);
+              return true; // Continue on parse error
+            }
+          }
+        : undefined;
+
+      const resultJson = this.module.solve_with_progress(
+        problemJson,
+        wasmProgressCallback
+      );
+      const rustResult = JSON.parse(resultJson);
+      return this.convertRustResultToSolution(rustResult);
+    } catch (error) {
+      console.error("WASM solveWithProgress error:", error);
+      throw new Error(
+        `Failed to solve problem: ${
+          error instanceof Error ? error.stack || error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -163,6 +243,78 @@ class WasmService {
 
   hasInitializationFailed(): boolean {
     return this.initializationFailed;
+  }
+
+  // Convert Problem to the format expected by the Rust solver
+  private convertProblemToRustFormat(problem: Problem): any {
+    // Convert solver_params from UI format to Rust format
+    const solverSettings = { ...problem.settings };
+
+    // The UI sends solver_params as { "SimulatedAnnealing": { ... } }
+    // But Rust expects { "solver_type": "SimulatedAnnealing", ... }
+    if (
+      solverSettings.solver_params &&
+      typeof solverSettings.solver_params === "object"
+    ) {
+      const solverType = solverSettings.solver_type;
+      if (
+        solverType === "SimulatedAnnealing" &&
+        "SimulatedAnnealing" in solverSettings.solver_params
+      ) {
+        (solverSettings.solver_params as any) = {
+          solver_type: solverType,
+          ...solverSettings.solver_params.SimulatedAnnealing,
+        };
+      }
+    }
+
+    return {
+      problem: {
+        people: problem.people,
+        groups: problem.groups,
+        num_sessions: problem.num_sessions,
+      },
+      objectives: [
+        {
+          type: "maximize_unique_contacts",
+          weight: 1.0,
+        },
+      ],
+      constraints: problem.constraints,
+      solver: solverSettings,
+    };
+  }
+
+  // Convert Rust solver result to our Solution format
+  private convertRustResultToSolution(rustResult: any): Solution {
+    // Convert the schedule format to assignments
+    const assignments: Assignment[] = [];
+
+    for (const [sessionName, groups] of Object.entries(rustResult.schedule)) {
+      const sessionId = parseInt(sessionName.replace("Session ", ""));
+      for (const [groupId, people] of Object.entries(
+        groups as Record<string, string[]>
+      )) {
+        for (const personId of people) {
+          assignments.push({
+            person_id: personId,
+            group_id: groupId,
+            session_id: sessionId,
+          });
+        }
+      }
+    }
+
+    return {
+      assignments,
+      final_score: rustResult.final_score,
+      unique_contacts: rustResult.unique_contacts,
+      repetition_penalty: rustResult.repetition_penalty,
+      attribute_balance_penalty: rustResult.attribute_balance_penalty,
+      constraint_penalty: rustResult.constraint_penalty,
+      iteration_count: 0, // TODO: Get from progress updates
+      elapsed_time_ms: 0, // TODO: Get from progress updates
+    };
   }
 }
 

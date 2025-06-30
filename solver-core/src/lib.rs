@@ -61,7 +61,7 @@
 use crate::algorithms::simulated_annealing::SimulatedAnnealing;
 use crate::algorithms::Solver;
 use crate::solver::{SolverError, State};
-pub use models::{ApiInput, SolverResult};
+pub use models::{ApiInput, ProgressCallback, ProgressUpdate, SolverResult};
 
 pub mod algorithms;
 pub mod models;
@@ -192,11 +192,65 @@ pub mod solver;
 /// - Medium problems (30 people, 6 groups): 5-10 seconds  
 /// - Large problems (60+ people, 10+ groups): 30-60 seconds
 pub fn run_solver(input: &ApiInput) -> Result<SolverResult, SolverError> {
+    run_solver_with_progress(input, None)
+}
+
+/// Runs the optimization solver with progress callback support.
+///
+/// This is an extended version of `run_solver` that accepts an optional progress
+/// callback function. The callback will be called periodically during optimization
+/// to report progress information such as current iteration, temperature, and scores.
+///
+/// # Arguments
+///
+/// * `input` - A complete problem specification (same as `run_solver`)
+/// * `progress_callback` - Optional callback function that receives progress updates
+///   and can request early termination by returning `false`
+///
+/// # Returns
+///
+/// Same as `run_solver`: either the optimized result or an error.
+///
+/// # Example
+///
+/// ```no_run
+/// use solver_core::{run_solver_with_progress, models::*};
+/// use std::collections::HashMap;
+///
+/// # let input = ApiInput {
+/// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+/// #     objectives: vec![], constraints: vec![],
+/// #     solver: SolverConfiguration {
+/// #         solver_type: "SimulatedAnnealing".to_string(),
+/// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+/// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+/// #         logging: LoggingOptions::default(),
+/// #     },
+/// # };
+///
+/// let progress_callback = Box::new(|progress: &ProgressUpdate| -> bool {
+///     println!("Iteration {}/{}: Score = {:.2}, Temperature = {:.4}",
+///              progress.iteration, progress.max_iterations,
+///              progress.current_score, progress.temperature);
+///     
+///     // Continue optimization (return false to stop early)
+///     true
+/// });
+///
+/// match run_solver_with_progress(&input, Some(&progress_callback)) {
+///     Ok(result) => println!("Final score: {}", result.final_score),
+///     Err(e) => eprintln!("Error: {:?}", e),
+/// }
+/// ```
+pub fn run_solver_with_progress(
+    input: &ApiInput,
+    progress_callback: Option<&models::ProgressCallback>,
+) -> Result<SolverResult, SolverError> {
     let mut state = State::new(input)?;
     let solver = match input.solver.solver_type.as_str() {
         "SimulatedAnnealing" => Box::new(SimulatedAnnealing::new(&input.solver)),
         // "HillClimbing" => Box::new(HillClimbing::new(&input)), // Future extension
         _ => panic!("Unknown solver type"),
     };
-    solver.solve(&mut state)
+    solver.solve(&mut state, progress_callback)
 }

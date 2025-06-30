@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
 import type { SolverSettings } from '../types';
+import { wasmService, type ProgressUpdate } from '../services/wasm';
 
 export function SolverPanel() {
-  const { problem, solverState, startSolver, stopSolver, resetSolver, addNotification } = useAppStore();
+  const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [solverSettings, setSolverSettings] = useState<SolverSettings>({
     solver_type: "SimulatedAnnealing",
@@ -31,22 +32,7 @@ export function SolverPanel() {
     },
   });
 
-  // Simulate real-time updates when solver is running
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (solverState.isRunning) {
-      interval = setInterval(() => {
-        // Simulate solver progress
-        // In a real implementation, this would come from the WASM solver
-        // For now, we'll just simulate the progress
-      }, 100);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [solverState.isRunning, solverState.currentIteration, solverState.bestScore, solverState.elapsedTime]);
+  // No more simulation needed - real progress comes from WASM solver
 
   const handleStartSolver = async () => {
     if (!problem) {
@@ -83,11 +69,48 @@ export function SolverPanel() {
         title: 'Solving',
         message: 'Optimization algorithm started',
       });
+
+      // Create the problem with the current solver settings
+      const problemWithSettings = {
+        ...problem,
+        settings: solverSettings,
+      };
+
+      // Progress callback to update the UI in real-time
+      const progressCallback = (progress: ProgressUpdate): boolean => {
+        setSolverState({
+          currentIteration: progress.iteration,
+          bestScore: progress.best_score,
+          elapsedTime: progress.elapsed_seconds * 1000, // Convert to milliseconds
+        });
+        
+        // Continue solving unless the solver was stopped
+        return solverState.isRunning;
+      };
+
+      // Run the solver with progress updates
+      const solution = await wasmService.solveWithProgress(problemWithSettings, progressCallback);
+      
+      // Update the solution and mark as complete
+      setSolution(solution);
+      setSolverState({ 
+        isRunning: false, 
+        isComplete: true,
+        bestScore: solution.final_score,
+      });
+
+      addNotification({
+        type: 'success',
+        title: 'Optimization Complete',
+        message: `Found solution with score ${solution.final_score.toFixed(2)}`,
+      });
+
     } catch (error) {
+      setSolverState({ isRunning: false, error: error instanceof Error ? error.message : 'Unknown error' });
       addNotification({
         type: 'error',
         title: 'Solver Error',
-        message: 'Failed to start solver',
+        message: error instanceof Error ? error.message : 'Failed to start solver',
       });
     }
   };

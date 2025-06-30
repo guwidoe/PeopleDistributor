@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
-use solver_core::{ApiInput, SolverResult};
+use serde::Serialize;
+use solver_core::{ApiInput, ProgressCallback, ProgressUpdate, SolverResult};
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -44,6 +44,53 @@ pub fn solve(problem_json: &str) -> Result<String, JsValue> {
 
     let result = solver_core::run_solver(&api_input)
         .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?;
+
+    let result_json = serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))?;
+
+    Ok(result_json)
+}
+
+/// JavaScript callback function type for progress updates
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = "progressCallback")]
+    type ProgressCallbackJs;
+
+    #[wasm_bindgen(method, js_name = "call")]
+    fn call(this: &ProgressCallbackJs, progress_json: &str) -> bool;
+}
+
+#[wasm_bindgen]
+pub fn solve_with_progress(
+    problem_json: &str,
+    progress_callback: Option<ProgressCallbackJs>,
+) -> Result<String, JsValue> {
+    init_panic_hook();
+
+    let api_input: ApiInput = serde_json::from_str(problem_json)
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+
+    let result = if let Some(js_callback) = progress_callback {
+        // Create a Rust callback that calls the JavaScript callback
+        let rust_callback = Box::new(move |progress: &ProgressUpdate| -> bool {
+            let progress_json = match serde_json::to_string(progress) {
+                Ok(json) => json,
+                Err(_) => return true, // Continue on serialization error
+            };
+            js_callback.call(&progress_json)
+        }) as Box<dyn Fn(&ProgressUpdate) -> bool>;
+
+        // SAFETY: WASM is single-threaded, so we can safely transmute to add Send
+        let rust_callback: Box<dyn Fn(&ProgressUpdate) -> bool + Send> =
+            unsafe { std::mem::transmute(rust_callback) };
+
+        solver_core::run_solver_with_progress(&api_input, Some(&rust_callback))
+            .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?
+    } else {
+        solver_core::run_solver(&api_input)
+            .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?
+    };
 
     let result_json = serde_json::to_string(&result)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))?;

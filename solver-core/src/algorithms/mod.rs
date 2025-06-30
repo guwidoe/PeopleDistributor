@@ -53,7 +53,7 @@
 //! - **Genetic Algorithm** (future): Good for very large problems,
 //!   population-based approach with parallel evaluation potential.
 
-use crate::models::SolverResult;
+use crate::models::{ProgressCallback, SolverResult};
 use crate::solver::{SolverError, State};
 
 pub mod simulated_annealing;
@@ -135,6 +135,9 @@ pub trait Solver {
     /// * `state` - Mutable reference to the problem state containing the
     ///   current schedule, problem definition, and scoring information.
     ///   The algorithm should modify this state during optimization.
+    /// * `progress_callback` - Optional callback function that receives progress
+    ///   updates during optimization. The callback should return `true` to continue
+    ///   or `false` to request early termination.
     ///
     /// # Returns
     ///
@@ -148,6 +151,11 @@ pub trait Solver {
     /// - Use `state.apply_swap()` to make moves that improve the solution
     /// - Check stop conditions periodically to avoid running indefinitely
     /// - Log progress using the configured logging options
+    /// - Call the progress callback periodically if provided
     /// - Always return the best solution found, even if stopped early
-    fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError>;
+    fn solve(
+        &self,
+        state: &mut State,
+        progress_callback: Option<&ProgressCallback>,
+    ) -> Result<SolverResult, SolverError>;
 }
