@@ -12,26 +12,32 @@ fn main() {
                 Person {
                     id: "Alice".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: Some(vec![0, 1]).into(),
                 },
                 Person {
                     id: "Bob".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: None,
                 },
                 Person {
                     id: "Charlie".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: None,
                 },
                 Person {
                     id: "Diana".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: None,
                 },
                 Person {
                     id: "Eve".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: None,
                 },
                 Person {
                     id: "Frank".to_string(),
                     attributes: std::collections::HashMap::new(),
+                    sessions: None,
                 },
             ],
             groups: vec![

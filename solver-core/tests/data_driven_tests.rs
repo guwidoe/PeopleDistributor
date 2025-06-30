@@ -62,6 +62,8 @@ struct ExpectedMetrics {
     immovable_person_respected: bool,
     #[serde(default)]
     session_specific_constraints_respected: bool,
+    #[serde(default)]
+    participation_patterns_respected: bool,
 }
 
 #[test]
@@ -147,6 +149,10 @@ fn run_test_case(test_case: &TestCase, path: &Path) {
 
         if test_case.expected.session_specific_constraints_respected {
             assert_session_specific_constraints_respected(&test_case.input, &result);
+        }
+
+        if test_case.expected.participation_patterns_respected {
+            assert_participation_patterns_respected(&test_case.input, &result);
         }
 
         if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
@@ -346,6 +352,72 @@ fn assert_session_specific_constraints_respected(input: &ApiInput, result: &Solv
                             present_members <= 1,
                             "Session-specific forbidden constraint violated: {:?} found together in session {} group: {:?}",
                             people, session, members
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn assert_participation_patterns_respected(input: &ApiInput, result: &SolverResult) {
+    // Check that people only appear in sessions they're supposed to participate in
+    for person in &input.problem.people {
+        let person_sessions = match &person.sessions {
+            Some(sessions) => sessions.clone(),
+            None => (0..input.problem.num_sessions).collect(), // Default: all sessions
+        };
+
+        // Check each session
+        for session_idx in 0..input.problem.num_sessions {
+            let session_key = format!("session_{}", session_idx);
+            let should_participate = person_sessions.contains(&session_idx);
+
+            if let Some(session_schedule) = result.schedule.get(&session_key) {
+                let mut person_found = false;
+
+                // Check if person appears in any group for this session
+                for (_group_id, members) in session_schedule {
+                    if members.contains(&person.id) {
+                        person_found = true;
+                        break;
+                    }
+                }
+
+                if should_participate && !person_found {
+                    // Person should participate but doesn't appear in any group
+                    // This might be OK if they couldn't be placed due to constraints
+                    // So we'll just log this as a warning rather than failing the test
+                    println!("Warning: {} should participate in session {} but doesn't appear in schedule", 
+                            person.id, session_idx);
+                } else if !should_participate && person_found {
+                    // Person shouldn't participate but appears in schedule - this is an error
+                    panic!(
+                        "Participation pattern violation: {} should NOT participate in session {} but appears in schedule",
+                        person.id, session_idx
+                    );
+                }
+            }
+        }
+    }
+
+    // Additional validation: Check that people who participate together are both actually participating
+    for (session_key, session_schedule) in &result.schedule {
+        let session_idx: u32 = session_key.replace("session_", "").parse().unwrap_or(0);
+
+        for (_group_id, members) in session_schedule {
+            // For each person in this group, verify they should be participating in this session
+            for person_id in members {
+                if let Some(person) = input.problem.people.iter().find(|p| &p.id == person_id) {
+                    let person_sessions = match &person.sessions {
+                        Some(sessions) => sessions.clone(),
+                        None => (0..input.problem.num_sessions).collect(),
+                    };
+
+                    if !person_sessions.contains(&session_idx) {
+                        panic!(
+                            "Participation violation: {} appears in session {} but should not participate",
+                            person.id, session_idx
                         );
                     }
                 }

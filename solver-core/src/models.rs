@@ -22,6 +22,8 @@ pub struct ProblemDefinition {
 pub struct Person {
     pub id: String,
     pub attributes: HashMap<String, String>,
+    #[serde(default)]
+    pub sessions: Option<Vec<u32>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
