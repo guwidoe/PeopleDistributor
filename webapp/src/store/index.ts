@@ -212,7 +212,7 @@ export const useAppStore = create<AppStore>()(
         const demoGroups: Group[] = [
           { id: "team-alpha", size: 4 },
           { id: "team-beta", size: 4 },
-          { id: "team-gamma", size: 3 },
+          { id: "team-gamma", size: 4 },
         ];
 
         const demoPeople: Person[] = [

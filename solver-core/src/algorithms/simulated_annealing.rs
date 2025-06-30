@@ -29,7 +29,29 @@ use crate::models::{
 use crate::solver::{SolverError, State};
 use rand::seq::SliceRandom;
 use rand::{rng, Rng};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+// Helper function to handle time measurement across platforms
+#[cfg(not(target_arch = "wasm32"))]
+fn get_elapsed_seconds(start_time: Instant) -> f64 {
+    start_time.elapsed().as_secs_f64()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_elapsed_seconds(_start_time: f64) -> f64 {
+    0.0 // Return 0 for WASM since we can't measure time reliably
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn get_elapsed_seconds_since_start(start_time: Instant) -> u64 {
+    start_time.elapsed().as_secs()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_elapsed_seconds_since_start(_start_time: f64) -> u64 {
+    0 // Return 0 for WASM since we can't measure time reliably
+}
 
 /// Simulated Annealing solver for the Social Group Scheduling Problem.
 ///
@@ -382,7 +404,10 @@ impl Solver for SimulatedAnnealing {
         state: &mut State,
         progress_callback: Option<&ProgressCallback>,
     ) -> Result<SolverResult, SolverError> {
+        #[cfg(not(target_arch = "wasm32"))]
         let start_time = Instant::now();
+        #[cfg(target_arch = "wasm32")]
+        let start_time = 0.0; // Dummy value for WASM
         let mut rng = rng();
 
         let mut current_state = state.clone();
@@ -414,7 +439,7 @@ impl Solver for SimulatedAnnealing {
                     current_contacts: current_state.unique_contacts,
                     best_contacts: best_state.unique_contacts,
                     repetition_penalty: current_state.repetition_penalty,
-                    elapsed_seconds: start_time.elapsed().as_secs_f64(),
+                    elapsed_seconds: get_elapsed_seconds(start_time),
                     no_improvement_count: no_improvement_counter,
                 };
 
@@ -556,7 +581,7 @@ impl Solver for SimulatedAnnealing {
             }
 
             if let Some(time_limit) = self.time_limit_seconds {
-                if start_time.elapsed().as_secs() >= time_limit {
+                if get_elapsed_seconds_since_start(start_time) >= time_limit {
                     if state.logging.log_stop_condition {
                         println!("Stopping early: time limit of {time_limit} seconds reached.");
                     }
@@ -566,7 +591,7 @@ impl Solver for SimulatedAnnealing {
         }
 
         let final_cost = best_state.calculate_cost();
-        let elapsed = start_time.elapsed().as_secs_f64();
+        let elapsed = get_elapsed_seconds(start_time);
 
         if state.logging.log_duration_and_score {
             println!("Solver finished in {elapsed:.2} seconds. Final score: {final_cost:.2}");

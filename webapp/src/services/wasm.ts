@@ -117,7 +117,8 @@ class WasmService {
         ? (progressJson: string): boolean => {
             try {
               const progress: ProgressUpdate = JSON.parse(progressJson);
-              return progressCallback(progress);
+              const result = progressCallback(progress);
+              return typeof result === "boolean" ? result : true;
             } catch (error) {
               console.error("Failed to parse progress update:", error);
               return true; // Continue on parse error
@@ -291,7 +292,7 @@ class WasmService {
     const assignments: Assignment[] = [];
 
     for (const [sessionName, groups] of Object.entries(rustResult.schedule)) {
-      const sessionId = parseInt(sessionName.replace("Session ", ""));
+      const sessionId = parseInt(sessionName.replace("session_", ""));
       for (const [groupId, people] of Object.entries(
         groups as Record<string, string[]>
       )) {

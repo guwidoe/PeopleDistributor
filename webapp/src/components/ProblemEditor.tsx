@@ -47,6 +47,7 @@ export function ProblemEditor() {
   const [showAttributeForm, setShowAttributeForm] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editingAttribute, setEditingAttribute] = useState<AttributeDefinition | null>(null);
 
   // Form data
   const [personForm, setPersonForm] = useState<PersonFormData>({
@@ -347,6 +348,46 @@ export function ProblemEditor() {
       type: 'success',
       title: 'Attribute Added',
       message: `Attribute "${definition.key}" has been added`,
+    });
+  };
+
+  const handleEditAttribute = (attribute: AttributeDefinition) => {
+    setEditingAttribute(attribute);
+    setNewAttribute({
+      key: attribute.key,
+      values: [...attribute.values]
+    });
+    setShowAttributeForm(true);
+  };
+
+  const handleUpdateAttribute = () => {
+    if (!editingAttribute || !newAttribute.key.trim() || newAttribute.values.some(v => !v.trim())) {
+      addNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Please enter an attribute key and at least one value',
+      });
+      return;
+    }
+
+    // Remove the old attribute and add the new one
+    removeAttributeDefinition(editingAttribute.key);
+    
+    const updatedDefinition: AttributeDefinition = {
+      key: newAttribute.key.trim(),
+      values: newAttribute.values.filter(v => v.trim())
+    };
+
+    addAttributeDefinition(updatedDefinition);
+    
+    setNewAttribute({ key: '', values: [''] });
+    setEditingAttribute(null);
+    setShowAttributeForm(false);
+    
+    addNotification({
+      type: 'success',
+      title: 'Attribute Updated',
+      message: `Attribute "${updatedDefinition.key}" has been updated`,
     });
   };
 
@@ -1389,12 +1430,20 @@ export function ProblemEditor() {
                         ))}
                       </div>
                     </div>
-                    <button
-                      onClick={() => removeAttributeDefinition(def.key)}
-                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditAttribute(def)}
+                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => removeAttributeDefinition(def.key)}
+                        className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1523,11 +1572,14 @@ export function ProblemEditor() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Add Attribute Definition</h3>
+              <h3 className="text-lg font-semibold">
+                {editingAttribute ? 'Edit Attribute Definition' : 'Add Attribute Definition'}
+              </h3>
               <button
                 onClick={() => {
                   setShowAttributeForm(false);
                   setNewAttribute({ key: '', values: [''] });
+                  setEditingAttribute(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -1593,15 +1645,16 @@ export function ProblemEditor() {
 
             <div className="flex gap-2 mt-6">
               <button
-                onClick={handleAddAttribute}
+                onClick={editingAttribute ? handleUpdateAttribute : handleAddAttribute}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                Add Attribute
+                {editingAttribute ? 'Update Attribute' : 'Add Attribute'}
               </button>
               <button
                 onClick={() => {
                   setShowAttributeForm(false);
                   setNewAttribute({ key: '', values: [''] });
+                  setEditingAttribute(null);
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
               >
