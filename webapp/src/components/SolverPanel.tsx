@@ -1,10 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { Play, Pause, RotateCcw, Settings, Zap } from 'lucide-react';
+import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
 
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, addNotification } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [solverSettings, setSolverSettings] = useState({
+    max_iterations: 10000,
+    time_limit_seconds: 30,
+    temperature: 1.0,
+    cooling_rate: 0.99
+  });
+
+  // Simulate real-time updates when solver is running
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (solverState.isRunning) {
+      interval = setInterval(() => {
+        // Simulate solver progress
+        // In a real implementation, this would come from the WASM solver
+        // For now, we'll just simulate the progress
+      }, 100);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [solverState.isRunning, solverState.currentIteration, solverState.bestScore, solverState.elapsedTime]);
 
   const handleStartSolver = async () => {
     if (!problem) {
@@ -12,6 +35,24 @@ export function SolverPanel() {
         type: 'error',
         title: 'No Problem',
         message: 'Please configure a problem first',
+      });
+      return;
+    }
+
+    if (!problem.people || problem.people.length === 0) {
+      addNotification({
+        type: 'error',
+        title: 'No People',
+        message: 'Please add people to the problem first',
+      });
+      return;
+    }
+
+    if (!problem.sessions || problem.sessions.length === 0) {
+      addNotification({
+        type: 'error',
+        title: 'No Sessions',
+        message: 'Please add sessions to the problem first',
       });
       return;
     }
@@ -50,6 +91,16 @@ export function SolverPanel() {
     });
   };
 
+  const getProgressPercentage = () => {
+    if (!solverSettings.max_iterations) return 0;
+    return Math.min((solverState.currentIteration / solverSettings.max_iterations) * 100, 100);
+  };
+
+  const getTimeProgressPercentage = () => {
+    if (!solverSettings.time_limit_seconds) return 0;
+    return Math.min((solverState.elapsedTime / 1000 / solverSettings.time_limit_seconds) * 100, 100);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -79,8 +130,13 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                placeholder="10000"
-                defaultValue={10000}
+                value={solverSettings.max_iterations}
+                onChange={(e) => setSolverSettings({
+                  ...solverSettings,
+                  max_iterations: parseInt(e.target.value) || 10000
+                })}
+                min="1000"
+                max="100000"
               />
             </div>
             <div>
@@ -88,18 +144,28 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                placeholder="30"
-                defaultValue={30}
+                value={solverSettings.time_limit_seconds}
+                onChange={(e) => setSolverSettings({
+                  ...solverSettings,
+                  time_limit_seconds: parseInt(e.target.value) || 30
+                })}
+                min="10"
+                max="300"
               />
             </div>
             <div>
-              <label className="label">Temperature</label>
+              <label className="label">Initial Temperature</label>
               <input
                 type="number"
                 className="input"
-                placeholder="1.0"
+                value={solverSettings.temperature}
+                onChange={(e) => setSolverSettings({
+                  ...solverSettings,
+                  temperature: parseFloat(e.target.value) || 1.0
+                })}
                 step="0.1"
-                defaultValue={1.0}
+                min="0.1"
+                max="10.0"
               />
             </div>
             <div>
@@ -107,9 +173,14 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                placeholder="0.99"
+                value={solverSettings.cooling_rate}
+                onChange={(e) => setSolverSettings({
+                  ...solverSettings,
+                  cooling_rate: parseFloat(e.target.value) || 0.99
+                })}
                 step="0.01"
-                defaultValue={0.99}
+                min="0.8"
+                max="0.999"
               />
             </div>
           </div>
@@ -130,20 +201,53 @@ export function SolverPanel() {
           </div>
         </div>
 
+        {/* Progress Bars */}
+        <div className="space-y-4 mb-6">
+          <div>
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>Iteration Progress</span>
+              <span>{solverState.currentIteration.toLocaleString()} / {solverSettings.max_iterations.toLocaleString()}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${getProgressPercentage()}%` }}
+              ></div>
+            </div>
+          </div>
+          
+          <div>
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>Time Progress</span>
+              <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {solverSettings.time_limit_seconds}s</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-warning-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${getTimeProgressPercentage()}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="text-center">
+          <div className="text-center p-4 bg-primary-50 rounded-lg">
+            <Activity className="h-8 w-8 text-primary-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-primary-600">
               {solverState.currentIteration.toLocaleString()}
             </div>
             <div className="text-sm text-gray-600">Iterations</div>
           </div>
-          <div className="text-center">
+          <div className="text-center p-4 bg-success-50 rounded-lg">
+            <TrendingUp className="h-8 w-8 text-success-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-success-600">
               {solverState.bestScore.toFixed(2)}
             </div>
             <div className="text-sm text-gray-600">Best Score</div>
           </div>
-          <div className="text-center">
+          <div className="text-center p-4 bg-warning-50 rounded-lg">
+            <Clock className="h-8 w-8 text-warning-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-warning-600">
               {(solverState.elapsedTime / 1000).toFixed(1)}s
             </div>
@@ -157,7 +261,7 @@ export function SolverPanel() {
             <button
               onClick={handleStartSolver}
               className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem}
+              disabled={!problem || !problem.people?.length || !problem.sessions?.length}
             >
               <Play className="h-4 w-4" />
               <span>Start Solver</span>
@@ -175,6 +279,7 @@ export function SolverPanel() {
           <button
             onClick={handleResetSolver}
             className="btn-secondary flex items-center space-x-2"
+            disabled={solverState.isRunning}
           >
             <RotateCcw className="h-4 w-4" />
             <span>Reset</span>
@@ -187,20 +292,35 @@ export function SolverPanel() {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Problem Status</h3>
         {problem ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center">
+            <div className="text-center p-4 bg-primary-50 rounded-lg">
+              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-primary-600 font-medium text-sm">
+                  {problem.people.length}
+                </span>
+              </div>
               <div className="text-2xl font-bold text-primary-600">
                 {problem.people.length}
               </div>
               <div className="text-sm text-gray-600">People</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary-600">
+            <div className="text-center p-4 bg-success-50 rounded-lg">
+              <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-success-600 font-medium text-sm">
+                  {problem.sessions.length}
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-success-600">
                 {problem.sessions.length}
               </div>
               <div className="text-sm text-gray-600">Sessions</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary-600">
+            <div className="text-center p-4 bg-warning-50 rounded-lg">
+              <div className="w-8 h-8 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span className="text-warning-600 font-medium text-sm">
+                  {problem.constraints.length}
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-warning-600">
                 {problem.constraints.length}
               </div>
               <div className="text-sm text-gray-600">Constraints</div>
@@ -213,6 +333,46 @@ export function SolverPanel() {
             <p className="text-sm">Go to Problem Setup to configure your optimization problem</p>
           </div>
         )}
+      </div>
+
+      {/* Algorithm Info */}
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Algorithm Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">Simulated Annealing</h4>
+            <p className="text-sm text-gray-600 mb-3">
+              A probabilistic optimization algorithm that mimics the annealing process in metallurgy.
+            </p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Starts with high temperature for exploration</li>
+              <li>• Gradually cools to focus on local improvements</li>
+              <li>• Can escape local optima</li>
+              <li>• Well-suited for combinatorial problems</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">Current Parameters</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Initial Temperature:</span>
+                <span className="font-medium">{solverSettings.temperature}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Cooling Rate:</span>
+                <span className="font-medium">{solverSettings.cooling_rate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Max Iterations:</span>
+                <span className="font-medium">{solverSettings.max_iterations.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Time Limit:</span>
+                <span className="font-medium">{solverSettings.time_limit_seconds}s</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

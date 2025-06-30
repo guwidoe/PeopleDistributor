@@ -1,75 +1,294 @@
+//! Core solver state management and optimization logic.
+//!
+//! This module contains the `State` struct which represents the internal solver state
+//! with efficient integer-based representations for fast optimization. It handles
+//! constraint preprocessing, cost calculation, move evaluation, and schedule manipulation.
+//!
+//! The `State` is designed for performance, converting string-based API inputs into
+//! integer indices for fast array operations during optimization.
+
 use crate::models::{ApiInput, AttributeBalanceParams, Constraint, LoggingOptions, SolverResult};
 use rand::seq::SliceRandom;
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
 
+/// Errors that can occur during solver operation.
+///
+/// These errors represent validation failures or constraint violations that
+/// prevent the solver from proceeding with optimization.
 #[derive(Error, Debug, Serialize)]
 pub enum SolverError {
+    /// A constraint validation error with descriptive message.
+    ///
+    /// This error occurs when the problem configuration is invalid, such as:
+    /// - Insufficient group capacity for all people
+    /// - Contradictory constraints (e.g., must-stay-together + cannot-be-together for same people)
+    /// - Invalid person or group IDs referenced in constraints
+    /// - Cliques that are too large to fit in any group
     #[error("Constraint violation: {0}")]
     ValidationError(String),
 }
 
-/// The internal state of the solver, designed for performance.
-/// It translates string IDs from the API input into integer indices
-/// for fast lookups and array operations during optimization.
+/// The internal state of the solver, optimized for high-performance optimization.
+///
+/// This struct represents the complete state of an optimization problem, including
+/// the current schedule, scoring information, and efficient internal representations
+/// of all problem data. It converts the string-based API input into integer indices
+/// for fast array operations during optimization.
+///
+/// # Performance Design
+///
+/// The `State` uses several performance optimizations:
+/// - **Integer indices**: All people, groups, and attributes are mapped to integers
+/// - **Dual representations**: Both forward (ID→index) and reverse (index→ID) mappings
+/// - **Efficient scoring**: Contact matrix and incremental score updates
+/// - **Fast constraint checking**: Preprocessed constraint structures (cliques, forbidden pairs)
+/// - **Delta cost evaluation**: Calculate only the cost changes from moves
+///
+/// # Internal Structure
+///
+/// The state contains several categories of data:
+/// - **Mappings**: Convert between string IDs and integer indices
+/// - **Core Schedule**: The actual person-to-group assignments
+/// - **Constraints**: Preprocessed constraint data for fast evaluation
+/// - **Scoring**: Current optimization scores and penalty tracking
+/// - **Configuration**: Logging options and algorithm parameters
+///
+/// # Usage
+///
+/// The `State` is primarily used by optimization algorithms through its public methods:
+/// - `calculate_swap_cost_delta()` - Evaluate potential moves
+/// - `apply_swap()` - Execute beneficial moves
+/// - `calculate_cost()` - Get overall solution quality
+/// - `to_solver_result()` - Convert to API result format
+///
+/// # Example
+///
+/// ```no_run
+/// use solver_core::models::ApiInput;
+/// use solver_core::solver::State;
+///
+/// // Create state from API input (normally done by run_solver)
+/// # let input = ApiInput {
+/// #     problem: solver_core::models::ProblemDefinition {
+/// #         people: vec![], groups: vec![], num_sessions: 1
+/// #     },
+/// #     objectives: vec![], constraints: vec![],
+/// #     solver: solver_core::models::SolverConfiguration {
+/// #         solver_type: "SimulatedAnnealing".to_string(),
+/// #         stop_conditions: solver_core::models::StopConditions {
+/// #             max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None
+/// #         },
+/// #         solver_params: solver_core::models::SolverParams::SimulatedAnnealing(
+/// #             solver_core::models::SimulatedAnnealingParams {
+/// #                 initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string()
+/// #             }
+/// #         ),
+/// #         logging: solver_core::models::LoggingOptions::default(),
+/// #     },
+/// # };
+/// let mut state = State::new(&input)?;
+///
+/// // Get current solution quality
+/// let current_cost = state.calculate_cost();
+/// println!("Current solution cost: {}", current_cost);
+///
+/// // Evaluate a potential move (person 0 and person 1 in session 0)
+/// let delta = state.calculate_swap_cost_delta(0, 0, 1);
+/// if delta < 0.0 {
+///     // Move improves the solution
+///     state.apply_swap(0, 0, 1);
+///     println!("Applied beneficial move, delta: {}", delta);
+/// }
+///
+/// // Get detailed score breakdown
+/// println!("Score breakdown:\n{}", state.format_score_breakdown());
+/// # Ok::<(), solver_core::solver::SolverError>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct State {
-    // --- Mappings ---
+    // === ID MAPPINGS ===
+    // These provide bidirectional conversion between string IDs and integer indices
+    /// Maps person ID strings to integer indices for fast array access
     pub person_id_to_idx: HashMap<String, usize>,
+    /// Maps integer indices back to person ID strings for result formatting
     pub person_idx_to_id: Vec<String>,
+    /// Maps group ID strings to integer indices for fast array access
     pub group_id_to_idx: HashMap<String, usize>,
+    /// Maps integer indices back to group ID strings for result formatting
     pub group_idx_to_id: Vec<String>,
-    // Attribute key ("gender") -> internal index (0)
+
+    // === ATTRIBUTE MAPPINGS ===
+    // Efficient representation of person attributes for constraint evaluation
+    /// Maps attribute keys (e.g., "gender") to integer indices
     pub attr_key_to_idx: HashMap<String, usize>,
-    // For each attribute, Value String ("male") -> value index (0)
+    /// For each attribute, maps values (e.g., "male") to integer indices
     pub attr_val_to_idx: Vec<HashMap<String, usize>>,
-    // For each attribute, value index (0) -> Value String ("male")
+    /// For each attribute, maps integer indices back to value strings
     pub attr_idx_to_val: Vec<Vec<String>>,
-    // --- UI / Logging ---
+
+    // === CONFIGURATION ===
+    /// Logging and output configuration options
     pub logging: LoggingOptions,
 
-    // --- Core Data Structures ---
-    // The main schedule: [day][group_idx] -> Vec<person_idx>
+    // === CORE SCHEDULE DATA ===
+    // The main optimization variables - who is assigned where and when
+    /// The main schedule: `schedule[session][group] = [person_indices]`
+    /// This is the primary data structure that algorithms modify
     pub schedule: Vec<Vec<Vec<usize>>>,
-    // Fast lookup for a person's location: [day][person_idx] -> (group_idx, vec_idx)
+    /// Fast person location lookup: `locations[session][person] = (group_index, position_in_group)`
+    /// Kept in sync with schedule for O(1) person location queries
     pub locations: Vec<Vec<(usize, usize)>>,
 
-    // --- Problem Definition (integer-based) ---
-    // [person_idx][attr_idx] -> value_idx for that attribute
+    // === CONSTRAINT DATA ===
+    // Preprocessed constraint information for fast evaluation
+    /// Person attributes in integer form: `person_attributes[person][attribute] = value_index`
     pub person_attributes: Vec<Vec<usize>>,
+    /// Attribute balance constraints (copied from input for convenience)
     pub attribute_balance_constraints: Vec<AttributeBalanceParams>,
-    // -- New Constraint Structures --
+    /// Merged cliques (groups of people who must stay together)
     pub cliques: Vec<Vec<usize>>,
+    /// Maps each person to their clique index (None if not in a clique)
     pub person_to_clique_id: Vec<Option<usize>>,
+    /// Pairs of people who cannot be together
     pub forbidden_pairs: Vec<(usize, usize)>,
-    pub immovable_people: HashMap<(usize, usize), usize>, // (person_idx, session_idx) -> group_idx
-    // Session-specific constraint data (None means all sessions)
-    pub clique_sessions: Vec<Option<Vec<usize>>>, // Which sessions each clique applies to
-    pub forbidden_pair_sessions: Vec<Option<Vec<usize>>>, // Which sessions each forbidden pair applies to
-    // Person participation tracking
-    pub person_participation: Vec<Vec<bool>>, // [person_idx][session_idx] -> is_participating
+    /// Immovable person assignments: `(person_index, session_index) -> group_index`
+    pub immovable_people: HashMap<(usize, usize), usize>,
+    /// Which sessions each clique constraint applies to (None = all sessions)
+    pub clique_sessions: Vec<Option<Vec<usize>>>,
+    /// Which sessions each forbidden pair constraint applies to (None = all sessions)
+    pub forbidden_pair_sessions: Vec<Option<Vec<usize>>>,
+    /// Person participation matrix: `person_participation[person][session] = is_participating`
+    pub person_participation: Vec<Vec<bool>>,
+    /// Total number of sessions in the problem
     pub num_sessions: u32,
 
-    // --- Scoring Data ---
+    // === SCORING DATA ===
+    // Current optimization scores, updated incrementally for performance
+    /// Contact matrix: `contact_matrix[person1][person2] = number_of_encounters`
     pub contact_matrix: Vec<Vec<u32>>,
+    /// Current number of unique person-to-person contacts
     pub unique_contacts: i32,
+    /// Current penalty for exceeding repeat encounter limits
     pub repetition_penalty: i32,
+    /// Current penalty for attribute balance violations
     pub attribute_balance_penalty: f64,
-    pub constraint_penalty: i32, // Kept for backward compatibility, but now calculated as sum
-    // --- Individual Constraint Penalties (unweighted counts) ---
-    pub clique_violations: Vec<i32>,         // Violations per clique
-    pub forbidden_pair_violations: Vec<i32>, // Violations per forbidden pair
-    pub immovable_violations: i32,           // Total immovable person violations
+    /// Total constraint penalty (sum of individual constraint penalties)
+    pub constraint_penalty: i32,
 
-    // --- Weights ---
+    // === INDIVIDUAL CONSTRAINT VIOLATIONS ===
+    // Detailed tracking of specific constraint violations
+    /// Number of violations for each clique (people not staying together)
+    pub clique_violations: Vec<i32>,
+    /// Number of violations for each forbidden pair (people forced together)
+    pub forbidden_pair_violations: Vec<i32>,
+    /// Total violations of immovable person constraints
+    pub immovable_violations: i32,
+
+    // === OPTIMIZATION WEIGHTS ===
+    // Weights for different components of the objective function
+    /// Weight for maximizing unique contacts (from objectives)
     pub w_contacts: f64,
+    /// Weight for repeat encounter penalties (from constraints)
     pub w_repetition: f64,
-    pub clique_weights: Vec<f64>,         // Weight for each clique
-    pub forbidden_pair_weights: Vec<f64>, // Weight for each forbidden pair
+    /// Penalty weight for each clique violation
+    pub clique_weights: Vec<f64>,
+    /// Penalty weight for each forbidden pair violation
+    pub forbidden_pair_weights: Vec<f64>,
 }
 
 impl State {
+    /// Creates a new solver state from the API input configuration.
+    ///
+    /// This constructor performs several important tasks:
+    /// 1. **Validation**: Checks that the problem is solvable (sufficient group capacity)
+    /// 2. **Preprocessing**: Converts string IDs to integer indices for performance
+    /// 3. **Constraint Processing**: Merges overlapping constraints and validates compatibility
+    /// 4. **Initialization**: Creates initial random schedule and calculates baseline scores
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Complete API input specification with problem, constraints, and solver config
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(State)` - Initialized state ready for optimization
+    /// * `Err(SolverError)` - Validation error if the problem configuration is invalid
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Total group capacity is insufficient for all people
+    /// - Person or group IDs are not unique
+    /// - Referenced IDs in constraints don't exist
+    /// - Cliques are too large to fit in any group
+    /// - Contradictory constraints are specified
+    ///
+    /// # Performance Notes
+    ///
+    /// The constructor does significant preprocessing work to optimize later operations:
+    /// - Creates bidirectional ID mappings for O(1) lookups
+    /// - Merges overlapping "must-stay-together" constraints using Union-Find
+    /// - Preprocesses attribute mappings for fast constraint evaluation
+    /// - Initializes contact matrix and scoring data structures
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use solver_core::models::*;
+    /// use solver_core::solver::State;
+    /// use std::collections::HashMap;
+    ///
+    /// let input = ApiInput {
+    ///     problem: ProblemDefinition {
+    ///         people: vec![
+    ///             Person {
+    ///                 id: "Alice".to_string(),
+    ///                 attributes: HashMap::new(),
+    ///                 sessions: None,
+    ///             },
+    ///             Person {
+    ///                 id: "Bob".to_string(),
+    ///                 attributes: HashMap::new(),
+    ///                 sessions: None,
+    ///             },
+    ///         ],
+    ///         groups: vec![
+    ///             Group { id: "Team1".to_string(), size: 2 }
+    ///         ],
+    ///         num_sessions: 2,
+    ///     },
+    ///     objectives: vec![],
+    ///     constraints: vec![],
+    ///     solver: SolverConfiguration {
+    ///         solver_type: "SimulatedAnnealing".to_string(),
+    ///         stop_conditions: StopConditions {
+    ///             max_iterations: Some(1000),
+    ///             time_limit_seconds: None,
+    ///             no_improvement_iterations: None,
+    ///         },
+    ///         solver_params: SolverParams::SimulatedAnnealing(
+    ///             SimulatedAnnealingParams {
+    ///                 initial_temperature: 10.0,
+    ///                 final_temperature: 0.1,
+    ///                 cooling_schedule: "geometric".to_string(),
+    ///             }
+    ///         ),
+    ///         logging: LoggingOptions::default(),
+    ///     },
+    /// };
+    ///
+    /// match State::new(&input) {
+    ///     Ok(state) => {
+    ///         println!("State initialized successfully!");
+    ///         println!("Initial cost: {}", state.calculate_cost());
+    ///     }
+    ///     Err(e) => {
+    ///         eprintln!("Failed to create state: {}", e);
+    ///     }
+    /// }
+    /// ```
     pub fn new(input: &ApiInput) -> Result<Self, SolverError> {
         // --- Pre-validation ---
         let people_count = input.problem.people.len();
@@ -627,6 +846,65 @@ impl State {
         self._recalculate_constraint_penalty();
     }
 
+    /// Converts the current state to an API result format.
+    ///
+    /// This method transforms the internal integer-based representation back to
+    /// the string-based API format that users expect. It creates a `SolverResult`
+    /// containing the human-readable schedule and detailed scoring breakdown.
+    ///
+    /// # Arguments
+    ///
+    /// * `final_score` - The final optimization score to include in the result
+    ///
+    /// # Returns
+    ///
+    /// A `SolverResult` containing:
+    /// - The schedule in `HashMap<String, HashMap<String, Vec<String>>>` format
+    /// - Detailed scoring information (unique contacts, penalties, etc.)
+    /// - The provided final score value
+    ///
+    /// # Schedule Format
+    ///
+    /// The returned schedule follows the pattern:
+    /// ```text
+    /// result.schedule["session_0"]["Group1"] = ["Alice", "Bob", "Charlie"]
+    /// result.schedule["session_0"]["Group2"] = ["Diana", "Eve", "Frank"]
+    /// result.schedule["session_1"]["Group1"] = ["Alice", "Diana", "Grace"]
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         logging: LoggingOptions::default(),
+    /// #     },
+    /// # };
+    /// # let state = State::new(&input)?;
+    /// let final_cost = state.calculate_cost();
+    /// let result = state.to_solver_result(final_cost);
+    ///
+    /// // Access the results
+    /// println!("Final score: {}", result.final_score);
+    /// println!("Unique contacts: {}", result.unique_contacts);
+    /// println!("Repetition penalty: {}", result.repetition_penalty);
+    ///
+    /// // Access specific schedule assignments
+    /// if let Some(session_0) = result.schedule.get("session_0") {
+    ///     for (group_name, people) in session_0 {
+    ///         println!("{}: {:?}", group_name, people);
+    ///     }
+    /// }
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
     pub fn to_solver_result(&self, final_score: f64) -> SolverResult {
         let mut schedule_output = HashMap::new();
         for (day, day_schedule) in self.schedule.iter().enumerate() {
@@ -875,7 +1153,108 @@ impl State {
     }
 
     /// Calculates the change in the total cost function if a swap were to be performed.
-    /// A negative delta indicates an improvement (a lower cost).
+    ///
+    /// This is the core method for evaluating potential moves during optimization.
+    /// It efficiently calculates only the cost difference (delta) that would result
+    /// from swapping two people between groups in a specific session, without
+    /// actually performing the swap. This allows algorithms to quickly evaluate
+    /// many potential moves and select the best ones.
+    ///
+    /// # Algorithm
+    ///
+    /// The delta calculation considers all optimization components:
+    /// 1. **Contact changes**: How unique contacts and repeat encounters change
+    /// 2. **Repetition penalties**: Changes in penalties for exceeding encounter limits
+    /// 3. **Attribute balance**: Impact on group attribute distributions
+    /// 4. **Constraint violations**: Changes in clique and forbidden pair violations
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Session index (0-based) where the swap would occur
+    /// * `p1_idx` - Index of the first person to swap
+    /// * `p2_idx` - Index of the second person to swap
+    ///
+    /// # Returns
+    ///
+    /// The cost delta as a `f64`:
+    /// - **Negative values** indicate the swap would improve the solution (lower cost)
+    /// - **Positive values** indicate the swap would worsen the solution (higher cost)
+    /// - **Zero** indicates no change (e.g., swapping people in the same group)
+    /// - **Infinity** indicates an invalid swap (e.g., non-participating person)
+    ///
+    /// # Performance
+    ///
+    /// This method is highly optimized since it's called frequently during optimization:
+    /// - **O(group_size)** complexity for contact calculations
+    /// - **O(constraints)** complexity for constraint evaluation
+    /// - **No full cost recalculation** - only computes changes
+    /// - **Early termination** for invalid swaps
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         logging: LoggingOptions::default(),
+    /// #     },
+    /// # };
+    /// # let mut state = State::new(&input)?;
+    /// // Evaluate swapping person 0 and person 1 in session 0
+    /// let delta = state.calculate_swap_cost_delta(0, 0, 1);
+    ///
+    /// if delta < 0.0 {
+    ///     println!("Beneficial swap found! Delta: {}", delta);
+    ///     // Apply the swap since it improves the solution
+    ///     state.apply_swap(0, 0, 1);
+    /// } else if delta > 0.0 {
+    ///     println!("Swap would worsen solution by: {}", delta);
+    ///     // Don't apply this swap
+    /// } else {
+    ///     println!("Swap has no effect (probably same group)");
+    /// }
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
+    ///
+    /// # Algorithm Details
+    ///
+    /// The method calculates deltas for each component:
+    ///
+    /// ## Contact Delta
+    /// - For each person, calculates lost contacts from their current group
+    /// - Calculates gained contacts from their new group
+    /// - Updates unique contact count and repetition penalties
+    ///
+    /// ## Attribute Balance Delta
+    /// - Simulates the group compositions after the swap
+    /// - Calculates how attribute distributions change
+    /// - Computes penalty changes for each attribute balance constraint
+    ///
+    /// ## Constraint Delta
+    /// - **Clique violations**: Checks if swap breaks clique integrity
+    /// - **Forbidden pairs**: Checks if swap creates/removes forbidden pairings
+    /// - **Immovable constraints**: Handled by early validation
+    ///
+    /// # Validation
+    ///
+    /// The method performs validation checks:
+    /// - Both people must be participating in the session
+    /// - People cannot be swapped with themselves
+    /// - Swaps within the same group return zero delta
+    ///
+    /// # Used By
+    ///
+    /// This method is primarily used by optimization algorithms:
+    /// - **Simulated Annealing**: Evaluates random moves for acceptance/rejection
+    /// - **Hill Climbing**: Finds the best improving move
+    /// - **Local Search**: Explores neighborhood of current solution
     pub fn calculate_swap_cost_delta(&self, day: usize, p1_idx: usize, p2_idx: usize) -> f64 {
         // Check if both people are participating in this session
         if !self.person_participation[p1_idx][day] || !self.person_participation[p2_idx][day] {
@@ -1058,6 +1437,145 @@ impl State {
         delta_cost
     }
 
+    /// Executes a swap of two people between groups and updates all internal state.
+    ///
+    /// This method performs the actual swap operation that was evaluated by
+    /// `calculate_swap_cost_delta()`. It updates the schedule, location mappings,
+    /// contact matrix, and all scoring information to reflect the new group assignments.
+    /// The method maintains consistency across all internal data structures.
+    ///
+    /// # Algorithm
+    ///
+    /// The swap operation involves several steps:
+    /// 1. **Update schedule**: Move people between groups in the schedule
+    /// 2. **Update locations**: Maintain the fast person→group lookup table
+    /// 3. **Update contacts**: Increment/decrement contact matrix entries
+    /// 4. **Update scores**: Recalculate unique contacts and repetition penalties
+    /// 5. **Update constraints**: Recalculate all constraint penalties
+    ///
+    /// # Arguments
+    ///
+    /// * `day` - Session index (0-based) where the swap occurs
+    /// * `p1_idx` - Index of the first person to swap
+    /// * `p2_idx` - Index of the second person to swap
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if:
+    /// - Either person is not participating in the specified session
+    /// - The day index is out of bounds
+    /// - The person indices are invalid
+    ///
+    /// **Note**: Callers should validate moves using `calculate_swap_cost_delta()`
+    /// before calling this method, as that method returns infinity for invalid swaps.
+    ///
+    /// # Performance
+    ///
+    /// This method is optimized for frequent use during optimization:
+    /// - **O(group_size)** time complexity for contact updates
+    /// - **Incremental updates** rather than full recalculation
+    /// - **Efficient location tracking** for fast person lookups
+    /// - **Batch constraint updates** where possible
+    ///
+    /// # State Consistency
+    ///
+    /// After calling this method, all internal state remains consistent:
+    /// - `schedule` and `locations` are synchronized
+    /// - `contact_matrix` reflects all current pairings
+    /// - All scoring fields match the current schedule
+    /// - Constraint violation counts are accurate
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         logging: LoggingOptions::default(),
+    /// #     },
+    /// # };
+    /// # let mut state = State::new(&input)?;
+    /// // First evaluate the swap
+    /// let delta = state.calculate_swap_cost_delta(0, 0, 1);
+    ///
+    /// if delta < 0.0 {
+    ///     // The swap improves the solution, so apply it
+    ///     let old_cost = state.calculate_cost();
+    ///     state.apply_swap(0, 0, 1);
+    ///     let new_cost = state.calculate_cost();
+    ///     
+    ///     // Verify the delta was calculated correctly
+    ///     let actual_delta = new_cost - old_cost;
+    ///     assert!((actual_delta - delta).abs() < 1e-10);
+    ///     
+    ///     println!("Applied swap, cost changed by: {}", actual_delta);
+    /// }
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
+    ///
+    /// # Algorithm Steps
+    ///
+    /// ## 1. Schedule Update
+    /// ```text
+    /// Before: Group1=[Alice, Bob]    Group2=[Charlie, Diana]
+    /// After:  Group1=[Alice, Diana]  Group2=[Charlie, Bob]
+    /// ```
+    ///
+    /// ## 2. Contact Matrix Update
+    /// - Decrements contacts for old group pairings
+    /// - Increments contacts for new group pairings
+    /// - Updates symmetric entries (contact_matrix[i][j] and contact_matrix[j][i])
+    ///
+    /// ## 3. Score Recalculation
+    /// - Counts unique contacts (pairs with at least 1 encounter)
+    /// - Calculates repetition penalties using the configured penalty function
+    /// - Updates attribute balance penalties for affected groups
+    /// - Recalculates all constraint violations
+    ///
+    /// # Typical Usage Pattern
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         logging: LoggingOptions::default(),
+    /// #     },
+    /// # };
+    /// # let mut state = State::new(&input)?;
+    /// // Optimization loop pattern
+    /// for iteration in 0..1000 {
+    ///     // Choose random people and session
+    ///     let day = 0; // or rand::random::<usize>() % num_sessions
+    ///     let p1 = 0;  // or random person selection
+    ///     let p2 = 1;  // or random person selection
+    ///     
+    ///     // Evaluate the move
+    ///     let delta = state.calculate_swap_cost_delta(day, p1, p2);
+    ///     
+    ///     // Decide whether to accept (algorithm-specific logic)
+    ///     let should_accept = delta < 0.0; // Hill climbing: only improvements
+    ///     // or: delta < 0.0 || random::<f64>() < (-delta / temperature).exp(); // Simulated annealing
+    ///     
+    ///     if should_accept {
+    ///         state.apply_swap(day, p1, p2);
+    ///     }
+    /// }
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
     pub fn apply_swap(&mut self, day: usize, p1_idx: usize, p2_idx: usize) {
         // Verify both people are participating in this session
         if !self.person_participation[p1_idx][day] || !self.person_participation[p2_idx][day] {
@@ -1248,7 +1766,144 @@ impl State {
         }
     }
 
-    /// Formats the current score breakdown as a well-structured multi-line format
+    /// Formats a detailed breakdown of the current solution's scoring components.
+    ///
+    /// This method generates a human-readable string that shows how the current
+    /// solution performs across all optimization criteria. It's invaluable for
+    /// debugging constraint issues, understanding solution quality, and tuning
+    /// algorithm parameters.
+    ///
+    /// # Returns
+    ///
+    /// A formatted string containing:
+    /// - **Overall cost** and its components
+    /// - **Unique contacts** achieved vs. theoretical maximum
+    /// - **Repetition penalties** with breakdown by penalty level
+    /// - **Attribute balance** penalties for each constraint
+    /// - **Constraint violations** with detailed counts per constraint type
+    /// - **Weights** used for each component
+    ///
+    /// # Output Format
+    ///
+    /// The output follows this structure:
+    /// ```text
+    /// === SCORE BREAKDOWN ===
+    /// Total Cost: 85.50
+    ///   Unique Contacts: 45 (Weight: 1.0, Contribution: -45.0)
+    ///   Repetition Penalty: 12 (Weight: 100.0, Contribution: 1200.0)
+    ///   Attribute Balance Penalty: 8.50 (Contribution: 8.50)
+    ///   Constraint Penalty: 2 (Contribution: 2000.0)
+    ///
+    /// CONSTRAINT VIOLATIONS:
+    ///   Clique 0 (['Alice', 'Bob']): 1 violations (Weight: 1000.0)
+    ///   Forbidden Pair 0 ('Charlie' - 'Diana'): 0 violations (Weight: 500.0)
+    ///   Immovable Person Violations: 1
+    ///
+    /// REPETITION BREAKDOWN:
+    ///   0 encounters: 78 pairs
+    ///   1 encounter: 45 pairs
+    ///   2 encounters: 12 pairs (penalty: 12)
+    ///   3+ encounters: 0 pairs
+    /// ```
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         logging: LoggingOptions::default(),
+    /// #     },
+    /// # };
+    /// # let state = State::new(&input)?;
+    /// // Get detailed scoring information
+    /// let breakdown = state.format_score_breakdown();
+    /// println!("{}", breakdown);
+    ///
+    /// // Use for debugging constraint issues
+    /// if state.constraint_penalty > 0 {
+    ///     println!("Constraint violations detected:");
+    ///     println!("{}", breakdown);
+    /// }
+    ///
+    /// // Compare different solutions
+    /// let score_before = state.format_score_breakdown();
+    /// // ... apply some moves ...
+    /// let score_after = state.format_score_breakdown();
+    /// println!("Before:\n{}\nAfter:\n{}", score_before, score_after);
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
+    ///
+    /// # Use Cases
+    ///
+    /// ## Debugging Constraints
+    /// When solutions have high constraint penalties, this method helps identify:
+    /// - Which specific constraints are being violated
+    /// - How many violations exist for each constraint type
+    /// - Whether constraint weights are properly balanced
+    ///
+    /// ## Parameter Tuning
+    /// The breakdown helps adjust algorithm parameters:
+    /// - If repetition penalties dominate, reduce repetition weights
+    /// - If few unique contacts are achieved, increase contact weights
+    /// - If constraint violations persist, increase constraint weights
+    ///
+    /// ## Solution Analysis
+    /// Compare solutions to understand optimization progress:
+    /// - Track how scores change during optimization
+    /// - Identify which components improve/worsen over time
+    /// - Understand trade-offs between different objectives
+    ///
+    /// # Performance Notes
+    ///
+    /// This method performs some computation to generate the breakdown:
+    /// - **O(people²)** to analyze contact patterns
+    /// - **O(constraints)** to format constraint information
+    /// - **String formatting** overhead for display
+    ///
+    /// It's intended for debugging and analysis, not for use in tight optimization loops.
+    ///
+    /// # Typical Usage in Algorithms
+    ///
+    /// ```no_run
+    /// # use solver_core::solver::State;
+    /// # use solver_core::models::*;
+    /// # use std::collections::HashMap;
+    /// # let input = ApiInput {
+    /// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+    /// #     objectives: vec![], constraints: vec![],
+    /// #     solver: SolverConfiguration {
+    /// #         solver_type: "SimulatedAnnealing".to_string(),
+    /// #         stop_conditions: StopConditions {
+    /// #             max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None
+    /// #         },
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+    /// #             initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string()
+    /// #         }),
+    /// #         logging: LoggingOptions { log_initial_score_breakdown: true, log_final_score_breakdown: true, ..Default::default() },
+    /// #     },
+    /// # };
+    /// # let mut state = State::new(&input)?;
+    /// // Log initial state (controlled by logging configuration)
+    /// if state.logging.log_initial_score_breakdown {
+    ///     println!("Initial state:\n{}", state.format_score_breakdown());
+    /// }
+    ///
+    /// // ... run optimization algorithm ...
+    ///
+    /// // Log final state
+    /// if state.logging.log_final_score_breakdown {
+    ///     println!("Final state:\n{}", state.format_score_breakdown());
+    /// }
+    /// # Ok::<(), solver_core::solver::SolverError>(())
+    /// ```
     pub fn format_score_breakdown(&self) -> String {
         let mut breakdown = format!(
             "Score Breakdown:\n  UniqueContacts: {} (weight: {:.1})\n  RepetitionPenalty: {} (weight: {:.1})\n  AttributeBalancePenalty: {:.2}",

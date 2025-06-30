@@ -3,10 +3,10 @@ export interface Person {
   id: string;
   name: string;
   gender?: "male" | "female";
-  sessions?: number[]; // Optional: specific sessions this person participates in
+  groups?: number[]; // Optional: specific groups this person can be assigned to
 }
 
-export interface Session {
+export interface Group {
   id: number;
   name: string;
   max_people: number;
@@ -26,7 +26,8 @@ export interface Constraint {
 
 export interface Problem {
   people: Person[];
-  sessions: Session[];
+  groups: Group[];
+  sessions_count: number; // Number of sessions to run
   constraints: Constraint[];
   settings: SolverSettings;
 }
@@ -49,6 +50,7 @@ export interface Solution {
 
 export interface Assignment {
   person_id: string;
+  group_id: number;
   session_id: number;
 }
 
@@ -85,10 +87,10 @@ export interface Notification {
 export interface PersonFormData {
   name: string;
   gender: "male" | "female" | "";
-  sessions: number[];
+  groups: number[];
 }
 
-export interface SessionFormData {
+export interface GroupFormData {
   name: string;
   max_people: number;
   min_people: number;
