@@ -60,6 +60,8 @@ struct ExpectedMetrics {
     max_constraint_penalty: Option<u32>,
     #[serde(default)]
     immovable_person_respected: bool,
+    #[serde(default)]
+    session_specific_constraints_respected: bool,
 }
 
 #[test]
@@ -141,6 +143,10 @@ fn run_test_case(test_case: &TestCase, path: &Path) {
 
         if test_case.expected.immovable_person_respected {
             assert_immovable_person_respected(&test_case.input, &result);
+        }
+
+        if test_case.expected.session_specific_constraints_respected {
+            assert_session_specific_constraints_respected(&test_case.input, &result);
         }
 
         if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
@@ -263,6 +269,87 @@ fn assert_immovable_person_respected(input: &ApiInput, result: &SolverResult) {
                 "Immovable person {} is in group {} instead of {} for session {}",
                 constraint.person_id, group_id, constraint.group_id, session
             );
+        }
+    }
+}
+
+fn assert_session_specific_constraints_respected(input: &ApiInput, result: &SolverResult) {
+    // Check MustStayTogether constraints
+    for constraint in &input.constraints {
+        if let solver_core::models::Constraint::MustStayTogether {
+            people, sessions, ..
+        } = constraint
+        {
+            if let Some(session_list) = sessions {
+                // Validate that clique is together ONLY in specified sessions
+                for session in session_list {
+                    let session_key = format!("session_{}", session);
+                    let session_schedule = result
+                        .schedule
+                        .get(&session_key)
+                        .unwrap_or_else(|| panic!("Session {} not found in schedule", session_key));
+
+                    // Find which group the first person is in
+                    let mut clique_group_id = None;
+                    for (group_id, members) in session_schedule {
+                        if members.contains(&people[0]) {
+                            clique_group_id = Some(group_id);
+                            break;
+                        }
+                    }
+
+                    assert!(
+                        clique_group_id.is_some(),
+                        "Clique member {} not found in any group for session {}",
+                        people[0],
+                        session
+                    );
+
+                    let group_members = session_schedule.get(clique_group_id.unwrap()).unwrap();
+
+                    // Verify all clique members are in the same group for this session
+                    for person in people {
+                        assert!(
+                            group_members.contains(person),
+                            "Session-specific clique constraint violated: {} should be with {:?} in session {} but is not",
+                            person, people, session
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Check CannotBeTogether constraints
+    for constraint in &input.constraints {
+        if let solver_core::models::Constraint::CannotBeTogether {
+            people, sessions, ..
+        } = constraint
+        {
+            if let Some(session_list) = sessions {
+                // Validate that forbidden pair/group is separated ONLY in specified sessions
+                for session in session_list {
+                    let session_key = format!("session_{}", session);
+                    let session_schedule = result
+                        .schedule
+                        .get(&session_key)
+                        .unwrap_or_else(|| panic!("Session {} not found in schedule", session_key));
+
+                    for (_group_id, members) in session_schedule {
+                        let mut present_members = 0;
+                        for person in people {
+                            if members.contains(person) {
+                                present_members += 1;
+                            }
+                        }
+                        assert!(
+                            present_members <= 1,
+                            "Session-specific forbidden constraint violated: {:?} found together in session {} group: {:?}",
+                            people, session, members
+                        );
+                    }
+                }
+            }
         }
     }
 }

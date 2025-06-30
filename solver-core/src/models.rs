@@ -46,11 +46,15 @@ pub enum Constraint {
         people: Vec<String>,
         #[serde(default = "default_constraint_weight")]
         penalty_weight: f64,
+        #[serde(default)]
+        sessions: Option<Vec<u32>>,
     },
     CannotBeTogether {
         people: Vec<String>,
         #[serde(default = "default_constraint_weight")]
         penalty_weight: f64,
+        #[serde(default)]
+        sessions: Option<Vec<u32>>,
     },
 }
 
