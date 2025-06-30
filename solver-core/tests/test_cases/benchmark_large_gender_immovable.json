@@ -191,7 +191,7 @@
         "solver": {
             "solver_type": "SimulatedAnnealing",
             "stop_conditions": {
-                "max_iterations": 1000
+                "max_iterations": 100000
             },
             "solver_params": {
                 "solver_type": "SimulatedAnnealing",
@@ -204,8 +204,8 @@
                 "log_initial_state": false,
                 "log_duration_and_score": true,
                 "display_final_schedule": false,
-                "log_initial_score_breakdown": true,
-                "log_final_score_breakdown": true,
+                "log_initial_score_breakdown": false,
+                "log_final_score_breakdown": false,
                 "log_stop_condition": false
             }
         }

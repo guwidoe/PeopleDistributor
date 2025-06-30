@@ -88,15 +88,27 @@ pub mod simulated_annealing;
 ///
 /// impl Solver for SimpleHillClimbing {
 ///     fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
-///         let mut best_cost = state.calculate_cost();
 ///         let mut iterations = 0;
+///         let mut no_improvement_count = 0;
 ///         
 ///         loop {
-///             // Try a random move
+///             // Try a random move - example with person swap
 ///             let improved = false; // ... implement move logic
+///             // if let Some((day, p1, p2)) = find_beneficial_swap(state) {
+///             //     let delta = state.calculate_swap_cost_delta(day, p1, p2);
+///             //     if delta < 0.0 {
+///             //         state.apply_swap(day, p1, p2);
+///             //         improved = true;
+///             //     }
+///             // }
 ///             
 ///             if !improved {
-///                 break; // Local optimum reached
+///                 no_improvement_count += 1;
+///                 if no_improvement_count >= 1000 {
+///                     break; // Local optimum reached
+///                 }
+///             } else {
+///                 no_improvement_count = 0;
 ///             }
 ///             
 ///             iterations += 1;
@@ -105,8 +117,8 @@ pub mod simulated_annealing;
 ///             }
 ///         }
 ///         
-///         // Return the final result
-///         Ok(state.to_solver_result(best_cost))
+///         // Return the final result (the score is calculated internally)
+///         Ok(state.to_solver_result(0.0))  // Score computed in to_solver_result
 ///     }
 /// }
 /// ```

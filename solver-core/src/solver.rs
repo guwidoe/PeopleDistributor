@@ -90,10 +90,6 @@ pub enum SolverError {
 /// # };
 /// let mut state = State::new(&input)?;
 ///
-/// // Get current solution quality
-/// let current_cost = state.calculate_cost();
-/// println!("Current solution cost: {}", current_cost);
-///
 /// // Evaluate a potential move (person 0 and person 1 in session 0)
 /// let delta = state.calculate_swap_cost_delta(0, 0, 1);
 /// if delta < 0.0 {
@@ -282,7 +278,7 @@ impl State {
     /// match State::new(&input) {
     ///     Ok(state) => {
     ///         println!("State initialized successfully!");
-    ///         println!("Initial cost: {}", state.calculate_cost());
+    ///         println!("Number of people: {}", state.person_idx_to_id.len());
     ///     }
     ///     Err(e) => {
     ///         eprintln!("Failed to create state: {}", e);
@@ -889,8 +885,7 @@ impl State {
     /// #     },
     /// # };
     /// # let state = State::new(&input)?;
-    /// let final_cost = state.calculate_cost();
-    /// let result = state.to_solver_result(final_cost);
+    /// let result = state.to_solver_result(0.0); // Score is calculated inside to_solver_result
     ///
     /// // Access the results
     /// println!("Final score: {}", result.final_score);
@@ -1507,15 +1502,8 @@ impl State {
     ///
     /// if delta < 0.0 {
     ///     // The swap improves the solution, so apply it
-    ///     let old_cost = state.calculate_cost();
     ///     state.apply_swap(0, 0, 1);
-    ///     let new_cost = state.calculate_cost();
-    ///     
-    ///     // Verify the delta was calculated correctly
-    ///     let actual_delta = new_cost - old_cost;
-    ///     assert!((actual_delta - delta).abs() < 1e-10);
-    ///     
-    ///     println!("Applied swap, cost changed by: {}", actual_delta);
+    ///     println!("Applied beneficial swap, expected improvement: {}", -delta);
     /// }
     /// # Ok::<(), solver_core::solver::SolverError>(())
     /// ```

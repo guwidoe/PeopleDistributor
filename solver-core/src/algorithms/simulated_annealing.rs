@@ -106,10 +106,15 @@ use std::time::Instant;
 ///
 /// // Create and run the solver
 /// let solver = SimulatedAnnealing::new(&config);
-/// let input = ApiInput { /* ... */ };
 /// # let input = ApiInput {
-/// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
-/// #     objectives: vec![], constraints: vec![], solver: config,
+/// #     problem: ProblemDefinition {
+/// #         people: vec![],
+/// #         groups: vec![],
+/// #         num_sessions: 1
+/// #     },
+/// #     objectives: vec![],
+/// #     constraints: vec![],
+/// #     solver: config,
 /// # };
 /// let mut state = State::new(&input)?;
 /// let result = solver.solve(&mut state)?;
@@ -313,14 +318,11 @@ impl Solver for SimulatedAnnealing {
     /// let mut state = State::new(&input)?;
     ///
     /// // Run optimization
-    /// let initial_cost = state.calculate_cost();
     /// let result = solver.solve(&mut state)?;
     ///
     /// // Analyze results
     /// println!("Optimization completed!");
-    /// println!("Initial cost: {:.2}", initial_cost);
     /// println!("Final cost: {:.2}", result.final_score);
-    /// println!("Improvement: {:.2}", initial_cost - result.final_score);
     /// println!("Unique contacts achieved: {}", result.unique_contacts);
     ///
     /// // Access the optimized schedule

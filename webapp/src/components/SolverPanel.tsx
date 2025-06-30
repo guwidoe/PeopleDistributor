@@ -1,15 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
+import type { SolverSettings } from '../types';
 
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, addNotification } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
-  const [solverSettings, setSolverSettings] = useState({
-    max_iterations: 10000,
-    time_limit_seconds: 30,
-    temperature: 1.0,
-    cooling_rate: 0.99
+  const [solverSettings, setSolverSettings] = useState<SolverSettings>({
+    solver_type: "SimulatedAnnealing",
+    stop_conditions: {
+      max_iterations: 10000,
+      time_limit_seconds: 30,
+      no_improvement_iterations: 1000,
+    },
+    solver_params: {
+      SimulatedAnnealing: {
+        initial_temperature: 1.0,
+        final_temperature: 0.01,
+        cooling_schedule: "geometric",
+      },
+    },
+    logging: {
+      log_frequency: 1000,
+      log_initial_state: true,
+      log_duration_and_score: true,
+      display_final_schedule: true,
+      log_initial_score_breakdown: true,
+      log_final_score_breakdown: true,
+      log_stop_condition: true,
+    },
   });
 
   // Simulate real-time updates when solver is running
@@ -48,11 +67,11 @@ export function SolverPanel() {
       return;
     }
 
-    if (!problem.sessions || problem.sessions.length === 0) {
+    if (!problem.groups || problem.groups.length === 0) {
       addNotification({
         type: 'error',
-        title: 'No Sessions',
-        message: 'Please add sessions to the problem first',
+        title: 'No Groups',
+        message: 'Please add groups to the problem first',
       });
       return;
     }
@@ -92,13 +111,13 @@ export function SolverPanel() {
   };
 
   const getProgressPercentage = () => {
-    if (!solverSettings.max_iterations) return 0;
-    return Math.min((solverState.currentIteration / solverSettings.max_iterations) * 100, 100);
+    if (!solverSettings.stop_conditions.max_iterations) return 0;
+    return Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
   };
 
   const getTimeProgressPercentage = () => {
-    if (!solverSettings.time_limit_seconds) return 0;
-    return Math.min((solverState.elapsedTime / 1000 / solverSettings.time_limit_seconds) * 100, 100);
+    if (!solverSettings.stop_conditions.time_limit_seconds) return 0;
+    return Math.min((solverState.elapsedTime / 1000 / solverSettings.stop_conditions.time_limit_seconds) * 100, 100);
   };
 
   return (
@@ -130,10 +149,13 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.max_iterations}
+                value={solverSettings.stop_conditions.max_iterations || 10000}
                 onChange={(e) => setSolverSettings({
                   ...solverSettings,
-                  max_iterations: parseInt(e.target.value) || 10000
+                  stop_conditions: {
+                    ...solverSettings.stop_conditions,
+                    max_iterations: parseInt(e.target.value) || 10000
+                  }
                 })}
                 min="1000"
                 max="100000"
@@ -144,10 +166,13 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.time_limit_seconds}
+                value={solverSettings.stop_conditions.time_limit_seconds || 30}
                 onChange={(e) => setSolverSettings({
                   ...solverSettings,
-                  time_limit_seconds: parseInt(e.target.value) || 30
+                  stop_conditions: {
+                    ...solverSettings.stop_conditions,
+                    time_limit_seconds: parseInt(e.target.value) || 30
+                  }
                 })}
                 min="10"
                 max="300"
@@ -158,10 +183,16 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.temperature}
+                value={solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}
                 onChange={(e) => setSolverSettings({
                   ...solverSettings,
-                  temperature: parseFloat(e.target.value) || 1.0
+                  solver_params: {
+                    ...solverSettings.solver_params,
+                    SimulatedAnnealing: {
+                      ...solverSettings.solver_params.SimulatedAnnealing!,
+                      initial_temperature: parseFloat(e.target.value) || 1.0
+                    }
+                  }
                 })}
                 step="0.1"
                 min="0.1"
@@ -169,18 +200,24 @@ export function SolverPanel() {
               />
             </div>
             <div>
-              <label className="label">Cooling Rate</label>
+              <label className="label">Final Temperature</label>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.cooling_rate}
+                value={solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}
                 onChange={(e) => setSolverSettings({
                   ...solverSettings,
-                  cooling_rate: parseFloat(e.target.value) || 0.99
+                  solver_params: {
+                    ...solverSettings.solver_params,
+                    SimulatedAnnealing: {
+                      ...solverSettings.solver_params.SimulatedAnnealing!,
+                      final_temperature: parseFloat(e.target.value) || 0.01
+                    }
+                  }
                 })}
-                step="0.01"
-                min="0.8"
-                max="0.999"
+                step="0.001"
+                min="0.001"
+                max="1.0"
               />
             </div>
           </div>
@@ -206,7 +243,7 @@ export function SolverPanel() {
           <div>
             <div className="flex justify-between text-sm text-gray-600 mb-1">
               <span>Iteration Progress</span>
-              <span>{solverState.currentIteration.toLocaleString()} / {solverSettings.max_iterations.toLocaleString()}</span>
+              <span>{solverState.currentIteration.toLocaleString()} / {(solverSettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
@@ -219,7 +256,7 @@ export function SolverPanel() {
           <div>
             <div className="flex justify-between text-sm text-gray-600 mb-1">
               <span>Time Progress</span>
-              <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {solverSettings.time_limit_seconds}s</span>
+              <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
@@ -261,7 +298,7 @@ export function SolverPanel() {
             <button
               onClick={handleStartSolver}
               className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem || !problem.people?.length || !problem.sessions?.length}
+              disabled={!problem || !problem.people?.length || !problem.groups?.length}
             >
               <Play className="h-4 w-4" />
               <span>Start Solver</span>
@@ -306,11 +343,11 @@ export function SolverPanel() {
             <div className="text-center p-4 bg-success-50 rounded-lg">
               <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <span className="text-success-600 font-medium text-sm">
-                  {problem.sessions.length}
+                  {problem.num_sessions}
                 </span>
               </div>
               <div className="text-2xl font-bold text-success-600">
-                {problem.sessions.length}
+                {problem.num_sessions}
               </div>
               <div className="text-sm text-gray-600">Sessions</div>
             </div>
@@ -356,19 +393,19 @@ export function SolverPanel() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Initial Temperature:</span>
-                <span className="font-medium">{solverSettings.temperature}</span>
+                <span className="font-medium">{solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Cooling Rate:</span>
-                <span className="font-medium">{solverSettings.cooling_rate}</span>
+                <span className="text-gray-600">Final Temperature:</span>
+                <span className="font-medium">{solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Max Iterations:</span>
-                <span className="font-medium">{solverSettings.max_iterations.toLocaleString()}</span>
+                <span className="font-medium">{(solverSettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Time Limit:</span>
-                <span className="font-medium">{solverSettings.time_limit_seconds}s</span>
+                <span className="font-medium">{solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
               </div>
             </div>
           </div>

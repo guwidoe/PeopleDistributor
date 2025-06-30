@@ -1,443 +1,335 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '../store';
-import { BarChart3, Download, Share2, TrendingUp, Clock, Users, Calendar, Eye, EyeOff, Filter, Hash } from 'lucide-react';
+import { 
+  BarChart3, 
+  Users, 
+  Target, 
+  AlertTriangle, 
+  Calendar, 
+  Hash,
+  Eye,
+  EyeOff,
+  Download,
+  RefreshCw
+} from 'lucide-react';
 
 export function ResultsView() {
-  const { solution, problem, addNotification } = useAppStore();
+  const { problem, solution, solverState, addNotification } = useAppStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showDetails, setShowDetails] = useState(true);
-  const [filterSession, setFilterSession] = useState<string>('all');
-
-  const handleExportResults = () => {
-    if (!solution) {
-      addNotification({
-        type: 'error',
-        title: 'No Results',
-        message: 'No solution to export',
-      });
-      return;
-    }
-
-    // Create CSV export
-    const csvContent = [
-      'Person,Group,Session',
-      ...solution.assignments.map(a => `${getPersonName(a.person_id)},${getGroupName(a.group_id)},Session ${a.session_id}`)
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'people_distribution.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-
-    addNotification({
-      type: 'success',
-      title: 'Exported',
-      message: 'Results exported as CSV',
-    });
-  };
-
-  const handleShareResults = () => {
-    if (!solution) {
-      addNotification({
-        type: 'error',
-        title: 'No Results',
-        message: 'No solution to share',
-      });
-      return;
-    }
-
-    // Copy to clipboard
-    const resultsText = `PeopleDistributor Results:
-Score: ${solution.score}
-Constraint Violations: ${solution.constraint_violations}
-Iterations: ${solution.iteration_count}
-Time: ${(solution.elapsed_time_ms / 1000).toFixed(2)}s
-Sessions: ${problem?.sessions_count || 0}
-Groups: ${problem?.groups.length || 0}`;
-
-    navigator.clipboard.writeText(resultsText).then(() => {
-      addNotification({
-        type: 'success',
-        title: 'Copied',
-        message: 'Results copied to clipboard',
-      });
-    });
-  };
-
-  const getSessionAssignments = (sessionId: number) => {
-    if (!solution) return [];
-    return solution.assignments.filter(a => a.session_id === sessionId);
-  };
-
-  const getGroupAssignments = (groupId: number, sessionId?: number) => {
-    if (!solution) return [];
-    return solution.assignments.filter(a => 
-      a.group_id === groupId && (sessionId === undefined || a.session_id === sessionId)
-    );
-  };
-
-  const getGroupName = (groupId: number) => {
-    if (!problem) return `Group ${groupId}`;
-    const group = problem.groups.find(g => g.id === groupId);
-    return group ? group.name : `Group ${groupId}`;
-  };
-
-  const getPersonName = (personId: string) => {
-    if (!problem) return personId;
-    const person = problem.people.find(p => p.id === personId);
-    return person ? person.name : personId;
-  };
-
-  const getQualityScore = () => {
-    if (!solution) return 0;
-    return ((1 - solution.constraint_violations / solution.assignments.length) * 100);
-  };
-
-  const getIterationsPerSecond = () => {
-    if (!solution) return 0;
-    return Math.round(solution.iteration_count / (solution.elapsed_time_ms / 1000));
-  };
-
-  const getUniqueSessionIds = () => {
-    if (!solution) return [];
-    const sessionIds = [...new Set(solution.assignments.map(a => a.session_id))];
-    return sessionIds.sort((a, b) => a - b);
-  };
+  const [showDetails, setShowDetails] = useState(false);
 
   if (!solution) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Results</h2>
-          <p className="text-gray-600 mt-1">
-            View and analyze optimization results
-          </p>
-        </div>
-
-        <div className="card">
-          <div className="text-center py-12 text-gray-500">
-            <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No results available</p>
-            <p className="text-sm">Run the solver to see optimization results</p>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+        <Target className="w-16 h-16 mb-4 text-gray-300" />
+        <h3 className="text-lg font-medium mb-2">No Results Yet</h3>
+        <p className="text-center max-w-md">
+          Run the solver to see optimization results and group assignments.
+        </p>
       </div>
     );
   }
 
-  const uniqueSessionIds = getUniqueSessionIds();
+  const handleExportResults = () => {
+    const exportData = {
+      problem,
+      solution,
+      timestamp: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `optimization-results-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const generateSummaryText = () => {
+    if (!problem || !solution) return '';
+    
+    return `Optimization Results Summary:
+  
+Final Score: ${solution.final_score.toFixed(2)}
+Unique Contacts: ${solution.unique_contacts}
+Repetition Penalty: ${solution.repetition_penalty}
+Constraint Penalty: ${solution.constraint_penalty}
+Iterations: ${solution.iteration_count}
+Time: ${(solution.elapsed_time_ms / 1000).toFixed(2)}s
+Sessions: ${problem?.num_sessions || 0}
+Groups: ${problem?.groups.length || 0}`;
+  };
+
+  // Group assignments by session for display
+  const sessionData = Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
+    const sessionAssignments = solution.assignments.filter(a => a.session_id === sessionIndex);
+    const groups = problem?.groups.map(group => ({
+      ...group,
+      people: sessionAssignments
+        .filter(a => a.group_id === group.id)
+        .map(a => problem?.people.find(p => p.id === a.person_id))
+        .filter(Boolean)
+    })) || [];
+    
+    return {
+      sessionIndex,
+      groups,
+      totalPeople: sessionAssignments.length
+    };
+  });
+
+  const renderMetricCard = (title: string, value: string | number, icon: React.ComponentType<any>, color: string) => (
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className={`text-2xl font-bold ${color}`}>{value}</p>
+        </div>
+        {React.createElement(icon, { className: `w-8 h-8 ${color.replace('text-', 'text-').replace('-600', '-400')}` })}
+      </div>
+    </div>
+  );
+
+  const renderPersonBadge = (person: any) => {
+    if (!person) return null;
+    const displayName = person.attributes?.name || person.id;
+    
+    return (
+      <div key={person.id} className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+        <Users className="w-3 h-3" />
+        {displayName}
+      </div>
+    );
+  };
+
+  const renderScheduleGrid = () => (
+    <div className="space-y-6">
+      {sessionData.map(({ sessionIndex, groups, totalPeople }) => (
+        <div key={sessionIndex} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-medium text-gray-900">
+              Session {sessionIndex + 1}
+            </h4>
+            <span className="text-sm text-gray-500">
+              {totalPeople} people assigned
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {groups.map(group => (
+              <div key={group.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-medium text-gray-900">{group.id}</h5>
+                  <span className="text-xs text-gray-500">
+                    {group.people.length}/{group.size}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {group.people.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {group.people.map(renderPersonBadge)}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No assignments</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderScheduleList = () => (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Person
+              </th>
+              {Array.from({ length: problem?.num_sessions || 0 }, (_, i) => (
+                <th key={i} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Session {i + 1}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {problem?.people.map(person => {
+              const personAssignments = solution.assignments.filter(a => a.person_id === person.id);
+              const displayName = person.attributes?.name || person.id;
+              
+              return (
+                <tr key={person.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <Users className="w-4 h-4 text-gray-400 mr-2" />
+                      <span className="text-sm font-medium text-gray-900">{displayName}</span>
+                    </div>
+                  </td>
+                  {Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
+                    const assignment = personAssignments.find(a => a.session_id === sessionIndex);
+                    return (
+                      <td key={sessionIndex} className="px-6 py-4 whitespace-nowrap">
+                        {assignment ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {assignment.group_id}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Not assigned</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Results</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Optimization Results</h2>
           <p className="text-gray-600 mt-1">
-            Optimization completed successfully
+            Final score: {solution.final_score.toFixed(2)} • 
+            {solution.iteration_count.toLocaleString()} iterations • 
+            {(solution.elapsed_time_ms / 1000).toFixed(2)}s
           </p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex gap-2">
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center gap-2"
           >
-            {showDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span>{showDetails ? 'Hide' : 'Show'} Details</span>
-          </button>
-          <button
-            onClick={handleShareResults}
-            className="btn-secondary flex items-center space-x-2"
-          >
-            <Share2 className="h-4 w-4" />
-            <span>Share</span>
+            {showDetails ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showDetails ? 'Hide' : 'Show'} Details
           </button>
           <button
             onClick={handleExportResults}
-            className="btn-primary flex items-center space-x-2"
+            className="btn-secondary flex items-center gap-2"
           >
-            <Download className="h-4 w-4" />
-            <span>Export</span>
+            <Download className="w-4 h-4" />
+            Export
           </button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card">
-          <div className="flex items-center space-x-3">
-            <TrendingUp className="h-8 w-8 text-success-500" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {solution.score.toFixed(2)}
-              </div>
-              <div className="text-sm text-gray-600">Score</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center space-x-3">
-            <Users className="h-8 w-8 text-primary-500" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {solution.assignments.length}
-              </div>
-              <div className="text-sm text-gray-600">Assignments</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center space-x-3">
-            <BarChart3 className="h-8 w-8 text-warning-500" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {solution.constraint_violations}
-              </div>
-              <div className="text-sm text-gray-600">Violations</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center space-x-3">
-            <Clock className="h-8 w-8 text-error-500" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {(solution.elapsed_time_ms / 1000).toFixed(1)}s
-              </div>
-              <div className="text-sm text-gray-600">Time</div>
-            </div>
-          </div>
-        </div>
+      {/* Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, "text-green-600")}
+        {renderMetricCard("Unique Contacts", solution.unique_contacts, Users, "text-blue-600")}
+        {renderMetricCard("Repetition Penalty", solution.repetition_penalty, RefreshCw, "text-orange-600")}
+        {renderMetricCard("Constraint Penalty", solution.constraint_penalty, AlertTriangle, "text-red-600")}
       </div>
 
-      {/* Performance Metrics */}
+      {/* Detailed Breakdown */}
       {showDetails && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Metrics</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-primary-50 rounded-lg">
-              <div className="text-2xl font-bold text-primary-600">
-                {solution.iteration_count.toLocaleString()}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Score Breakdown</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Unique Contacts</span>
+                <span className="font-medium text-green-600">+{solution.unique_contacts}</span>
               </div>
-              <div className="text-sm text-gray-600">Total Iterations</div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Repetition Penalty</span>
+                <span className="font-medium text-orange-600">-{solution.repetition_penalty}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Attribute Balance Penalty</span>
+                <span className="font-medium text-purple-600">-{solution.attribute_balance_penalty}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Constraint Penalty</span>
+                <span className="font-medium text-red-600">-{solution.constraint_penalty}</span>
+              </div>
+              <div className="border-t pt-2 flex justify-between items-center">
+                <span className="font-medium text-gray-900">Final Score</span>
+                <span className="font-bold text-lg text-gray-900">{solution.final_score.toFixed(2)}</span>
+              </div>
             </div>
-            <div className="text-center p-4 bg-success-50 rounded-lg">
-              <div className="text-2xl font-bold text-success-600">
-                {getIterationsPerSecond().toLocaleString()}
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Problem Summary</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total People</span>
+                <span className="font-medium">{problem?.people.length || 0}</span>
               </div>
-              <div className="text-sm text-gray-600">Iterations/sec</div>
-            </div>
-            <div className="text-center p-4 bg-warning-50 rounded-lg">
-              <div className="text-2xl font-bold text-warning-600">
-                {getQualityScore().toFixed(1)}%
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total Groups</span>
+                <span className="font-medium">{problem?.groups.length || 0}</span>
               </div>
-              <div className="text-sm text-gray-600">Quality Score</div>
-            </div>
-            <div className="text-center p-4 bg-error-50 rounded-lg">
-              <div className="text-2xl font-bold text-error-600">
-                {problem?.sessions_count || 0}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Sessions</span>
+                <span className="font-medium">{problem?.num_sessions || 0}</span>
               </div>
-              <div className="text-sm text-gray-600">Sessions</div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Constraints</span>
+                <span className="font-medium">{problem?.constraints.length || 0}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total Assignments</span>
+                <span className="font-medium">{solution.assignments.length}</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Schedule Visualization */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Schedule</h3>
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <select
-                className="text-sm border border-gray-300 rounded px-2 py-1"
-                value={filterSession}
-                onChange={(e) => setFilterSession(e.target.value)}
-              >
-                <option value="all">All Sessions</option>
-                {uniqueSessionIds.map(sessionId => (
-                  <option key={sessionId} value={sessionId.toString()}>
-                    Session {sessionId}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center space-x-2">
+      {/* Schedule View */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900">Group Assignments</h3>
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`px-3 py-1 text-sm rounded ${
-                  viewMode === 'grid' 
-                    ? 'bg-primary-100 text-primary-700' 
-                    : 'bg-gray-100 text-gray-600'
+                className={`px-3 py-1 rounded text-sm ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
+                <Hash className="w-4 h-4 inline mr-1" />
                 Grid
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-sm rounded ${
-                  viewMode === 'list' 
-                    ? 'bg-primary-100 text-primary-700' 
-                    : 'bg-gray-100 text-gray-600'
+                className={`px-3 py-1 rounded text-sm ${
+                  viewMode === 'list'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
+                <BarChart3 className="w-4 h-4 inline mr-1" />
                 List
               </button>
             </div>
           </div>
         </div>
-
-        {/* Session-based view */}
-        <div className="space-y-6">
-          {uniqueSessionIds.map((sessionId) => {
-            const isFiltered = filterSession !== 'all' && filterSession !== sessionId.toString();
-            if (isFiltered) return null;
-
-            const sessionAssignments = getSessionAssignments(sessionId);
-            
-            return (
-              <div key={sessionId} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <Calendar className="h-5 w-5 text-primary-600" />
-                    <h4 className="font-medium text-gray-900">Session {sessionId}</h4>
-                  </div>
-                  <span className="text-sm text-gray-500">
-                    {sessionAssignments.length} people in {problem?.groups.length || 0} groups
-                  </span>
-                </div>
-
-                {/* Groups within this session */}
-                <div className={viewMode === 'grid' ? 
-                  'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 
-                  'space-y-3'
-                }>
-                  {problem?.groups.map((group) => {
-                    const groupAssignments = getGroupAssignments(group.id, sessionId);
-                    
-                    return (
-                      <div key={group.id} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <Hash className="h-4 w-4 text-success-600" />
-                            <span className="font-medium text-gray-900">{group.name}</span>
-                          </div>
-                          <span className="text-sm text-gray-500">
-                            {groupAssignments.length}/{group.max_people}
-                          </span>
-                        </div>
-                        
-                        {groupAssignments.length > 0 ? (
-                          <div className={viewMode === 'grid' ? 'space-y-1' : 'flex flex-wrap gap-2'}>
-                            {groupAssignments.map((assignment, index) => (
-                              <div key={index} className={
-                                viewMode === 'grid' ? 
-                                'flex items-center space-x-2 p-1' :
-                                'flex items-center space-x-1 bg-white px-2 py-1 rounded text-sm'
-                              }>
-                                <div className="w-5 h-5 bg-primary-100 rounded-full flex items-center justify-center">
-                                  <span className="text-primary-600 text-xs font-medium">
-                                    {getPersonName(assignment.person_id).charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                                <span className="text-sm text-gray-700">
-                                  {getPersonName(assignment.person_id)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-2 text-gray-400">
-                            <span className="text-xs">Empty</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+        
+        <div className="p-6">
+          {viewMode === 'grid' ? renderScheduleGrid() : renderScheduleList()}
         </div>
       </div>
-
-      {/* Group Distribution Chart */}
-      {showDetails && problem && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Distribution</h3>
-          <div className="space-y-4">
-            {problem.groups.map((group) => {
-              const allGroupAssignments = getGroupAssignments(group.id);
-              const capacityPercentage = (allGroupAssignments.length / (group.max_people * uniqueSessionIds.length)) * 100;
-              
-              return (
-                <div key={group.id} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium text-gray-700">
-                      {group.name}
-                    </span>
-                    <span className="text-gray-600">
-                      {allGroupAssignments.length} total assignments across {uniqueSessionIds.length} sessions
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-300 ${
-                        capacityPercentage > 100 ? 'bg-error-500' : 
-                        capacityPercentage > 80 ? 'bg-warning-500' : 'bg-success-500'
-                      }`}
-                      style={{ width: `${Math.min(capacityPercentage, 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {capacityPercentage.toFixed(1)}% of total capacity ({group.max_people} × {uniqueSessionIds.length} sessions)
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Detailed Assignments Table */}
-      {showDetails && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Detailed Assignments</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Person</th>
-                  <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Group</th>
-                  <th className="text-left py-2 px-2 text-sm font-medium text-gray-700">Session</th>
-                </tr>
-              </thead>
-              <tbody>
-                {solution.assignments.map((assignment, index) => (
-                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 px-2 text-sm text-gray-900">
-                      {getPersonName(assignment.person_id)}
-                    </td>
-                    <td className="py-2 px-2 text-sm text-gray-600">
-                      {getGroupName(assignment.group_id)}
-                    </td>
-                    <td className="py-2 px-2 text-sm text-gray-600">
-                      Session {assignment.session_id}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

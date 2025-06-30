@@ -95,11 +95,28 @@ class WasmService {
     if (!this.module) {
       // Return reasonable defaults when WASM is not available
       return {
-        max_iterations: 10000,
-        time_limit_seconds: 30,
-        temperature: 1.0,
-        cooling_rate: 0.99,
-        repetition_penalty: 0.1,
+        solver_type: "SimulatedAnnealing",
+        stop_conditions: {
+          max_iterations: 10000,
+          time_limit_seconds: 30,
+          no_improvement_iterations: 1000,
+        },
+        solver_params: {
+          SimulatedAnnealing: {
+            initial_temperature: 1.0,
+            final_temperature: 0.01,
+            cooling_schedule: "geometric",
+          },
+        },
+        logging: {
+          log_frequency: 1000,
+          log_initial_state: true,
+          log_duration_and_score: true,
+          display_final_schedule: true,
+          log_initial_score_breakdown: true,
+          log_final_score_breakdown: true,
+          log_stop_condition: true,
+        },
       };
     }
 
@@ -110,11 +127,28 @@ class WasmService {
       console.error("WASM get default settings error:", error);
       // Fallback to reasonable defaults
       return {
-        max_iterations: 10000,
-        time_limit_seconds: 30,
-        temperature: 1.0,
-        cooling_rate: 0.99,
-        repetition_penalty: 0.1,
+        solver_type: "SimulatedAnnealing",
+        stop_conditions: {
+          max_iterations: 10000,
+          time_limit_seconds: 30,
+          no_improvement_iterations: 1000,
+        },
+        solver_params: {
+          SimulatedAnnealing: {
+            initial_temperature: 1.0,
+            final_temperature: 0.01,
+            cooling_schedule: "geometric",
+          },
+        },
+        logging: {
+          log_frequency: 1000,
+          log_initial_state: true,
+          log_duration_and_score: true,
+          display_final_schedule: true,
+          log_initial_score_breakdown: true,
+          log_final_score_breakdown: true,
+          log_stop_condition: true,
+        },
       };
     }
   }
