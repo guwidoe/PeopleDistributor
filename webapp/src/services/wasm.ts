@@ -101,26 +101,24 @@ class WasmService {
     }
 
     if (!this.module) {
-      throw new Error(
-        "WASM module not available - please build it first with 'npm run build-wasm'"
-      );
+      throw new Error("WASM module not initialized");
     }
 
     try {
       const problemJson = JSON.stringify(
         this.convertProblemToRustFormat(problem)
       );
-      console.log("Solver input JSON:", problemJson);
 
-      // Create a wrapper callback that handles JSON parsing
+      let lastProgress: ProgressUpdate | undefined;
+
       const wasmProgressCallback = progressCallback
-        ? (progressJson: string): boolean => {
+        ? (progressJson: string) => {
             try {
               const progress: ProgressUpdate = JSON.parse(progressJson);
-              const result = progressCallback(progress);
-              return typeof result === "boolean" ? result : true;
-            } catch (error) {
-              console.error("Failed to parse progress update:", error);
+              lastProgress = progress; // Track the last progress update
+              return progressCallback(progress);
+            } catch (e) {
+              console.error("Failed to parse progress update:", e);
               return true; // Continue on parse error
             }
           }
@@ -130,8 +128,9 @@ class WasmService {
         problemJson,
         wasmProgressCallback
       );
+
       const rustResult = JSON.parse(resultJson);
-      return this.convertRustResultToSolution(rustResult);
+      return this.convertRustResultToSolution(rustResult, lastProgress);
     } catch (error) {
       console.error("WASM solveWithProgress error:", error);
       throw new Error(
@@ -287,7 +286,10 @@ class WasmService {
   }
 
   // Convert Rust solver result to our Solution format
-  private convertRustResultToSolution(rustResult: any): Solution {
+  private convertRustResultToSolution(
+    rustResult: any,
+    lastProgress?: ProgressUpdate
+  ): Solution {
     // Convert the schedule format to assignments
     const assignments: Assignment[] = [];
 
@@ -313,8 +315,8 @@ class WasmService {
       repetition_penalty: rustResult.repetition_penalty,
       attribute_balance_penalty: rustResult.attribute_balance_penalty,
       constraint_penalty: rustResult.constraint_penalty,
-      iteration_count: 0, // TODO: Get from progress updates
-      elapsed_time_ms: 0, // TODO: Get from progress updates
+      iteration_count: lastProgress?.iteration || 0,
+      elapsed_time_ms: lastProgress ? lastProgress.elapsed_seconds * 1000 : 0,
     };
   }
 }

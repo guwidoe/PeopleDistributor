@@ -761,6 +761,7 @@ version = "0.1.0"
 dependencies = [
  "getrandom 0.3.3",
  "indicatif",
+ "js-sys",
  "log",
  "rand 0.9.1",
  "rand_chacha 0.9.0",
@@ -798,6 +799,7 @@ dependencies = [
  "serde_json",
  "solver-core",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -984,6 +986,19 @@ dependencies = [
  "quote",
  "syn",
  "wasm-bindgen-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-futures"
+version = "0.4.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "555d470ec0bc3bb57890405e5d4322cc9ea83cebb085523ced7be4144dac1e61"
+dependencies = [
+ "cfg-if",
+ "js-sys",
+ "once_cell",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

@@ -1,0 +1,288 @@
+import type { Problem, Solution } from "../types";
+import type { ProgressUpdate, ProgressCallback } from "./wasm";
+
+interface WorkerMessage {
+  type: string;
+  id: string;
+  data?: any;
+}
+
+export class SolverWorkerService {
+  private worker: Worker | null = null;
+  private messageId = 0;
+  private pendingMessages = new Map<
+    string,
+    {
+      resolve: (value: any) => void;
+      reject: (error: Error) => void;
+      progressCallback?: ProgressCallback;
+    }
+  >();
+  private isInitialized = false;
+  private lastProgressUpdate: ProgressUpdate | null = null;
+
+  async initialize(): Promise<void> {
+    if (this.worker || this.isInitialized) {
+      return;
+    }
+
+    try {
+      console.log("Creating new worker...");
+      this.worker = new Worker("/solver-worker.js");
+      this.setupMessageHandler();
+
+      console.log("Sending INIT message to worker...");
+      // Initialize the worker
+      await this.sendMessage("INIT", {});
+      this.isInitialized = true;
+      console.log("Solver worker initialized successfully");
+    } catch (error) {
+      console.error("Failed to initialize solver worker:", error);
+      this.worker = null;
+      this.isInitialized = false;
+      throw new Error(
+        `Failed to initialize solver worker: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  private setupMessageHandler(): void {
+    if (!this.worker) return;
+
+    this.worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
+      const { type, id, data } = e.data;
+      const pending = this.pendingMessages.get(id);
+
+      switch (type) {
+        case "INIT_SUCCESS":
+          if (pending) {
+            pending.resolve(true);
+            this.pendingMessages.delete(id);
+          }
+          break;
+
+        case "PROGRESS":
+          if (pending?.progressCallback) {
+            try {
+              const progress: ProgressUpdate = JSON.parse(data.progressJson);
+              pending.progressCallback(progress);
+              this.lastProgressUpdate = progress;
+            } catch (error) {
+              console.error("Failed to parse progress update:", error);
+            }
+          }
+          break;
+
+        case "SOLVE_SUCCESS":
+          if (pending) {
+            pending.resolve(data.result);
+            this.pendingMessages.delete(id);
+          }
+          break;
+
+        case "CANCELLED":
+          if (pending) {
+            pending.reject(new Error("Solver cancelled"));
+            this.pendingMessages.delete(id);
+          }
+          break;
+
+        case "ERROR":
+          if (pending) {
+            pending.reject(new Error(data.error));
+            this.pendingMessages.delete(id);
+          } else {
+            console.error("Worker error:", data);
+          }
+          break;
+
+        default:
+          console.warn("Unknown worker message type:", type);
+      }
+    };
+
+    this.worker.onerror = (error) => {
+      console.error("Worker error:", error);
+      // Reject all pending messages
+      this.pendingMessages.forEach(({ reject }) => {
+        reject(new Error("Worker error"));
+      });
+      this.pendingMessages.clear();
+    };
+  }
+
+  private sendMessage(
+    type: string,
+    data: any,
+    progressCallback?: ProgressCallback
+  ): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error("Worker not initialized"));
+        return;
+      }
+
+      const id = (++this.messageId).toString();
+      this.pendingMessages.set(id, { resolve, reject, progressCallback });
+
+      this.worker.postMessage({ type, id, data });
+    });
+  }
+
+  async solve(problem: Problem): Promise<Solution> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const problemJson = JSON.stringify(
+      this.convertProblemToRustFormat(problem)
+    );
+    const resultJson = await this.sendMessage("SOLVE", {
+      problemJson,
+      useProgress: false,
+    });
+    const rustResult = JSON.parse(resultJson);
+    return this.convertRustResultToSolution(rustResult);
+  }
+
+  async solveWithProgress(
+    problem: Problem,
+    progressCallback?: ProgressCallback
+  ): Promise<Solution> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const problemJson = JSON.stringify(
+      this.convertProblemToRustFormat(problem)
+    );
+    const resultJson = await this.sendMessage(
+      "SOLVE",
+      {
+        problemJson,
+        useProgress: true,
+      },
+      progressCallback
+    );
+
+    const rustResult = JSON.parse(resultJson);
+    return this.convertRustResultToSolution(rustResult);
+  }
+
+  async cancel(): Promise<void> {
+    if (!this.worker) return;
+
+    console.log("Cancelling solver worker...");
+
+    // Reject all pending messages with a specific cancellation error
+    this.pendingMessages.forEach(({ reject }) => {
+      reject(new Error("Solver cancelled by user"));
+    });
+    this.pendingMessages.clear();
+
+    // Terminate the current worker
+    this.worker.terminate();
+    this.worker = null;
+    this.isInitialized = false;
+
+    console.log("Worker terminated, reinitializing...");
+
+    // Reinitialize for future use
+    try {
+      await this.initialize();
+      console.log("Worker reinitialized successfully");
+    } catch (error) {
+      console.error("Failed to reinitialize worker after cancellation:", error);
+      // Don't throw here - cancellation succeeded even if reinitialization failed
+    }
+  }
+
+  // Convert Problem to the format expected by the Rust solver
+  private convertProblemToRustFormat(problem: Problem): any {
+    // Convert solver_params from UI format to Rust format
+    const solverSettings = { ...problem.settings };
+
+    // The UI sends solver_params as { "SimulatedAnnealing": { ... } }
+    // But Rust expects { "solver_type": "SimulatedAnnealing", ... }
+    if (
+      solverSettings.solver_params &&
+      typeof solverSettings.solver_params === "object"
+    ) {
+      const solverType = solverSettings.solver_type;
+      if (
+        solverType === "SimulatedAnnealing" &&
+        "SimulatedAnnealing" in solverSettings.solver_params
+      ) {
+        (solverSettings.solver_params as any) = {
+          solver_type: solverType,
+          ...solverSettings.solver_params.SimulatedAnnealing,
+        };
+      }
+    }
+
+    return {
+      problem: {
+        people: problem.people,
+        groups: problem.groups,
+        num_sessions: problem.num_sessions,
+      },
+      objectives: [
+        {
+          type: "maximize_unique_contacts",
+          weight: 1.0,
+        },
+      ],
+      constraints: problem.constraints,
+      solver: solverSettings,
+    };
+  }
+
+  // Convert Rust solver result to our Solution format
+  private convertRustResultToSolution(rustResult: any): Solution {
+    // Convert the schedule format to assignments
+    const assignments: any[] = [];
+
+    for (const [sessionName, groups] of Object.entries(rustResult.schedule)) {
+      const sessionId = parseInt(sessionName.replace("session_", ""));
+      for (const [groupId, people] of Object.entries(
+        groups as Record<string, string[]>
+      )) {
+        for (const personId of people) {
+          assignments.push({
+            person_id: personId,
+            group_id: groupId,
+            session_id: sessionId,
+          });
+        }
+      }
+    }
+
+    return {
+      assignments,
+      final_score: rustResult.final_score,
+      unique_contacts: rustResult.unique_contacts,
+      repetition_penalty: rustResult.repetition_penalty,
+      attribute_balance_penalty: rustResult.attribute_balance_penalty,
+      constraint_penalty: rustResult.constraint_penalty,
+      iteration_count: this.lastProgressUpdate?.iteration || 0,
+      elapsed_time_ms: (this.lastProgressUpdate?.elapsed_seconds || 0) * 1000,
+    };
+  }
+
+  isReady(): boolean {
+    return this.isInitialized;
+  }
+
+  terminate(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+      this.isInitialized = false;
+    }
+    this.pendingMessages.clear();
+  }
+}
+
+export const solverWorkerService = new SolverWorkerService();

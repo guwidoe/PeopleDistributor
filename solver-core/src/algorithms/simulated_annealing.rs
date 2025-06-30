@@ -32,15 +32,52 @@ use rand::{rng, Rng};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
-// Helper function to handle time measurement across platforms
+// WASM-specific imports
+#[cfg(target_arch = "wasm32")]
+use js_sys;
+
+// Platform-specific time handling
+#[cfg(not(target_arch = "wasm32"))]
+fn get_start_time() -> Instant {
+    Instant::now()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn get_current_time() -> Instant {
+    Instant::now()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_start_time() -> f64 {
+    // Use js_sys::Date for more reliable time measurement in WASM
+    js_sys::Date::now()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_current_time() -> f64 {
+    // Use js_sys::Date for more reliable time measurement in WASM
+    js_sys::Date::now()
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn get_elapsed_seconds(start_time: Instant) -> f64 {
     start_time.elapsed().as_secs_f64()
 }
 
 #[cfg(target_arch = "wasm32")]
-fn get_elapsed_seconds(_start_time: f64) -> f64 {
-    0.0 // Return 0 for WASM since we can't measure time reliably
+fn get_elapsed_seconds(start_time: f64) -> f64 {
+    let now = js_sys::Date::now();
+    (now - start_time) / 1000.0 // Convert milliseconds to seconds
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn get_elapsed_seconds_between(start: Instant, end: Instant) -> f64 {
+    end.duration_since(start).as_secs_f64()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_elapsed_seconds_between(start: f64, end: f64) -> f64 {
+    (end - start) / 1000.0 // Convert milliseconds to seconds
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -49,8 +86,9 @@ fn get_elapsed_seconds_since_start(start_time: Instant) -> u64 {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn get_elapsed_seconds_since_start(_start_time: f64) -> u64 {
-    0 // Return 0 for WASM since we can't measure time reliably
+fn get_elapsed_seconds_since_start(start_time: f64) -> u64 {
+    let now = js_sys::Date::now();
+    ((now - start_time) / 1000.0) as u64 // Convert milliseconds to seconds
 }
 
 /// Simulated Annealing solver for the Social Group Scheduling Problem.
@@ -404,16 +442,13 @@ impl Solver for SimulatedAnnealing {
         state: &mut State,
         progress_callback: Option<&ProgressCallback>,
     ) -> Result<SolverResult, SolverError> {
-        #[cfg(not(target_arch = "wasm32"))]
-        let start_time = Instant::now();
-        #[cfg(target_arch = "wasm32")]
-        let start_time = 0.0; // Dummy value for WASM
+        let start_time = get_start_time();
         let mut rng = rng();
-
         let mut current_state = state.clone();
         let mut best_state = state.clone();
         let mut best_cost = state.calculate_cost();
         let mut no_improvement_counter = 0;
+        let mut last_callback_time = get_start_time();
 
         if state.logging.log_initial_score_breakdown {
             println!(
@@ -427,28 +462,39 @@ impl Solver for SimulatedAnnealing {
                 * (self.final_temperature / self.initial_temperature)
                     .powf(i as f64 / self.max_iterations as f64);
 
-            // Send progress update if callback is provided
+            // Send progress update if callback is provided - every 0.1 seconds for responsiveness
             if let Some(callback) = &progress_callback {
-                let current_cost = current_state.calculate_cost();
-                let progress = ProgressUpdate {
-                    iteration: i,
-                    max_iterations: self.max_iterations,
-                    temperature,
-                    current_score: current_cost,
-                    best_score: best_cost,
-                    current_contacts: current_state.unique_contacts,
-                    best_contacts: best_state.unique_contacts,
-                    repetition_penalty: current_state.repetition_penalty,
-                    elapsed_seconds: get_elapsed_seconds(start_time),
-                    no_improvement_count: no_improvement_counter,
-                };
+                let current_time = get_current_time();
+                let elapsed_since_last_callback =
+                    get_elapsed_seconds_between(last_callback_time, current_time);
 
-                // If callback returns false, stop early
-                if !callback(&progress) {
-                    if state.logging.log_stop_condition {
-                        println!("Stopping early: progress callback requested termination.");
+                // Call on first iteration, last iteration, or after sufficient time has passed
+                // Add minimum 50ms gap to prevent excessive callbacks
+                if i == 0 || i == self.max_iterations - 1 || elapsed_since_last_callback >= 0.1 {
+                    let current_cost = current_state.calculate_cost();
+                    let progress = ProgressUpdate {
+                        iteration: i,
+                        max_iterations: self.max_iterations,
+                        temperature,
+                        current_score: current_cost,
+                        best_score: best_cost,
+                        current_contacts: current_state.unique_contacts,
+                        best_contacts: best_state.unique_contacts,
+                        repetition_penalty: current_state.repetition_penalty,
+                        elapsed_seconds: get_elapsed_seconds(start_time),
+                        no_improvement_count: no_improvement_counter,
+                    };
+
+                    // If callback returns false, stop early
+                    if !callback(&progress) {
+                        if state.logging.log_stop_condition {
+                            println!("Stopping early: progress callback requested termination.");
+                        }
+                        break;
                     }
-                    break;
+
+                    // Only update callback time if we actually called the callback
+                    last_callback_time = current_time;
                 }
             }
 
@@ -555,17 +601,18 @@ impl Solver for SimulatedAnnealing {
             }
 
             // --- Logging ---
-            if let Some(freq @ 1..) = state.logging.log_frequency {
-                if i > 0 && i % freq == 0 {
-                    println!(
-                        "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
-                        i,
-                        temperature,
-                        current_state.unique_contacts,
-                        current_state.repetition_penalty
-                    );
-                }
-            }
+            // Commented out for performance - this was causing overhead during optimization
+            // if let Some(freq @ 1..) = state.logging.log_frequency {
+            //     if i > 0 && i % freq == 0 {
+            //         println!(
+            //             "Iter {}: Temp={:.4}, Contacts={}, Rep Penalty={}",
+            //             i,
+            //             temperature,
+            //             current_state.unique_contacts,
+            //             current_state.repetition_penalty
+            //         );
+            //     }
+            // }
 
             // --- Stop Conditions ---
             no_improvement_counter += 1;
@@ -590,7 +637,17 @@ impl Solver for SimulatedAnnealing {
             }
         }
 
-        let final_cost = best_state.calculate_cost();
+        let final_cost = best_cost; // Use tracked best cost instead of recalculating
+
+        // Debug check: ensure algorithm consistency
+        let recalculated_cost = best_state.calculate_cost();
+        if (recalculated_cost - best_cost).abs() > 0.001 {
+            eprintln!("WARNING: Algorithm inconsistency detected!");
+            eprintln!("  tracked best_cost: {}", best_cost);
+            eprintln!("  recalculated cost: {}", recalculated_cost);
+            eprintln!("  difference: {}", (recalculated_cost - best_cost).abs());
+        }
+
         let elapsed = get_elapsed_seconds(start_time);
 
         if state.logging.log_duration_and_score {

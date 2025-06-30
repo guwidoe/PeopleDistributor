@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
-import { wasmService } from './services/wasm';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { ProblemEditor } from './components/ProblemEditor';
@@ -9,32 +8,7 @@ import { ResultsView } from './components/ResultsView';
 import { NotificationContainer } from './components/NotificationContainer';
 
 function App() {
-  const { ui, addNotification } = useAppStore();
-
-  useEffect(() => {
-    // Initialize WASM service on app load
-    const initWasm = async () => {
-      try {
-        await wasmService.initialize();
-        addNotification({
-          type: 'success',
-          title: 'Ready',
-          message: 'WASM solver initialized successfully',
-          duration: 3000,
-        });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        addNotification({
-          type: 'warning',
-          title: 'WASM Module Not Available',
-          message: `${errorMessage}. You can still use the UI for development.`,
-          duration: 5000,
-        });
-      }
-    };
-
-    initWasm();
-  }, [addNotification]);
+  const { ui } = useAppStore();
 
   const renderContent = () => {
     switch (ui.activeTab) {

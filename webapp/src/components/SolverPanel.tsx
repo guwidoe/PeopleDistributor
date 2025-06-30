@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
 import type { SolverSettings } from '../types';
-import { wasmService, type ProgressUpdate } from '../services/wasm';
+import { solverWorkerService } from '../services/solverWorker';
+import type { ProgressUpdate } from '../services/wasm';
 
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification } = useAppStore();
@@ -83,6 +84,7 @@ export function SolverPanel() {
       // Progress callback to update the UI in real-time
       const progressCallback = (progress: ProgressUpdate): boolean => {
         console.log(`Progress: iteration ${progress.iteration}, score ${progress.best_score.toFixed(2)}, no_improvement ${progress.no_improvement_count}`);
+        
         setSolverState({
           currentIteration: progress.iteration,
           bestScore: progress.best_score,
@@ -99,8 +101,8 @@ export function SolverPanel() {
         return true; // Continue solving
       };
 
-      // Run the solver with progress updates
-      const solution = await wasmService.solveWithProgress(problemWithSettings, progressCallback);
+      // Run the solver with progress updates using Web Worker
+      const solution = await solverWorkerService.solveWithProgress(problemWithSettings, progressCallback);
       
       // Check if the solver was cancelled
       if (cancelledRef.current) {
@@ -118,9 +120,13 @@ export function SolverPanel() {
       
       // Update the solution and mark as complete
       setSolution(solution);
+      
+      // Update final solver state with actual final values from solution
       setSolverState({ 
         isRunning: false, 
         isComplete: true,
+        currentIteration: solution.iteration_count,
+        elapsedTime: solution.elapsed_time_ms,
         bestScore: solution.final_score,
       });
 
@@ -131,24 +137,45 @@ export function SolverPanel() {
       });
 
     } catch (error) {
-      setSolverState({ isRunning: false, error: error instanceof Error ? error.message : 'Unknown error' });
-      addNotification({
-        type: 'error',
-        title: 'Solver Error',
-        message: error instanceof Error ? error.message : 'Failed to start solver',
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if this is a cancellation error
+      if (errorMessage.includes('cancelled')) {
+        setSolverState({ isRunning: false, isComplete: false });
+        addNotification({
+          type: 'warning',
+          title: 'Solver Cancelled',
+          message: 'Optimization was cancelled by user',
+        });
+      } else {
+        setSolverState({ isRunning: false, error: errorMessage });
+        addNotification({
+          type: 'error',
+          title: 'Solver Error',
+          message: errorMessage,
+        });
+      }
     }
   };
 
-  const handleStopSolver = () => {
+  const handleStopSolver = async () => {
     // Set the cancellation flag to stop the solver
     cancelledRef.current = true;
     stopSolver();
+    
     addNotification({
-      type: 'warning',
+      type: 'info',
       title: 'Cancelling',
       message: 'Stopping solver...',
     });
+    
+    try {
+      await solverWorkerService.cancel();
+      // Success notification will be handled by the main solve error handler
+    } catch (error) {
+      console.error('Cancellation error:', error);
+      // Don't show error notification - cancellation usually succeeds even if there are errors
+    }
   };
 
   const handleResetSolver = () => {
@@ -164,17 +191,24 @@ export function SolverPanel() {
 
   const getProgressPercentage = () => {
     if (!solverSettings.stop_conditions.max_iterations) return 0;
-    return Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
+    const percentage = Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
+    console.log(`Iteration progress: ${solverState.currentIteration}/${solverSettings.stop_conditions.max_iterations} = ${percentage}%`);
+    return percentage;
   };
 
   const getTimeProgressPercentage = () => {
     if (!solverSettings.stop_conditions.time_limit_seconds) return 0;
-    return Math.min((solverState.elapsedTime / 1000 / solverSettings.stop_conditions.time_limit_seconds) * 100, 100);
+    const timeLimit = solverSettings.stop_conditions.time_limit_seconds;
+    const percentage = Math.min((solverState.elapsedTime / 1000 / timeLimit) * 100, 100);
+    console.log(`Time progress: ${(solverState.elapsedTime / 1000).toFixed(1)}s/${timeLimit}s = ${percentage}%`);
+    return percentage;
   };
 
   const getNoImprovementProgressPercentage = () => {
     if (!solverSettings.stop_conditions.no_improvement_iterations) return 0;
-    return Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
+    const percentage = Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
+    console.log(`No improvement progress: ${solverState.noImprovementCount}/${solverSettings.stop_conditions.no_improvement_iterations} = ${percentage}%`);
+    return percentage;
   };
 
   return (
@@ -325,8 +359,13 @@ export function SolverPanel() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-primary-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${getProgressPercentage()}%` }}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${getProgressPercentage()}%`,
+                  backgroundColor: '#2563eb' // Blue color for iteration progress
+                }}
+                data-percentage={getProgressPercentage()}
+                data-debug="iteration-progress"
               ></div>
             </div>
           </div>
@@ -338,8 +377,13 @@ export function SolverPanel() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-warning-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${getTimeProgressPercentage()}%` }}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${getTimeProgressPercentage()}%`,
+                  backgroundColor: '#d97706' // Orange color for time progress
+                }}
+                data-percentage={getTimeProgressPercentage()}
+                data-debug="time-progress"
               ></div>
             </div>
           </div>
@@ -351,8 +395,13 @@ export function SolverPanel() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-red-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${getNoImprovementProgressPercentage()}%` }}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${getNoImprovementProgressPercentage()}%`,
+                  backgroundColor: '#dc2626' // Red color for no improvement progress
+                }}
+                data-percentage={getNoImprovementProgressPercentage()}
+                data-debug="no-improvement-progress"
               ></div>
             </div>
           </div>
