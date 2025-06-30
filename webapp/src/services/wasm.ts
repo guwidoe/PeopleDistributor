@@ -180,7 +180,7 @@ class WasmService {
         stop_conditions: {
           max_iterations: 10000,
           time_limit_seconds: 30,
-          no_improvement_iterations: 1000,
+          no_improvement_iterations: 5000,
         },
         solver_params: {
           SimulatedAnnealing: {
@@ -212,7 +212,7 @@ class WasmService {
         stop_conditions: {
           max_iterations: 10000,
           time_limit_seconds: 30,
-          no_improvement_iterations: 1000,
+          no_improvement_iterations: 5000,
         },
         solver_params: {
           SimulatedAnnealing: {

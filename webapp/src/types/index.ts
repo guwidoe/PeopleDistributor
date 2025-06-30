@@ -115,6 +115,7 @@ export interface SolverState {
   currentIteration: number;
   bestScore: number;
   elapsedTime: number;
+  noImprovementCount: number;
   error?: string;
 }
 

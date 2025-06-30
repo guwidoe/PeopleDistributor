@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
 import type { SolverSettings } from '../types';
@@ -7,12 +7,13 @@ import { wasmService, type ProgressUpdate } from '../services/wasm';
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
+  const cancelledRef = useRef(false);
   const [solverSettings, setSolverSettings] = useState<SolverSettings>({
     solver_type: "SimulatedAnnealing",
     stop_conditions: {
       max_iterations: 10000,
       time_limit_seconds: 30,
-      no_improvement_iterations: 1000,
+      no_improvement_iterations: 5000,
     },
     solver_params: {
       SimulatedAnnealing: {
@@ -63,6 +64,9 @@ export function SolverPanel() {
     }
 
     try {
+      // Reset cancellation flag
+      cancelledRef.current = false;
+      
       startSolver();
       addNotification({
         type: 'info',
@@ -78,18 +82,39 @@ export function SolverPanel() {
 
       // Progress callback to update the UI in real-time
       const progressCallback = (progress: ProgressUpdate): boolean => {
+        console.log(`Progress: iteration ${progress.iteration}, score ${progress.best_score.toFixed(2)}, no_improvement ${progress.no_improvement_count}`);
         setSolverState({
           currentIteration: progress.iteration,
           bestScore: progress.best_score,
           elapsedTime: progress.elapsed_seconds * 1000, // Convert to milliseconds
+          noImprovementCount: progress.no_improvement_count,
         });
         
-        // Continue solving unless the solver was stopped
-        return solverState.isRunning;
+        // Check if solver was cancelled
+        if (cancelledRef.current) {
+          console.log('Solver cancelled by user');
+          return false; // Stop the solver
+        }
+        
+        return true; // Continue solving
       };
 
       // Run the solver with progress updates
       const solution = await wasmService.solveWithProgress(problemWithSettings, progressCallback);
+      
+      // Check if the solver was cancelled
+      if (cancelledRef.current) {
+        setSolverState({ 
+          isRunning: false, 
+          isComplete: false,
+        });
+        addNotification({
+          type: 'warning',
+          title: 'Solver Cancelled',
+          message: 'Optimization was cancelled by user',
+        });
+        return;
+      }
       
       // Update the solution and mark as complete
       setSolution(solution);
@@ -116,15 +141,19 @@ export function SolverPanel() {
   };
 
   const handleStopSolver = () => {
+    // Set the cancellation flag to stop the solver
+    cancelledRef.current = true;
     stopSolver();
     addNotification({
       type: 'warning',
-      title: 'Stopped',
-      message: 'Solver stopped by user',
+      title: 'Cancelling',
+      message: 'Stopping solver...',
     });
   };
 
   const handleResetSolver = () => {
+    // Reset cancellation flag
+    cancelledRef.current = false;
     resetSolver();
     addNotification({
       type: 'info',
@@ -141,6 +170,11 @@ export function SolverPanel() {
   const getTimeProgressPercentage = () => {
     if (!solverSettings.stop_conditions.time_limit_seconds) return 0;
     return Math.min((solverState.elapsedTime / 1000 / solverSettings.stop_conditions.time_limit_seconds) * 100, 100);
+  };
+
+  const getNoImprovementProgressPercentage = () => {
+    if (!solverSettings.stop_conditions.no_improvement_iterations) return 0;
+    return Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
   };
 
   return (
@@ -166,7 +200,7 @@ export function SolverPanel() {
       {showSettings && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Solver Settings</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="label">Max Iterations</label>
               <input
@@ -200,6 +234,27 @@ export function SolverPanel() {
                 min="10"
                 max="300"
               />
+            </div>
+            <div>
+              <label className="label">No Improvement Limit</label>
+              <input
+                type="number"
+                className="input"
+                value={solverSettings.stop_conditions.no_improvement_iterations || 5000}
+                onChange={(e) => setSolverSettings({
+                  ...solverSettings,
+                  stop_conditions: {
+                    ...solverSettings.stop_conditions,
+                    no_improvement_iterations: parseInt(e.target.value) || 5000
+                  }
+                })}
+                min="100"
+                max="50000"
+                placeholder="Iterations without improvement before stopping"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Stop after this many iterations without improvement
+              </p>
             </div>
             <div>
               <label className="label">Initial Temperature</label>
@@ -288,6 +343,19 @@ export function SolverPanel() {
               ></div>
             </div>
           </div>
+          
+          <div>
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>No Improvement Progress</span>
+              <span>{solverState.noImprovementCount.toLocaleString()} / {(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${getNoImprovementProgressPercentage()}%` }}
+              ></div>
+            </div>
+          </div>
         </div>
 
         {/* Metrics Grid */}
@@ -332,7 +400,7 @@ export function SolverPanel() {
               className="btn-warning flex-1 flex items-center justify-center space-x-2"
             >
               <Pause className="h-4 w-4" />
-              <span>Stop Solver</span>
+              <span>Cancel Solver</span>
             </button>
           )}
           
@@ -429,6 +497,10 @@ export function SolverPanel() {
               <div className="flex justify-between">
                 <span className="text-gray-600">Time Limit:</span>
                 <span className="font-medium">{solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">No Improvement Limit:</span>
+                <span className="font-medium">{(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>

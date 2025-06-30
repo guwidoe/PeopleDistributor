@@ -65,6 +65,7 @@ const initialState: AppState = {
     currentIteration: 0,
     bestScore: 0,
     elapsedTime: 0,
+    noImprovementCount: 0,
   },
   ui: {
     activeTab: "problem",
@@ -72,7 +73,7 @@ const initialState: AppState = {
     notifications: [],
   },
   attributeDefinitions: [
-    { key: "gender", values: ["male", "female", "non-binary"] },
+    { key: "gender", values: ["male", "female"] },
     {
       key: "department",
       values: ["engineering", "marketing", "sales", "hr", "finance"],
@@ -116,6 +117,7 @@ export const useAppStore = create<AppStore>()(
             isComplete: false,
             currentIteration: 0,
             elapsedTime: 0,
+            noImprovementCount: 0,
             error: undefined,
           },
         })),
@@ -137,6 +139,7 @@ export const useAppStore = create<AppStore>()(
             currentIteration: 0,
             bestScore: 0,
             elapsedTime: 0,
+            noImprovementCount: 0,
             error: undefined,
           },
         })),

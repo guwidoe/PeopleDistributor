@@ -51,20 +51,10 @@ pub fn solve(problem_json: &str) -> Result<String, JsValue> {
     Ok(result_json)
 }
 
-/// JavaScript callback function type for progress updates
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = "progressCallback")]
-    type ProgressCallbackJs;
-
-    #[wasm_bindgen(method, js_name = "call")]
-    fn call(this: &ProgressCallbackJs, progress_json: &str) -> bool;
-}
-
 #[wasm_bindgen]
 pub fn solve_with_progress(
     problem_json: &str,
-    progress_callback: Option<ProgressCallbackJs>,
+    progress_callback: Option<js_sys::Function>,
 ) -> Result<String, JsValue> {
     init_panic_hook();
 
@@ -76,9 +66,28 @@ pub fn solve_with_progress(
         let rust_callback = Box::new(move |progress: &ProgressUpdate| -> bool {
             let progress_json = match serde_json::to_string(progress) {
                 Ok(json) => json,
-                Err(_) => return true, // Continue on serialization error
+                Err(e) => {
+                    web_sys::console::error_1(
+                        &format!("Failed to serialize progress: {}", e).into(),
+                    );
+                    return true; // Continue on serialization error
+                }
             };
-            js_callback.call(&progress_json)
+
+            // Call the JavaScript function with the JSON string
+            let this = JsValue::null();
+            let json_value = JsValue::from_str(&progress_json);
+
+            match js_callback.call1(&this, &json_value) {
+                Ok(result) => {
+                    // Convert the result to boolean, defaulting to true
+                    result.as_bool().unwrap_or(true)
+                }
+                Err(e) => {
+                    web_sys::console::error_1(&format!("Progress callback error: {:?}", e).into());
+                    true // Continue on callback error
+                }
+            }
         }) as Box<dyn Fn(&ProgressUpdate) -> bool>;
 
         // SAFETY: WASM is single-threaded, so we can safely transmute to add Send
@@ -164,7 +173,7 @@ pub fn get_default_settings() -> Result<String, JsValue> {
         stop_conditions: StopConditions {
             max_iterations: Some(10000),
             time_limit_seconds: Some(30),
-            no_improvement_iterations: Some(1000),
+            no_improvement_iterations: Some(5000),
         },
         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
             initial_temperature: 1.0,
