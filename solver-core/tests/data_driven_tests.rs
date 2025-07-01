@@ -172,67 +172,93 @@ fn run_test_case(test_case: &TestCase, path: &Path) {
 }
 
 fn assert_cliques_respected(input: &ApiInput, result: &SolverResult) {
-    let cliques: Vec<_> = input
-        .constraints
-        .iter()
-        .filter_map(|c| match c {
-            solver_core::models::Constraint::MustStayTogether { people, .. } => Some(people),
-            _ => None,
-        })
-        .collect();
+    for constraint in &input.constraints {
+        if let solver_core::models::Constraint::MustStayTogether {
+            people, sessions, ..
+        } = constraint
+        {
+            // Determine which sessions this constraint applies to
+            let applicable_sessions: Vec<u32> = match sessions {
+                Some(session_list) => session_list.clone(),
+                None => (0..input.problem.num_sessions).collect(), // Apply to all sessions if not specified
+            };
 
-    for clique in cliques {
-        for (_session_id, groups) in &result.schedule {
-            let mut clique_group_id = None;
-            for (group_id, members) in groups {
-                if members.contains(&clique[0]) {
-                    clique_group_id = Some(group_id);
-                    break;
+            // Check each applicable session
+            for session in applicable_sessions {
+                let session_key = format!("session_{}", session);
+                let session_schedule = result.schedule.get(&session_key).unwrap_or_else(|| {
+                    panic!(
+                        "Session {} not found in schedule for clique check",
+                        session_key
+                    )
+                });
+
+                // Find which group the first person is in
+                let mut clique_group_id = None;
+                for (group_id, members) in session_schedule {
+                    if members.contains(&people[0]) {
+                        clique_group_id = Some(group_id);
+                        break;
+                    }
                 }
-            }
-            assert!(
-                clique_group_id.is_some(),
-                "Clique {:?} was not found in any group",
-                clique
-            );
-            let group_members = groups.get(clique_group_id.unwrap()).unwrap();
-            for person in clique {
+
                 assert!(
-                    group_members.contains(person),
-                    "Clique member {} was not in the correct group for clique {:?}",
-                    person,
-                    clique
+                    clique_group_id.is_some(),
+                    "Clique member {} not found in any group for session {}",
+                    people[0],
+                    session
                 );
+
+                let group_members = session_schedule.get(clique_group_id.unwrap()).unwrap();
+
+                // Verify all clique members are in the same group for this session
+                for person in people {
+                    assert!(
+                        group_members.contains(person),
+                        "Clique constraint violated: {} should be with {:?} in session {} but is not",
+                        person, people, session
+                    );
+                }
             }
         }
     }
 }
 
 fn assert_forbidden_pairs_respected(input: &ApiInput, result: &SolverResult) {
-    let forbidden_groups: Vec<_> = input
-        .constraints
-        .iter()
-        .filter_map(|c| match c {
-            solver_core::models::Constraint::CannotBeTogether { people, .. } => Some(people),
-            _ => None,
-        })
-        .collect();
+    for constraint in &input.constraints {
+        if let solver_core::models::Constraint::CannotBeTogether {
+            people, sessions, ..
+        } = constraint
+        {
+            // Determine which sessions this constraint applies to
+            let applicable_sessions: Vec<u32> = match sessions {
+                Some(session_list) => session_list.clone(),
+                None => (0..input.problem.num_sessions).collect(), // Apply to all sessions if not specified
+            };
 
-    for group in forbidden_groups {
-        for (_session_id, groups) in &result.schedule {
-            for (_group_id, members) in groups {
-                let mut present_members = 0;
-                for person in group {
-                    if members.contains(person) {
-                        present_members += 1;
+            // Check each applicable session
+            for session in applicable_sessions {
+                let session_key = format!("session_{}", session);
+                let session_schedule = result.schedule.get(&session_key).unwrap_or_else(|| {
+                    panic!(
+                        "Session {} not found in schedule for forbidden pair check",
+                        session_key
+                    )
+                });
+
+                for (_group_id, members) in session_schedule {
+                    let mut present_members = 0;
+                    for person in people {
+                        if members.contains(person) {
+                            present_members += 1;
+                        }
                     }
+                    assert!(
+                        present_members <= 1,
+                        "Forbidden constraint violated: {:?} found together in session {} group: {:?}",
+                        people, session, members
+                    );
                 }
-                assert!(
-                    present_members <= 1,
-                    "Forbidden pair/group {:?} found in the same group: {:?}",
-                    group,
-                    members
-                );
             }
         }
     }

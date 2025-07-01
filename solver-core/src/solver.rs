@@ -3490,33 +3490,6 @@ mod tests {
         assert!(solution.schedule.len() > 0);
         assert!(solution.unique_contacts > 0);
     }
-
-    #[test]
-    fn test_attribute_balance_bug_with_json() {
-        use crate::run_solver;
-
-        println!("=== Testing Attribute Balance Bug with JSON Test Case ===");
-
-        // Load the debug test case
-        let test_case_path = "tests/test_cases/debug_attribute_balance_bug.json";
-        let test_case_content =
-            std::fs::read_to_string(test_case_path).expect("Failed to read debug test case");
-
-        let input: ApiInput =
-            serde_json::from_str(&test_case_content).expect("Failed to parse debug test case");
-
-        let result = run_solver(&input);
-
-        match result {
-            Ok(solver_result) => {
-                println!("Solver completed successfully");
-                println!("Final result score: {}", solver_result.final_score);
-            }
-            Err(e) => {
-                println!("Solver failed: {:?}", e);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
