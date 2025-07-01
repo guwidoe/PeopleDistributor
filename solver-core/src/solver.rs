@@ -1360,8 +1360,18 @@ impl State {
             let count = self.contact_matrix[p1_idx][member];
             if count > 0 {
                 // Repetition penalty change: (new_penalty - old_penalty)
-                delta_cost += self.w_repetition
-                    * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                let old_penalty = if count > 1 {
+                    (count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                let new_count = count - 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
                 if count == 1 {
                     // Unique contacts: losing one, so cost increases
                     delta_cost += self.w_contacts;
@@ -1379,8 +1389,18 @@ impl State {
 
             let count = self.contact_matrix[p1_idx][member];
             // Repetition penalty change: (new_penalty - old_penalty)
-            delta_cost +=
-                self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
+            let old_penalty = if count > 1 {
+                (count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            let new_count = count + 1;
+            let new_penalty = if new_count > 1 {
+                (new_count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
             if count == 0 {
                 // Unique contacts: gaining one, so cost decreases
                 delta_cost -= self.w_contacts;
@@ -1399,8 +1419,18 @@ impl State {
 
             let count = self.contact_matrix[p2_idx][member];
             if count > 0 {
-                delta_cost += self.w_repetition
-                    * ((count as i32 - 2).pow(2) - (count as i32 - 1).pow(2)) as f64;
+                let old_penalty = if count > 1 {
+                    (count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                let new_count = count - 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
                 if count == 1 {
                     delta_cost += self.w_contacts;
                 }
@@ -1416,8 +1446,18 @@ impl State {
             }
 
             let count = self.contact_matrix[p2_idx][member];
-            delta_cost +=
-                self.w_repetition * ((count as i32).pow(2) - (count as i32 - 1).pow(2)) as f64;
+            let old_penalty = if count > 1 {
+                (count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            let new_count = count + 1;
+            let new_penalty = if new_count > 1 {
+                (new_count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
             if count == 0 {
                 delta_cost -= self.w_contacts;
             }
@@ -1708,7 +1748,12 @@ impl State {
                 } else {
                     0
                 };
-                let new_penalty = (old_count as i32).pow(2);
+                let new_count = old_count + 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
                 self.repetition_penalty += new_penalty - old_penalty;
             }
         }
@@ -1758,7 +1803,12 @@ impl State {
                 } else {
                     0
                 };
-                let new_penalty = (old_count as i32).pow(2);
+                let new_count = old_count + 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
                 self.repetition_penalty += new_penalty - old_penalty;
             }
         }
@@ -1768,6 +1818,34 @@ impl State {
         self.schedule[day][g2_idx][g2_vec_idx] = p1_idx;
         self.locations[day][p1_idx] = (g2_idx, g2_vec_idx);
         self.locations[day][p2_idx] = (g1_idx, g1_vec_idx);
+
+        // === UPDATE ATTRIBUTE BALANCE PENALTY ===
+        for ac in &self.attribute_balance_constraints {
+            let old_penalty_g1 = self.calculate_group_attribute_penalty_for_members(g1_members, ac);
+            let old_penalty_g2 = self.calculate_group_attribute_penalty_for_members(g2_members, ac);
+
+            let mut next_g1_members: Vec<usize> = g1_members
+                .iter()
+                .filter(|&&p| p != p1_idx)
+                .cloned()
+                .collect();
+            next_g1_members.push(p2_idx);
+            let mut next_g2_members: Vec<usize> = g2_members
+                .iter()
+                .filter(|&&p| p != p2_idx)
+                .cloned()
+                .collect();
+            next_g2_members.push(p1_idx);
+
+            let new_penalty_g1 =
+                self.calculate_group_attribute_penalty_for_members(&next_g1_members, ac);
+            let new_penalty_g2 =
+                self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
+
+            let delta_penalty =
+                (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+            self.attribute_balance_penalty += delta_penalty * ac.penalty_weight;
+        }
 
         // === UPDATE CONSTRAINT PENALTIES (THIS WAS MISSING!) ===
 

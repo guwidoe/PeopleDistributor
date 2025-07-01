@@ -562,8 +562,11 @@ impl Solver for SimulatedAnnealing {
                                 &target_people,
                             );
 
-                            if next_cost < best_cost {
-                                best_cost = next_cost;
+                            // Since apply_clique_swap does a full recalculation, we need to get the actual cost
+                            let actual_current_cost = current_state.calculate_cost();
+
+                            if actual_current_cost < best_cost {
+                                best_cost = actual_current_cost;
                                 best_state = current_state.clone();
                                 no_improvement_counter = 0;
                                 improvement_found = true;
