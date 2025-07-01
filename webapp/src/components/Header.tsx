@@ -1,29 +1,47 @@
-import { Users, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, FolderOpen, Bug } from 'lucide-react';
 import { HeaderThemeToggle } from './ThemeToggle';
+import { useAppStore } from '../store';
 
 export function Header() {
+  const { currentProblemId, savedProblems, setShowProblemManager } = useAppStore();
+  const currentProblemName = currentProblemId ? savedProblems[currentProblemId]?.name : null;
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <Link to="/landingpage" className="flex items-center space-x-3 group">
             <div className="flex items-center space-x-2">
-              <Users className="h-8 w-8 text-primary-600" />
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                PeopleDistributor
+              <Users className="h-8 w-8 transition-colors" style={{ color: 'var(--color-accent)' }} />
+              <h1 className="text-2xl font-bold transition-colors" style={{ color: 'var(--text-primary)' }}>
+                Group Mixer
               </h1>
             </div>
-            <div className="hidden md:flex items-center space-x-2 text-sm" style={{ color: 'var(--text-tertiary)' }}>
-              <Zap className="h-4 w-4" />
-              <span style={{ color: 'var(--text-tertiary)' }}>Powered by Rust + WASM</span>
-            </div>
-          </div>
+          </Link>
           
-          <div className="flex items-center space-x-4">
-            <div className="hidden sm:flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <div className="w-2 h-2 bg-success-500 rounded-full"></div>
-              <span>Ready</span>
-            </div>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            {currentProblemName && (
+              <div className="hidden sm:flex items-center space-x-2 text-sm p-2 rounded-md" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                <FolderOpen className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+                <span className="hidden md:inline">
+                  Current: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{currentProblemName}</span>
+                </span>
+                <button
+                  onClick={() => setShowProblemManager(true)}
+                  className="ml-1 text-sm font-medium transition-colors hover:opacity-80"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  (Manage)
+                </button>
+              </div>
+            )}
+            
+            <a href="https://github.com/guwidoe/PeopleDistributor/issues" target="_blank" rel="noopener noreferrer" title="Report an issue or suggest a feature" className="flex items-center space-x-2 text-sm transition-colors p-2 rounded-md hover:bg-opacity-50" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}>
+              <Bug className="h-4 w-4" />
+              <span className="hidden lg:inline">Report Issue</span>
+            </a>
+            
             <HeaderThemeToggle />
           </div>
         </div>

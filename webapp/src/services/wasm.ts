@@ -36,18 +36,16 @@ class WasmService {
     this.loading = true;
 
     try {
-      // Load the WASM module from the src/wasm directory
-      const wasmModule = await import("../wasm/solver_wasm.js").catch(
-        (error) => {
-          console.warn(
-            "WASM module not found - this is expected during development:",
-            error.message
-          );
-          throw new Error(
-            "WASM module not available - please build it first with 'npm run build-wasm'"
-          );
-        }
-      );
+      // Load the WASM module from the public/pkg directory
+      const wasmModule = await import("/pkg/solver_wasm.js").catch((error) => {
+        console.warn(
+          "WASM module not found. This might be a build issue:",
+          error.message
+        );
+        throw new Error(
+          "WASM module not available. Please check the build configuration."
+        );
+      });
 
       // Initialize the WASM module
       await wasmModule.default();
@@ -70,7 +68,7 @@ class WasmService {
 
     if (!this.module) {
       throw new Error(
-        "WASM module not available - please build it first with 'npm run build-wasm'"
+        "WASM module not available. Please check the build configuration."
       );
     }
 
@@ -152,7 +150,7 @@ class WasmService {
       return {
         valid: false,
         errors: [
-          "WASM module not available - please build it first with 'npm run build-wasm'",
+          "WASM module not available. Please check the build configuration.",
         ],
       };
     }

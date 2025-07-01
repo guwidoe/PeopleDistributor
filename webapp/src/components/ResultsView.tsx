@@ -305,8 +305,8 @@ Groups: ${problem?.groups.length || 0}`;
                 className="px-3 py-1 rounded text-sm transition-colors"
                 style={{
                   backgroundColor: viewMode === 'grid' ? 'var(--bg-tertiary)' : 'transparent',
-                  color: viewMode === 'grid' ? 'var(--color-primary-700)' : 'var(--text-secondary)',
-                  border: viewMode === 'grid' ? '1px solid var(--color-primary-200)' : '1px solid transparent'
+                  color: viewMode === 'grid' ? 'var(--color-accent)' : 'var(--text-secondary)',
+                  border: viewMode === 'grid' ? '1px solid var(--color-accent)' : '1px solid transparent'
                 }}
                 onMouseEnter={(e) => {
                   if (viewMode !== 'grid') {
@@ -327,8 +327,8 @@ Groups: ${problem?.groups.length || 0}`;
                 className="px-3 py-1 rounded text-sm transition-colors"
                 style={{
                   backgroundColor: viewMode === 'list' ? 'var(--bg-tertiary)' : 'transparent',
-                  color: viewMode === 'list' ? 'var(--color-primary-700)' : 'var(--text-secondary)',
-                  border: viewMode === 'list' ? '1px solid var(--color-primary-200)' : '1px solid transparent'
+                  color: viewMode === 'list' ? 'var(--color-accent)' : 'var(--text-secondary)',
+                  border: viewMode === 'list' ? '1px solid var(--color-accent)' : '1px solid transparent'
                 }}
                 onMouseEnter={(e) => {
                   if (viewMode !== 'list') {

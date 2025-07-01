@@ -1,64 +1,29 @@
-import { useEffect } from 'react';
-import { useAppStore } from './store';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './components/LandingPage';
+import MainApp from './MainApp';
 import { useThemeStore } from './store/theme';
-import { Header } from './components/Header';
-import { Navigation } from './components/Navigation';
 import { ProblemEditor } from './components/ProblemEditor';
 import { SolverPanel } from './components/SolverPanel';
 import { ResultsView } from './components/ResultsView';
 import { ResultsHistory } from './components/ResultsHistory';
-import { ProblemManager } from './components/ProblemManager';
-import { NotificationContainer } from './components/NotificationContainer';
 
 function App() {
-  const { ui, initializeApp, setShowProblemManager } = useAppStore();
-
-  // Initialize app on start
-  useEffect(() => {
-    initializeApp();
-  }, [initializeApp]);
-
-  const renderContent = () => {
-    switch (ui.activeTab) {
-      case 'problem':
-        return <ProblemEditor />;
-      case 'solver':
-        return <SolverPanel />;
-      case 'results':
-        return <ResultsView />;
-      case 'manage':
-        return <ResultsHistory />;
-      default:
-        return <ProblemEditor />;
-    }
-  };
+  const { theme } = useThemeStore();
 
   return (
-    <div className="min-h-screen transition-colors" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-      {/* Header */}
-      <Header />
-      
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        {/* Navigation */}
-        <div className="mb-6">
-          <Navigation />
-      </div>
-
-        {/* Content Area */}
-        <div className="animate-fade-in">
-          {renderContent()}
-          </div>
-      </main>
-
-      {/* Notifications */}
-      <NotificationContainer />
-
-      {/* Problem Manager Modal */}
-      <ProblemManager 
-        isOpen={ui.showProblemManager} 
-        onClose={() => setShowProblemManager(false)} 
-      />
+    <div className={theme}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/landingpage" />} />
+        <Route path="/landingpage" element={<LandingPage />} />
+        <Route path="/app" element={<MainApp />}>
+          <Route index element={<Navigate to="problem/people" replace />} />
+          <Route path="problem" element={<Navigate to="/app/problem/people" replace />} />
+          <Route path="problem/:section" element={<ProblemEditor />} />
+          <Route path="solver" element={<SolverPanel />} />
+          <Route path="results" element={<ResultsView />} />
+          <Route path="history" element={<ResultsHistory />} />
+        </Route>
+      </Routes>
     </div>
   );
 }

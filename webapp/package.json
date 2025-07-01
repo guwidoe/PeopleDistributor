@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run build-wasm && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "build-wasm": "cd ../solver-wasm && wasm-pack build --target no-modules && cp pkg/solver_wasm.js pkg/solver_wasm_bg.wasm ../webapp/public/"
+    "build-wasm": "wasm-pack build ../solver-wasm --target no-modules --out-dir ./public/pkg"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",
@@ -16,6 +16,7 @@
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.3",
     "zustand": "^5.0.6"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "tailwindcss": "^4.1.11",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.34.1",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "wasm-pack": "^0.13.0"
   }
 }

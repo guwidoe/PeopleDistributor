@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Tag, Clock } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Tag, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
@@ -42,7 +43,17 @@ export function ProblemEditor() {
     updateCurrentProblem
   } = useAppStore();
   
-  const [activeSection, setActiveSection] = useState<'people' | 'groups' | 'sessions' | 'attributes' | 'constraints'>('people');
+  const { section } = useParams<{ section: string }>();
+  const activeSection = section || 'people';
+
+  const [showAttributesSection, setShowAttributesSection] = useState(false);
+
+  // Auto-expand attributes section when there are no attributes defined
+  useEffect(() => {
+    if (attributeDefinitions.length === 0 && activeSection === 'people') {
+      setShowAttributesSection(true);
+    }
+  }, [attributeDefinitions.length, activeSection]);
   
   // Form states
   const [showPersonForm, setShowPersonForm] = useState(false);
@@ -1319,29 +1330,16 @@ export function ProblemEditor() {
             { id: 'people', label: 'People', icon: Users, count: problem?.people.length },
             { id: 'groups', label: 'Groups', icon: Hash, count: problem?.groups.length },
             { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions },
-            { id: 'attributes', label: 'Attributes', icon: Tag, count: attributeDefinitions.length },
             { id: 'constraints', label: 'Constraints', icon: Settings, count: problem?.constraints.length },
           ].map(({ id, label, icon: Icon, count }) => (
-              <button
+              <NavLink
               key={id}
-              onClick={() => setActiveSection(id as any)}
+              to={`/app/problem/${id}`}
               className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors"
-              style={{
-                borderBottomColor: activeSection === id ? 'var(--color-accent)' : 'transparent',
-                color: activeSection === id ? 'var(--color-accent)' : 'var(--text-secondary)'
-              }}
-              onMouseEnter={(e) => {
-                if (activeSection !== id) {
-                  e.currentTarget.style.color = 'var(--text-primary)';
-                  e.currentTarget.style.borderBottomColor = 'var(--border-secondary)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeSection !== id) {
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                  e.currentTarget.style.borderBottomColor = 'transparent';
-                }
-              }}
+              style={({ isActive }) => ({
+                borderBottomColor: isActive ? 'var(--color-accent)' : 'transparent',
+                color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)'
+              })}
             >
               <Icon className="w-4 h-4" />
               {label}
@@ -1350,7 +1348,7 @@ export function ProblemEditor() {
                   {count}
                 </span>
               )}
-              </button>
+            </NavLink>
           ))}
         </nav>
       </div>
@@ -1358,6 +1356,93 @@ export function ProblemEditor() {
       {/* Content */}
         {activeSection === 'people' && (
           <div className="space-y-4">
+            {/* Collapsible Attributes Section */}
+            <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+              <button
+                onClick={() => setShowAttributesSection(!showAttributesSection)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-opacity-50 transition-colors"
+                style={{ backgroundColor: showAttributesSection ? 'var(--bg-tertiary)' : 'transparent' }}
+              >
+                <div className="flex items-center gap-3">
+                  {showAttributesSection ? (
+                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                  )}
+                  <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                  <h3 className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+                    Attribute Definitions ({attributeDefinitions.length})
+                  </h3>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAttributeForm(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-md font-medium text-white text-sm transition-colors"
+                  style={{ backgroundColor: 'var(--color-accent)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Attribute
+                </button>
+              </button>
+
+              {showAttributesSection && (
+                <div className="p-4 space-y-3">
+                  <div className="rounded-md p-3 border text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                      Attributes are key-value pairs that describe people (e.g., gender, department, seniority).
+                      Define them here before adding people to use them in constraints like attribute balance.
+                    </p>
+                  </div>
+
+                  {attributeDefinitions.length ? (
+                    <div className="space-y-2">
+                      {attributeDefinitions.map(def => (
+                        <div key={def.key} className="rounded-lg border p-3 transition-colors" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="font-medium capitalize text-sm" style={{ color: 'var(--text-primary)' }}>{def.key}</h4>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {def.values.map(value => (
+                                  <span key={value} style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs font-medium">
+                                    {value}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleEditAttribute(def)}
+                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => removeAttributeDefinition(def.key)}
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6" style={{ color: 'var(--text-secondary)' }}>
+                      <Tag className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-tertiary)' }} />
+                      <p className="text-sm">No attributes defined yet</p>
+                      <p className="text-xs">Click "Add Attribute" to get started</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* People Section */}
             <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">People ({problem?.people.length || 0})</h3>
             <button
@@ -1380,7 +1465,12 @@ export function ProblemEditor() {
             <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
               <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
               <p>No people added yet</p>
-              <p className="text-sm">Add people to get started with your optimization problem</p>
+              <p className="text-sm">
+                {attributeDefinitions.length === 0 
+                  ? "Consider defining attributes first, then add people to get started"
+                  : "Add people to get started with your optimization problem"
+                }
+              </p>
             </div>
           )}
         </div>
@@ -1432,7 +1522,7 @@ export function ProblemEditor() {
                   max="10"
                   value={sessionsCount}
                   onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
-                  className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input w-32"
                 />
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.
@@ -1453,72 +1543,7 @@ export function ProblemEditor() {
         </div>
       )}
 
-      {activeSection === 'attributes' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium">Attribute Definitions ({attributeDefinitions.length})</h3>
-            <button
-              onClick={() => setShowAttributeForm(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              <Plus className="w-4 h-4" />
-              Add Attribute
-            </button>
-            </div>
 
-          <div className="rounded-md p-4 mb-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-            <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>About Attributes</h4>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Attributes are key-value pairs that describe people (e.g., gender, department, seniority).
-              They can be used in constraints like attribute balance or grouping preferences.
-            </p>
-          </div>
-
-          {attributeDefinitions.length ? (
-            <div className="space-y-3">
-              {attributeDefinitions.map(def => (
-                <div key={def.key} className="rounded-lg border p-4 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>{def.key}</h4>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {def.values.map(value => (
-                          <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {value}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditAttribute(def)}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => removeAttributeDefinition(def.key)}
-                        className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
-              <Tag className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
-              <p>No attributes defined yet</p>
-              <p className="text-sm">Add attribute definitions to categorize people</p>
-            </div>
-          )}
-          </div>
-        )}
 
         {activeSection === 'constraints' && (
           <div className="space-y-4">
