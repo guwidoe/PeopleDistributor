@@ -1513,6 +1513,18 @@ impl State {
 
         // Hard Constraint Delta - Forbidden Pairs
         for (pair_idx, &(p1, p2)) in self.forbidden_pairs.iter().enumerate() {
+            // Check if this forbidden pair applies to this session
+            if let Some(ref sessions) = self.forbidden_pair_sessions[pair_idx] {
+                if !sessions.contains(&day) {
+                    continue; // Skip this constraint for this session
+                }
+            }
+
+            // Check if both people are participating in this session
+            if !self.person_participation[p1][day] || !self.person_participation[p2][day] {
+                continue; // Skip if either person is not participating
+            }
+
             let p1_is_swapped = p1_idx == p1 || p2_idx == p1;
             let p2_is_swapped = p1_idx == p2 || p2_idx == p2;
 

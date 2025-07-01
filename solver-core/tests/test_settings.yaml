@@ -20,7 +20,8 @@
 # --- Example for Filtering ---
 # To run only specific tests, change the mode and add patterns like this:
 #
+# mode: "all"
+# filter_patterns: []
 mode: "all"
 filter_patterns: []
-# mode: "filter"
-# filter_patterns: ["UI"]
+# filter_patterns: ["Late Arrivals & Early Departures Test"]
