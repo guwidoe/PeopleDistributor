@@ -13,6 +13,11 @@
     --color-primary-700: #1d4ed8;
     --color-primary-800: #1e40af;
     --color-primary-900: #1e3a8a;
+    
+    /* Accent color for light mode */
+    --color-accent: #2563eb;
+    --badge-best-bg: #dcfce7;
+    --badge-best-text: #166534;
 
     /* Success colors */
     --color-success-50: #f0fdf4;
@@ -61,6 +66,8 @@
   --border-secondary: #d1d5db;
   --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --color-accent: #2563eb; /* Default blue for light mode */
+  --badge-best-bg: #e0f2fe; /* Light blue for best badge in light mode */
   }
 
   /* Dark theme variables */
@@ -75,6 +82,11 @@
     --border-secondary: #2d2d30;
     --shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 16px 32px -8px rgba(0, 0, 0, 0.4), 0 8px 16px -4px rgba(0, 0, 0, 0.3);
+    
+    /* Accent color for dark mode - lighter and more vibrant */
+    --color-accent: #60a5fa;
+    --badge-best-bg: #064e3b;
+    --badge-best-text: #6ee7b7;
   }
 
   .dark .label {
@@ -125,6 +137,21 @@
   .btn-secondary:hover {
     background-color: var(--bg-tertiary);
   }
+
+  /* Secondary and tertiary text improvements */
+  .text-secondary, .dark .text-secondary {
+    color: var(--text-secondary);
+  }
+  .text-tertiary, .dark .text-tertiary {
+    color: var(--text-tertiary);
+  }
+
+  /* Badge backgrounds */
+  .badge-best {
+    background-color: var(--badge-best-bg);
+    color: var(--badge-best-text);
+    border: 1px solid var(--badge-best-text);
+  }
 }
 
 @layer components {
@@ -150,15 +177,25 @@
   }
   
   .btn-secondary {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
     cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
   }
   
   .btn-secondary:focus {
     outline: none;
-    box-shadow: 0 0 0 2px var(--color-primary-500), 0 0 0 4px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
   
   .btn-success {
@@ -257,8 +294,8 @@
   
   .input:focus {
     outline: none;
-    border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 2px var(--color-primary-500), 0 0 0 4px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
   
   .label {
@@ -278,8 +315,8 @@
   
   .textarea:focus {
     outline: none;
-    border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 2px var(--color-primary-500), 0 0 0 4px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
   
   .select {
@@ -291,8 +328,8 @@
   
   .select:focus {
     outline: none;
-    border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 2px var(--color-primary-500), 0 0 0 4px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 0 0 4px rgba(59, 130, 246, 0.1);
   }
 
   /* Modal backdrop with blur effect */
@@ -309,6 +346,53 @@
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-primary);
     background-color: var(--bg-primary);
+  }
+
+  /* Number input styling for better visibility in dark mode */
+  input[type="number"] {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+  }
+  
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    opacity: 1;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 2px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    color: var(--text-primary);
+    filter: none;
+  }
+  
+  input[type="number"]::-webkit-inner-spin-button:hover,
+  input[type="number"]::-webkit-outer-spin-button:hover {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+  }
+  
+  .dark input[type="number"]::-webkit-inner-spin-button,
+  .dark input[type="number"]::-webkit-outer-spin-button {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
+  }
+  .dark input[type="number"]::-webkit-inner-spin-button:hover,
+  .dark input[type="number"]::-webkit-outer-spin-button:hover {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+  }
+  input[type="number"]::-ms-input-placeholder,
+  input[type="number"]::placeholder {
+    color: var(--text-tertiary);
+    opacity: 1;
+  }
+  input[type="number"] {
+    color-scheme: dark;
   }
 
   /* Dark mode utility classes */

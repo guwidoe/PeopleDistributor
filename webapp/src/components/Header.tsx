@@ -15,7 +15,7 @@ export function Header() {
             </div>
             <div className="hidden md:flex items-center space-x-2 text-sm" style={{ color: 'var(--text-tertiary)' }}>
               <Zap className="h-4 w-4" />
-              <span>Powered by Rust + WASM</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>Powered by Rust + WASM</span>
             </div>
           </div>
           

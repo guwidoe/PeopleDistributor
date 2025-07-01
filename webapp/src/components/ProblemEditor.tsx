@@ -613,11 +613,11 @@ export function ProblemEditor() {
 
     return (
               <div key={person.id} className="rounded-lg border p-4 hover:shadow-md transition-all" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
               <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{displayName}</h4>
             <div className="space-y-1">
-              <p className="text-sm text-blue-600 flex items-center gap-1">
+              <p className="text-sm flex items-center gap-1" style={{ color: 'var(--color-accent)' }}>
                 <Clock className="w-3 h-3" />
                 {sessionText}
               </p>
@@ -625,7 +625,7 @@ export function ProblemEditor() {
                 if (key === 'name') return null;
                 return (
                   <div key={key} className="flex items-center gap-1 text-xs">
-                    <Tag className="w-3 h-3 text-gray-400" />
+                    <Tag className="w-3 h-3" style={{ color: 'var(--text-tertiary)' }} />
                     <span style={{ color: 'var(--text-secondary)' }}>{key}:</span>
                     <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{value}</span>
                   </div>
@@ -636,13 +636,19 @@ export function ProblemEditor() {
           <div className="flex gap-1">
             <button
               onClick={() => handleEditPerson(person)}
-              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+              className="p-1 transition-colors"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-accent)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
             >
               <Edit className="w-4 h-4" />
             </button>
             <button
               onClick={() => handleDeletePerson(person.id)}
-              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              className="p-1 transition-colors"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -655,23 +661,27 @@ export function ProblemEditor() {
   const renderGroupCard = (group: Group) => {
     return (
               <div key={group.id} className="rounded-lg border p-4 hover:shadow-md transition-all" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
               <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{group.id}</h4>
-            <p className="text-sm text-gray-600">
-              Capacity: {group.size} people per session
-            </p>
+            <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Capacity: {group.size} people per session</p>
           </div>
           <div className="flex gap-1">
             <button
               onClick={() => handleEditGroup(group)}
-              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+              className="p-1 transition-colors"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-accent)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
             >
               <Edit className="w-4 h-4" />
             </button>
             <button
               onClick={() => handleDeleteGroup(group.id)}
-              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              className="p-1 transition-colors"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -707,7 +717,7 @@ export function ProblemEditor() {
           <div className="space-y-4">
             {/* Name (required) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
                 Name *
               </label>
               <input
@@ -717,20 +727,20 @@ export function ProblemEditor() {
                   ...prev,
                   attributes: { ...prev.attributes, name: e.target.value }
                 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
                 placeholder="Enter person's name"
               />
             </div>
 
             {/* Attributes */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Attributes
               </label>
               <div className="space-y-2">
                 {attributeDefinitions.map(def => (
                   <div key={def.key}>
-                    <label className="block text-xs text-gray-600 mb-1 capitalize">
+                    <label className="block text-xs mb-1 capitalize" style={{ color: 'var(--text-tertiary)' }}>
                       {def.key}
                     </label>
                     <select
@@ -739,7 +749,7 @@ export function ProblemEditor() {
                         ...prev,
                         attributes: { ...prev.attributes, [def.key]: e.target.value }
                       }))}
-                      className="w-full px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="select text-sm"
                     >
                       <option value="">Select {def.key}</option>
                       {def.values.map(value => (
@@ -753,10 +763,10 @@ export function ProblemEditor() {
 
             {/* Sessions */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Session Participation
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
                 Leave empty for all sessions. Select specific sessions for late arrivals/early departures.
               </p>
               <div className="flex flex-wrap gap-2">
@@ -778,7 +788,8 @@ export function ProblemEditor() {
                           }));
                         }
                       }}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 focus:ring-2"
+                      style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
                     />
                     Session {sessionIdx + 1}
                   </label>
@@ -790,7 +801,10 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdatePerson : handleAddPerson}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               {isEditing ? 'Update' : 'Add'} Person
             </button>
@@ -800,7 +814,7 @@ export function ProblemEditor() {
                 setEditingPerson(null);
                 setPersonForm({ attributes: {}, sessions: [] });
               }}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="btn-secondary px-4 py-2 rounded-md"
             >
               Cancel
             </button>
@@ -834,24 +848,24 @@ export function ProblemEditor() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
                 Group ID *
               </label>
               <input
                 type="text"
                 value={groupForm.id || ''}
                 onChange={(e) => setGroupForm(prev => ({ ...prev, id: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
                 placeholder="e.g., team-alpha, group-1"
                 disabled={isEditing}
               />
               {isEditing && (
-                <p className="text-xs text-gray-500 mt-1">Group ID cannot be changed when editing</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Group ID cannot be changed when editing</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
                 Capacity (people per session) *
               </label>
               <input
@@ -860,9 +874,9 @@ export function ProblemEditor() {
                 max="20"
                 value={groupForm.size}
                 onChange={(e) => setGroupForm(prev => ({ ...prev, size: parseInt(e.target.value) || 1 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                 Maximum number of people that can be assigned to this group in any single session
               </p>
             </div>
@@ -871,7 +885,10 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdateGroup : handleAddGroup}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               {isEditing ? 'Update' : 'Add'} Group
             </button>
@@ -881,7 +898,7 @@ export function ProblemEditor() {
                 setEditingGroup(null);
                 setGroupForm({ size: 4 });
               }}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="btn-secondary px-4 py-2 rounded-md"
             >
               Cancel
             </button>
@@ -917,7 +934,7 @@ export function ProblemEditor() {
           <div className="space-y-6">
             {/* Constraint Type */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Constraint Type *
               </label>
               <select
@@ -926,7 +943,7 @@ export function ProblemEditor() {
                   type: e.target.value as Constraint['type'],
                   penalty_weight: prev.penalty_weight 
                 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="select"
                 disabled={isEditing}
               >
                 <option value="RepeatEncounter">Repeat Encounter Limit</option>
@@ -936,7 +953,7 @@ export function ProblemEditor() {
                 <option value="ImmovablePerson">Immovable Person</option>
               </select>
               {isEditing && (
-                <p className="text-xs text-gray-500 mt-1">Constraint type cannot be changed when editing</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Constraint type cannot be changed when editing</p>
               )}
             </div>
 
@@ -944,7 +961,7 @@ export function ProblemEditor() {
             {constraintForm.type === 'RepeatEncounter' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Maximum Allowed Encounters *
                   </label>
                   <input
@@ -956,16 +973,16 @@ export function ProblemEditor() {
                       ...prev, 
                       max_allowed_encounters: parseInt(e.target.value) || 0 
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="input"
                     placeholder="e.g., 1"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                     Maximum number of times any two people can be in the same group across all sessions
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Penalty Function
                   </label>
                   <select
@@ -974,12 +991,12 @@ export function ProblemEditor() {
                       ...prev, 
                       penalty_function: e.target.value as 'linear' | 'squared' 
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="select"
                   >
                     <option value="linear">Linear</option>
                     <option value="squared">Squared (recommended)</option>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                     Squared penalties increase more rapidly for multiple violations
                   </p>
                 </div>
@@ -989,13 +1006,13 @@ export function ProblemEditor() {
             {constraintForm.type === 'AttributeBalance' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Target Group *
                   </label>
                   <select
                     value={constraintForm.group_id || ''}
                     onChange={(e) => setConstraintForm(prev => ({ ...prev, group_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="select"
                   >
                     <option value="">Select a group</option>
                     {problem?.groups.map(group => (
@@ -1005,7 +1022,7 @@ export function ProblemEditor() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Attribute to Balance *
                   </label>
                   <select
@@ -1015,7 +1032,7 @@ export function ProblemEditor() {
                       attribute_key: e.target.value,
                       desired_values: {} // Reset when attribute changes
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="select"
                   >
                     <option value="">Select an attribute</option>
                     {attributeDefinitions.map(def => (
@@ -1026,7 +1043,7 @@ export function ProblemEditor() {
 
                 {constraintForm.attribute_key && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                       Desired Distribution *
                     </label>
                     <div className="space-y-2">
@@ -1034,7 +1051,7 @@ export function ProblemEditor() {
                         .find(def => def.key === constraintForm.attribute_key)
                         ?.values.map(value => (
                           <div key={value} className="flex items-center gap-2">
-                            <span className="w-20 text-sm text-gray-600 capitalize">{value}:</span>
+                            <span className="w-20 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{value}:</span>
                             <input
                               type="number"
                               min="0"
@@ -1047,13 +1064,13 @@ export function ProblemEditor() {
                                   [value]: parseInt(e.target.value) || 0
                                 }
                               }))}
-                              className="flex-1 px-3 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="input flex-1"
                               placeholder="0"
                             />
                           </div>
                         ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                       Desired number of people with each attribute value in this group
                     </p>
                   </div>
@@ -1064,13 +1081,13 @@ export function ProblemEditor() {
             {constraintForm.type === 'ImmovablePerson' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Person *
                   </label>
                   <select
                     value={constraintForm.person_id || ''}
                     onChange={(e) => setConstraintForm(prev => ({ ...prev, person_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="select"
                   >
                     <option value="">Select a person</option>
                     {problem?.people.map(person => (
@@ -1082,13 +1099,13 @@ export function ProblemEditor() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Fixed Group *
                   </label>
                   <select
                     value={constraintForm.group_id || ''}
                     onChange={(e) => setConstraintForm(prev => ({ ...prev, group_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="select"
                   >
                     <option value="">Select a group</option>
                     {problem?.groups.map(group => (
@@ -1098,7 +1115,7 @@ export function ProblemEditor() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Sessions *
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -1120,13 +1137,14 @@ export function ProblemEditor() {
                               }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
                         />
                         Session {sessionIdx + 1}
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                     Sessions where this person must be in the specified group
                   </p>
                 </div>
@@ -1136,10 +1154,10 @@ export function ProblemEditor() {
             {(constraintForm.type === 'MustStayTogether' || constraintForm.type === 'CannotBeTogether') && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     People * (select at least 2)
                   </label>
-                  <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+                  <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2" style={{ borderColor: 'var(--border-secondary)' }}>
                     {problem?.people.map(person => (
                       <label key={person.id} className="flex items-center gap-2 text-sm">
                         <input
@@ -1158,7 +1176,8 @@ export function ProblemEditor() {
                               }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
                         />
                         {person.attributes.name || person.id}
                       </label>
@@ -1167,7 +1186,7 @@ export function ProblemEditor() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Apply to Sessions (optional)
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -1189,13 +1208,14 @@ export function ProblemEditor() {
                               }));
                             }
                           }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
                         />
                         Session {sessionIdx + 1}
                       </label>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                     Leave empty to apply to all sessions
                   </p>
                 </div>
@@ -1204,7 +1224,7 @@ export function ProblemEditor() {
 
             {/* Penalty Weight */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Penalty Weight
               </label>
               <input
@@ -1216,9 +1236,9 @@ export function ProblemEditor() {
                   ...prev, 
                   penalty_weight: parseFloat(e.target.value) || 100 
                 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                 Higher values make this constraint more important (1-10000). 
                 Use 1000+ for hard constraints, 10-100 for preferences.
               </p>
@@ -1228,7 +1248,10 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdateConstraint : handleAddConstraint}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               {isEditing ? 'Update' : 'Add'} Constraint
             </button>
@@ -1238,7 +1261,7 @@ export function ProblemEditor() {
                 setEditingConstraint(null);
                 setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 100 });
               }}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              className="btn-secondary px-4 py-2 rounded-md"
             >
               Cancel
             </button>
@@ -1254,7 +1277,9 @@ export function ProblemEditor() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Setup</h2>
-          <p className="text-gray-600 mt-1">Configure people, groups, and constraints for optimization</p>
+          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Configure people, groups, and constraints for optimization
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -1273,7 +1298,13 @@ export function ProblemEditor() {
           </button>
           <button
             onClick={generateDemoData}
-            className="btn-primary flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors"
+            style={{ 
+              backgroundColor: 'var(--color-accent)', 
+              color: 'white',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
           >
             <Zap className="w-4 h-4" />
             Demo Data
@@ -1294,11 +1325,23 @@ export function ProblemEditor() {
               <button
               key={id}
               onClick={() => setActiveSection(id as any)}
-              className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeSection === id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors"
+              style={{
+                borderBottomColor: activeSection === id ? 'var(--color-accent)' : 'transparent',
+                color: activeSection === id ? 'var(--color-accent)' : 'var(--text-secondary)'
+              }}
+              onMouseEnter={(e) => {
+                if (activeSection !== id) {
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                  e.currentTarget.style.borderBottomColor = 'var(--border-secondary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeSection !== id) {
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                  e.currentTarget.style.borderBottomColor = 'transparent';
+                }
+              }}
             >
               <Icon className="w-4 h-4" />
               {label}
@@ -1319,11 +1362,14 @@ export function ProblemEditor() {
             <h3 className="text-lg font-medium">People ({problem?.people.length || 0})</h3>
             <button
               onClick={() => setShowPersonForm(true)}
-              className="btn-primary flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               <Plus className="w-4 h-4" />
               Add Person
-              </button>
+            </button>
             </div>
 
           {problem?.people.length ? (
@@ -1331,8 +1377,8 @@ export function ProblemEditor() {
               {problem.people.map(renderPersonCard)}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+              <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
               <p>No people added yet</p>
               <p className="text-sm">Add people to get started with your optimization problem</p>
             </div>
@@ -1346,7 +1392,10 @@ export function ProblemEditor() {
             <h3 className="text-lg font-medium">Groups ({problem?.groups.length || 0})</h3>
             <button
               onClick={() => setShowGroupForm(true)}
-              className="btn-primary flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               <Plus className="w-4 h-4" />
               Add Group
@@ -1358,8 +1407,8 @@ export function ProblemEditor() {
               {problem.groups.map(renderGroupCard)}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Hash className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+              <Hash className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
               <p>No groups added yet</p>
               <p className="text-sm">Add groups where people will be assigned</p>
             </div>
@@ -1385,15 +1434,14 @@ export function ProblemEditor() {
                   onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
                   className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-sm text-gray-500 mt-2">
-                  The algorithm will distribute people into groups across {sessionsCount} session{sessionsCount !== 1 ? 's' : ''}.
-                  Each person can be assigned to one group per session.
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.
                 </p>
               </div>
               
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">How Sessions Work</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
+              <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+                <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>How Sessions Work</h4>
+                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                   <li>• Each session represents a time period (e.g., morning, afternoon, day 1, day 2)</li>
                   <li>• People are assigned to groups within each session</li>
                   <li>• The algorithm maximizes unique contacts across all sessions</li>
@@ -1411,16 +1459,19 @@ export function ProblemEditor() {
             <h3 className="text-lg font-medium">Attribute Definitions ({attributeDefinitions.length})</h3>
             <button
               onClick={() => setShowAttributeForm(true)}
-              className="btn-primary flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               <Plus className="w-4 h-4" />
               Add Attribute
-              </button>
+            </button>
             </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">About Attributes</h4>
-            <p className="text-sm text-blue-800">
+          <div className="rounded-md p-4 mb-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>About Attributes</h4>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Attributes are key-value pairs that describe people (e.g., gender, department, seniority).
               They can be used in constraints like attribute balance or grouping preferences.
             </p>
@@ -1460,8 +1511,8 @@ export function ProblemEditor() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Tag className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+              <Tag className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
               <p>No attributes defined yet</p>
               <p className="text-sm">Add attribute definitions to categorize people</p>
             </div>
@@ -1475,19 +1526,22 @@ export function ProblemEditor() {
             <h3 className="text-lg font-medium">Constraints ({problem?.constraints.length || 0})</h3>
             <button
               onClick={() => setShowConstraintForm(true)}
-              className="btn-primary flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               <Plus className="w-4 h-4" />
               Add Constraint
-              </button>
+            </button>
             </div>
           
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">About Constraints</h4>
-            <p className="text-sm text-blue-800 mb-2">
+          <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>About Constraints</h4>
+            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
               Constraints guide the optimization process by defining rules and preferences:
             </p>
-            <ul className="text-sm text-blue-800 space-y-1">
+            <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>• <strong>RepeatEncounter:</strong> Limit how often people meet across sessions</li>
               <li>• <strong>AttributeBalance:</strong> Maintain desired distributions (e.g., gender balance)</li>
               <li>• <strong>MustStayTogether:</strong> Keep certain people in the same group</li>
@@ -1509,53 +1563,29 @@ export function ProblemEditor() {
                         </span>
                       </div>
                       
-                      <div className="text-sm text-gray-600 space-y-1">
-                        {constraint.type === 'RepeatEncounter' && (
-                          <>
-                            <p>Max encounters: {constraint.max_allowed_encounters}</p>
-                            <p>Penalty function: {constraint.penalty_function}</p>
-                          </>
-                        )}
-                        
-                        {constraint.type === 'AttributeBalance' && (
-                          <>
-                            <p>Group: {constraint.group_id}</p>
-                            <p>Attribute: {constraint.attribute_key}</p>
-                            <p>Desired distribution: {Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
-                          </>
-                        )}
-                        
-                        {constraint.type === 'ImmovablePerson' && (
-                          <>
-                            <p>Person: {problem?.people.find(p => p.id === constraint.person_id)?.attributes.name || constraint.person_id}</p>
-                            <p>Group: {constraint.group_id}</p>
-                            <p>Sessions: {constraint.sessions?.map(s => s + 1).join(', ')}</p>
-                          </>
-                        )}
-                        
-                        {(constraint.type === 'MustStayTogether' || constraint.type === 'CannotBeTogether') && (
-                          <>
-                            <p>People: {constraint.people?.map(id => 
-                              problem?.people.find(p => p.id === id)?.attributes.name || id
-                            ).join(', ')}</p>
-                            {constraint.sessions && (
-                              <p>Sessions: {constraint.sessions.map(s => s + 1).join(', ')}</p>
-                            )}
-                          </>
-                        )}
+                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                        <div>Group: <span style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
+                        <div>Attribute: <span style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
+                        <div>Desired distribution: <span style={{ color: 'var(--text-primary)' }}>{Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</span></div>
                       </div>
                     </div>
                     
                     <div className="flex gap-1">
                       <button
                         onClick={() => handleEditConstraint(constraint, index)}
-                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary-600)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteConstraint(index)}
-                        className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1565,8 +1595,8 @@ export function ProblemEditor() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Settings className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+              <Settings className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
               <p>No constraints added yet</p>
               <p className="text-sm">Add constraints to guide the optimization process</p>
             </div>
@@ -1583,37 +1613,40 @@ export function ProblemEditor() {
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
           <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {editingAttribute ? 'Edit Attribute Definition' : 'Add Attribute Definition'}
-              </h3>
+                </h3>
               <button
                 onClick={() => {
                   setShowAttributeForm(false);
                   setNewAttribute({ key: '', values: [''] });
                   setEditingAttribute(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="transition-colors"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
               >
                 <X className="w-5 h-5" />
               </button>
-      </div>
+            </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Attribute Key *
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Attribute Name *
                 </label>
                 <input
                   type="text"
                   value={newAttribute.key}
                   onChange={(e) => setNewAttribute(prev => ({ ...prev, key: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., skill_level, team, location"
+                  className="input"
+                  placeholder="e.g., department, experience, location"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Possible Values *
                 </label>
                 <div className="space-y-2">
@@ -1627,7 +1660,7 @@ export function ProblemEditor() {
                           newValues[index] = e.target.value;
                           setNewAttribute(prev => ({ ...prev, values: newValues }));
                         }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="input flex-1"
                         placeholder={`Value ${index + 1}`}
                       />
                       {newAttribute.values.length > 1 && (
@@ -1636,7 +1669,13 @@ export function ProblemEditor() {
                             const newValues = newAttribute.values.filter((_, i) => i !== index);
                             setNewAttribute(prev => ({ ...prev, values: newValues }));
                           }}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          className="px-3 py-2 rounded-md transition-colors"
+                          style={{ 
+                            backgroundColor: 'var(--color-error-100)', 
+                            color: 'var(--color-error-700)' 
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error-200)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-error-100)'}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -1646,9 +1685,9 @@ export function ProblemEditor() {
                 </div>
                 <button
                   onClick={() => setNewAttribute(prev => ({ ...prev, values: [...prev.values, ''] }))}
-                  className="mt-2 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  className="btn-secondary text-sm mt-2"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3 h-3 mr-1" />
                   Add Value
                 </button>
               </div>
@@ -1657,7 +1696,10 @@ export function ProblemEditor() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={editingAttribute ? handleUpdateAttribute : handleAddAttribute}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+                style={{ backgroundColor: 'var(--color-accent)' }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
               >
                 {editingAttribute ? 'Update Attribute' : 'Add Attribute'}
               </button>
@@ -1667,7 +1709,7 @@ export function ProblemEditor() {
                   setNewAttribute({ key: '', values: [''] });
                   setEditingAttribute(null);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                className="btn-secondary px-4 py-2 rounded-md"
               >
                 Cancel
               </button>

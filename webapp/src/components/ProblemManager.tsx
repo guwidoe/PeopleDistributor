@@ -202,7 +202,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
         <div className="flex items-center justify-between p-6 border-b">
           <div>
             <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Manager</h2>
-            <p className="text-gray-600 mt-1">Manage your saved problems and results</p>
+            <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>Manage your saved problems and results</p>
           </div>
           <div className="flex items-center space-x-2">
             {currentProblem && (
@@ -331,7 +331,8 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
 
                   {/* Problem Stats */}
                   <div 
-                    className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3"
+                    className="grid grid-cols-2 gap-2 text-sm mb-3"
+                    style={{ color: 'var(--text-secondary)' }}
                     onClick={() => loadProblem(problem.id)}
                   >
                     <div className="flex items-center space-x-1">
@@ -353,7 +354,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                   </div>
 
                   {/* Timestamps */}
-                  <div className="text-xs text-gray-500 mb-3">
+                  <div className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
                     <div>Created: {formatDate(problem.createdAt)}</div>
                     {problem.updatedAt !== problem.createdAt && (
                       <div>Updated: {formatDate(problem.updatedAt)}</div>
@@ -368,7 +369,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                           e.stopPropagation();
                           handleRename(problem.id, problem.name);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
                         title="Rename"
                       >
                         <Edit3 className="h-4 w-4" />
@@ -378,7 +382,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                           e.stopPropagation();
                           handleDuplicate(problem.id, problem.name);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
                         title="Duplicate"
                       >
                         <Copy className="h-4 w-4" />
@@ -388,11 +395,26 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                           e.stopPropagation();
                           toggleTemplate(problem.id);
                         }}
-                        className={`p-1 ${
+                        className={`p-1 transition-colors ${
                           problem.isTemplate 
-                            ? 'text-yellow-500 hover:text-yellow-600' 
-                            : 'text-gray-400 hover:text-gray-600'
+                            ? '' 
+                            : ''
                         }`}
+                        style={{ 
+                          color: problem.isTemplate 
+                            ? 'var(--color-warning-500)' 
+                            : 'var(--text-tertiary)' 
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = problem.isTemplate 
+                            ? 'var(--color-warning-600)' 
+                            : 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = problem.isTemplate 
+                            ? 'var(--color-warning-500)' 
+                            : 'var(--text-tertiary)';
+                        }}
                         title={problem.isTemplate ? "Remove from templates" : "Mark as template"}
                       >
                         {problem.isTemplate ? <Star className="h-4 w-4" /> : <StarOff className="h-4 w-4" />}
@@ -404,7 +426,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                           e.stopPropagation();
                           exportProblem(problem.id);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
                         title="Export"
                       >
                         <Download className="h-4 w-4" />
@@ -414,7 +439,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                           e.stopPropagation();
                           handleDelete(problem.id);
                         }}
-                        className="p-1 text-red-400 hover:text-red-600"
+                        className="p-1 transition-colors"
+                        style={{ color: 'var(--color-error-400)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-error-400)'}
                         title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -461,8 +489,9 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                   checked={newProblemIsTemplate}
                   onChange={(e) => setNewProblemIsTemplate(e.target.checked)}
                   className="rounded border-gray-300"
+                  style={{ accentColor: 'var(--color-accent)' }}
                 />
-                <label htmlFor="isTemplate" className="text-sm text-gray-700">
+                <label htmlFor="isTemplate" className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   Mark as template
                 </label>
               </div>
@@ -498,7 +527,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
               <AlertTriangle className="h-6 w-6 text-red-500" />
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Delete Problem</h3>
             </div>
-            <p className="text-gray-600 mb-6">
+            <p className="mb-6" style={{ color: 'var(--text-secondary)' }}>
               Are you sure you want to delete "{savedProblems[showDeleteConfirm]?.name}"? 
               This action cannot be undone and will delete all associated results.
             </p>

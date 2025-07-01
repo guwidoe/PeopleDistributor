@@ -22,30 +22,36 @@ export function NotificationContainer() {
   const getIconColor = (type: string) => {
     switch (type) {
       case 'success':
-        return 'text-success-500';
+        return { color: 'var(--color-success-600)' };
       case 'error':
-        return 'text-error-500';
+        return { color: 'var(--color-error-600)' };
       case 'warning':
-        return 'text-warning-500';
+        return { color: 'var(--color-warning-600)' };
       case 'info':
-        return 'text-primary-500';
+        return { color: 'var(--color-accent)' };
       default:
-        return 'text-gray-500';
+        return { color: 'var(--text-secondary)' };
     }
   };
 
-  const getBgColor = (type: string) => {
+  const getBgStyle = (type: string) => {
+    const baseStyle = {
+      backgroundColor: 'var(--bg-primary)',
+      borderColor: 'var(--border-primary)',
+      backdropFilter: 'blur(12px)',
+    };
+    
     switch (type) {
       case 'success':
-        return 'bg-success-50 border-success-200';
+        return { ...baseStyle, borderColor: 'var(--color-success-300)' };
       case 'error':
-        return 'bg-error-50 border-error-200';
+        return { ...baseStyle, borderColor: 'var(--color-error-300)' };
       case 'warning':
-        return 'bg-warning-50 border-warning-200';
+        return { ...baseStyle, borderColor: 'var(--color-warning-300)' };
       case 'info':
-        return 'bg-primary-50 border-primary-200';
+        return { ...baseStyle, borderColor: 'var(--color-accent)' };
       default:
-        return 'bg-gray-50 border-gray-200';
+        return baseStyle;
     }
   };
 
@@ -61,22 +67,28 @@ export function NotificationContainer() {
         return (
           <div
             key={notification.id}
-            className={`${getBgColor(notification.type)} border rounded-lg p-4 shadow-lg animate-slide-up bg-white/70 backdrop-blur-lg`}
-            style={{ boxShadow: '0 4px 24px 0 rgba(0,0,0,0.10)' }}
+            className="border rounded-lg p-4 shadow-lg animate-slide-up"
+            style={{
+              ...getBgStyle(notification.type),
+              boxShadow: 'var(--shadow-lg)',
+            }}
           >
             <div className="flex items-start space-x-3">
-              <Icon className={`h-5 w-5 mt-0.5 ${getIconColor(notification.type)}`} />
+              <Icon className="h-5 w-5 mt-0.5" style={getIconColor(notification.type)} />
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                   {notification.title}
                 </h4>
-                <p className="text-sm text-gray-700 mt-1">
+                <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
                   {notification.message}
                 </p>
               </div>
               <button
                 onClick={() => removeNotification(notification.id)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="transition-colors"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
               >
                 <X className="h-4 w-4" />
               </button>

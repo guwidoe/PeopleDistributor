@@ -43,12 +43,12 @@ function App() {
         {/* Navigation */}
         <div className="mb-6">
           <Navigation />
-        </div>
+      </div>
 
         {/* Content Area */}
         <div className="animate-fade-in">
           {renderContent()}
-        </div>
+          </div>
       </main>
 
       {/* Notifications */}

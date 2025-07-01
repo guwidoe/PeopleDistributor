@@ -37,17 +37,18 @@ export function Navigation() {
     <div className="space-y-4">
       {/* Current Problem Indicator */}
       {currentProblemName && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+        <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <FolderOpen className="h-4 w-4 text-blue-600" />
+              <FolderOpen className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
               <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                 Current Problem: {currentProblemName}
               </span>
             </div>
             <button
               onClick={() => setShowProblemManager(true)}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+              className="text-sm font-medium transition-colors hover:opacity-80"
+              style={{ color: 'var(--color-accent)' }}
             >
               Manage Problems
             </button>
@@ -56,35 +57,35 @@ export function Navigation() {
       )}
 
       {/* Navigation Tabs */}
-      <nav className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow)' }}>
-        <div className="flex space-x-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = ui.activeTab === tab.id;
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-700 border border-primary-200'
-                    : 'hover:bg-gray-50'
-                }`}
-                style={{
-                  color: isActive ? 'var(--color-primary-700)' : 'var(--text-secondary)',
-                  backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
-                  borderColor: isActive ? 'var(--color-primary-200)' : 'transparent'
-                }}
-                title={tab.description}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <nav className="rounded-lg border p-1 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow)' }}>
+      <div className="flex space-x-1">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = ui.activeTab === tab.id;
+          
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 border ${
+                isActive
+                  ? 'shadow-sm'
+                  : 'border-transparent hover:bg-opacity-50'
+              }`}
+              style={{
+                color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)',
+                backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
+                borderColor: isActive ? 'var(--color-accent)' : 'transparent'
+              }}
+              title={tab.description}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
 
       {/* Problem Manager Button (when no current problem) */}
       {!currentProblemName && (

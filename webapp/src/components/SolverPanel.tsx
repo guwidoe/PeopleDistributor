@@ -145,7 +145,7 @@ export function SolverPanel() {
 
       // Add a small delay to ensure any late progress messages are ignored
       await new Promise(resolve => setTimeout(resolve, 50));
-
+      
       // Update final solver state with actual final values from solution
       setSolverState({ 
         isRunning: false, 

@@ -208,34 +208,34 @@ export function ResultsHistory() {
           </div>
         </div>
         
-        {bestResult && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  {bestResult && (
+            <div className="rounded-lg p-4 border badge-best">
             <div className="flex items-center space-x-2 mb-2">
-              <Target className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-900">Best Result</span>
+              <Target className="h-5 w-5" style={{ color: 'var(--badge-best-text)' }} />
+              <span className="font-medium" style={{ color: 'var(--badge-best-text)' }}>Best Result</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <span className="text-green-700">Score:</span>
-                <span className="ml-2 font-medium text-green-900">
+                <span style={{ color: 'var(--badge-best-text)' }}>Score:</span>
+                <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
                   {bestResult.solution.final_score.toFixed(2)}
                 </span>
               </div>
               <div>
-                <span className="text-green-700">Duration:</span>
-                <span className="ml-2 font-medium text-green-900">
+                <span style={{ color: 'var(--badge-best-text)' }}>Duration:</span>
+                <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
                   {formatDuration(bestResult.duration)}
                 </span>
               </div>
               <div>
-                <span className="text-green-700">Iterations:</span>
-                <span className="ml-2 font-medium text-green-900">
+                <span style={{ color: 'var(--badge-best-text)' }}>Iterations:</span>
+                <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
                   {bestResult.solution.iteration_count.toLocaleString()}
                 </span>
               </div>
               <div>
-                <span className="text-green-700">Name:</span>
-                <span className="ml-2 font-medium text-green-900">
+                <span style={{ color: 'var(--badge-best-text)' }}>Name:</span>
+                <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
                   {bestResult.name}
                 </span>
               </div>
@@ -269,8 +269,14 @@ export function ResultsHistory() {
                 <div
                   key={result.id}
                   className={`card transition-all ${
-                    isSelected ? 'ring-2 ring-blue-500' : ''
-                  } ${isBest ? 'bg-green-50 border-green-200' : ''}`}
+                    isSelected ? 'ring-2' : ''
+                  } ${isBest ? 'badge-best' : ''}`}
+                  style={{
+                    ...(isSelected && { 
+                      borderColor: 'var(--color-accent)',
+                      boxShadow: `0 0 0 2px var(--color-accent)`
+                    })
+                  }}
                 >
                   {/* Result Header */}
                   <div className="flex items-center justify-between">
@@ -280,7 +286,7 @@ export function ResultsHistory() {
                         className="text-gray-400 hover:text-gray-600"
                       >
                         {isSelected ? (
-                          <CheckSquare className="h-5 w-5 text-blue-600" />
+                          <CheckSquare className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
                         ) : (
                           <Square className="h-5 w-5" />
                         )}
@@ -319,14 +325,10 @@ export function ResultsHistory() {
                               {result.name}
                             </h3>
                             {isBest && (
-                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                                Best
-                              </span>
+                              <span className="px-2 py-1 text-xs rounded-full badge-best">Best</span>
                             )}
                             {isCurrent && (
-                              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                                Current
-                              </span>
+                              <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Current</span>
                             )}
                           </div>
                         )}
@@ -350,29 +352,29 @@ export function ResultsHistory() {
                   {/* Result Summary */}
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
-                      <BarChart3 className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Score:</span>
+                      <BarChart3 className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>Score:</span>
                       <span className={`font-medium ${getScoreColor(result.solution.final_score)}`}>
                         {result.solution.final_score.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Duration:</span>
+                      <Clock className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>Duration:</span>
                       <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
                         {formatDuration(result.duration)}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Zap className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Iterations:</span>
+                      <Zap className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>Iterations:</span>
                       <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
                         {result.solution.iteration_count.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-600">Created:</span>
+                      <Calendar className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>Created:</span>
                       <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
                         {formatDate(result.timestamp)}
                       </span>
@@ -386,26 +388,26 @@ export function ResultsHistory() {
                       <div>
                         <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Score Breakdown</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <div className="text-gray-600">Unique Contacts</div>
+                          <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>Unique Contacts</div>
                             <div className="font-medium" style={{ color: 'var(--text-primary)' }}>
                               {result.solution.unique_contacts}
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <div className="text-gray-600">Repetition Penalty</div>
+                          <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
                             <div className="font-medium text-red-600">
                               {result.solution.repetition_penalty.toFixed(2)}
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <div className="text-gray-600">Balance Penalty</div>
+                          <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>Balance Penalty</div>
                             <div className="font-medium text-orange-600">
                               {result.solution.attribute_balance_penalty.toFixed(2)}
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg">
-                            <div className="text-gray-600">Constraint Penalty</div>
+                          <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</div>
                             <div className="font-medium text-purple-600">
                               {result.solution.constraint_penalty.toFixed(2)}
                             </div>
@@ -416,41 +418,41 @@ export function ResultsHistory() {
                       {/* Solver Settings */}
                       <div>
                         <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Solver Configuration</h4>
-                        <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                        <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                             <div>
-                              <span className="text-gray-600">Max Iterations:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>Max Iterations:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.stop_conditions.max_iterations?.toLocaleString()}
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-600">Time Limit:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>Time Limit:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.stop_conditions.time_limit_seconds}s
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-600">No Improvement:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>No Improvement:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.stop_conditions.no_improvement_iterations?.toLocaleString()}
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-600">Initial Temp:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>Initial Temp:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature}
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-600">Final Temp:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>Final Temp:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.solver_params.SimulatedAnnealing?.final_temperature}
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-600">Cooling:</span>
-                              <span className="ml-2 font-medium">
+                              <span style={{ color: 'var(--text-secondary)' }}>Cooling:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {result.solverSettings.solver_params.SimulatedAnnealing?.cooling_schedule}
                               </span>
                             </div>
