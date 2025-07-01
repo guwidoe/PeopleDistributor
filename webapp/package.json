@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build-wasm && tsc && vite build",
+    "vercel-build": "chmod +x ./vercel-build.sh && ./vercel-build.sh",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "build-wasm": "wasm-pack build ../solver-wasm --target no-modules --out-dir ./public/pkg"
+    "build-wasm": "wasm-pack build ./solver-wasm --target no-modules --out-dir ./public/pkg"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",
