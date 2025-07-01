@@ -7,6 +7,7 @@ declare namespace wasm_bindgen {
 	export function solve_with_progress(problem_json: string, progress_callback?: Function | null): string;
 	export function validate_problem(problem_json: string): string;
 	export function get_default_settings(): string;
+	export function test_callback_consistency(problem_json: string): string;
 	
 }
 
@@ -18,6 +19,7 @@ declare interface InitOutput {
   readonly solve_with_progress: (a: number, b: number, c: number, d: number) => void;
   readonly validate_problem: (a: number, b: number, c: number) => void;
   readonly get_default_settings: (a: number) => void;
+  readonly test_callback_consistency: (a: number, b: number, c: number) => void;
   readonly greet: () => void;
   readonly init_panic_hook: () => void;
   readonly __wbindgen_exn_store: (a: number) => void;

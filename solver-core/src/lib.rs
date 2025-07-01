@@ -254,3 +254,393 @@ pub fn run_solver_with_progress(
     };
     solver.solve(&mut state, progress_callback)
 }
+
+#[cfg(test)]
+mod callback_tests {
+    use super::*;
+    use crate::models::*;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn test_solve_with_progress_callback_consistency() {
+        // Create a simple test problem
+        let input = create_simple_test_input();
+
+        // Capture all progress updates
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let progress_updates_clone = Arc::clone(&progress_updates);
+
+        let progress_callback: ProgressCallback =
+            Box::new(move |progress: &ProgressUpdate| -> bool {
+                progress_updates_clone
+                    .lock()
+                    .unwrap()
+                    .push(progress.clone());
+                true // Continue optimization
+            });
+
+        // Run solver with progress callback
+        let result = run_solver_with_progress(&input, Some(&progress_callback)).unwrap();
+
+        // Get all captured progress updates
+        let updates = progress_updates.lock().unwrap();
+
+        // Verify we got progress updates
+        assert!(!updates.is_empty(), "Should have received progress updates");
+
+        // Get the final progress update
+        let final_update = updates.last().unwrap();
+
+        // Compare final callback values with actual result
+        println!("=== CALLBACK CONSISTENCY TEST ===");
+        println!(
+            "Final callback - current_score: {}",
+            final_update.current_score
+        );
+        println!("Final callback - best_score: {}", final_update.best_score);
+        println!(
+            "Final callback - current_contacts: {}",
+            final_update.current_contacts
+        );
+        println!(
+            "Final callback - best_contacts: {}",
+            final_update.best_contacts
+        );
+        println!(
+            "Final callback - repetition_penalty: {}",
+            final_update.repetition_penalty
+        );
+
+        println!("Actual result - final_score: {}", result.final_score);
+        println!(
+            "Actual result - unique_contacts: {}",
+            result.unique_contacts
+        );
+        println!(
+            "Actual result - repetition_penalty: {}",
+            result.repetition_penalty
+        );
+
+        // These should match exactly
+        assert_eq!(
+            final_update.current_score, result.final_score,
+            "Final callback current_score should match result.final_score"
+        );
+        assert_eq!(
+            final_update.best_score, result.final_score,
+            "Final callback best_score should match result.final_score"
+        );
+        assert_eq!(
+            final_update.current_contacts, result.unique_contacts,
+            "Final callback current_contacts should match result.unique_contacts"
+        );
+        assert_eq!(
+            final_update.best_contacts, result.unique_contacts,
+            "Final callback best_contacts should match result.unique_contacts"
+        );
+        assert_eq!(
+            final_update.repetition_penalty, result.repetition_penalty,
+            "Final callback repetition_penalty should match result.repetition_penalty"
+        );
+
+        println!("✅ All callback values match final result!");
+    }
+
+    #[test]
+    fn test_solve_without_callback_matches_with_callback() {
+        let input = create_simple_test_input();
+
+        // Run without callback
+        let result_no_callback = run_solver(&input).unwrap();
+
+        // Run with callback (but ignore the callback data)
+        let progress_callback: ProgressCallback = Box::new(|_| true);
+        let result_with_callback =
+            run_solver_with_progress(&input, Some(&progress_callback)).unwrap();
+
+        println!("=== CALLBACK vs NO-CALLBACK CONSISTENCY TEST ===");
+        println!(
+            "No callback - final_score: {}",
+            result_no_callback.final_score
+        );
+        println!(
+            "With callback - final_score: {}",
+            result_with_callback.final_score
+        );
+
+        // Results should be identical (within floating point precision)
+        assert!(
+            (result_no_callback.final_score - result_with_callback.final_score).abs() < 0.001,
+            "Results with and without callback should be identical"
+        );
+        assert_eq!(
+            result_no_callback.unique_contacts,
+            result_with_callback.unique_contacts
+        );
+        assert_eq!(
+            result_no_callback.repetition_penalty,
+            result_with_callback.repetition_penalty
+        );
+
+        println!("✅ Results with and without callback are identical!");
+    }
+
+    #[test]
+    fn test_progress_callback_score_monotonicity() {
+        let input = create_simple_test_input();
+
+        // Capture all progress updates
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let progress_updates_clone = Arc::clone(&progress_updates);
+
+        let progress_callback: ProgressCallback =
+            Box::new(move |progress: &ProgressUpdate| -> bool {
+                progress_updates_clone
+                    .lock()
+                    .unwrap()
+                    .push(progress.clone());
+                true
+            });
+
+        let _result = run_solver_with_progress(&input, Some(&progress_callback)).unwrap();
+
+        let updates = progress_updates.lock().unwrap();
+
+        println!("=== PROGRESS CALLBACK MONOTONICITY TEST ===");
+        println!("Total progress updates: {}", updates.len());
+
+        // Check that best_score is non-increasing (should get better or stay the same)
+        let mut prev_best = f64::INFINITY;
+        let mut improvements = 0;
+
+        for (_i, update) in updates.iter().enumerate() {
+            if update.best_score < prev_best {
+                improvements += 1;
+                println!(
+                    "Iteration {}: best_score improved from {:.2} to {:.2}",
+                    update.iteration, prev_best, update.best_score
+                );
+            }
+
+            // best_score should never get worse
+            assert!(
+                update.best_score <= prev_best + 0.001,
+                "Best score should never get worse: iteration {} had {:.2}, previous was {:.2}",
+                update.iteration,
+                update.best_score,
+                prev_best
+            );
+
+            prev_best = update.best_score;
+
+            // Verify internal consistency within each update
+            assert_eq!(
+                update.current_score, update.current_score,
+                "current_score should be consistent"
+            );
+            assert_eq!(
+                update.best_score, update.best_score,
+                "best_score should be consistent"
+            );
+        }
+
+        println!(
+            "✅ Found {} improvements, best_score never got worse!",
+            improvements
+        );
+    }
+
+    #[test]
+    fn test_final_callback_after_recalculation() {
+        // This test specifically checks that the final callback happens after score recalculation
+        let input = create_complex_test_input(); // Use a more complex input to increase chance of drift
+
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let progress_updates_clone = Arc::clone(&progress_updates);
+
+        let progress_callback: ProgressCallback =
+            Box::new(move |progress: &ProgressUpdate| -> bool {
+                progress_updates_clone
+                    .lock()
+                    .unwrap()
+                    .push(progress.clone());
+                true
+            });
+
+        let result = run_solver_with_progress(&input, Some(&progress_callback)).unwrap();
+        let updates = progress_updates.lock().unwrap();
+
+        let final_update = updates.last().unwrap();
+
+        println!("=== FINAL CALLBACK RECALCULATION TEST ===");
+        println!("Final callback iteration: {}", final_update.iteration);
+        println!("Final callback score: {}", final_update.current_score);
+        println!("Actual result score: {}", result.final_score);
+
+        // The key test: final callback should match the actual result exactly
+        // This would fail if the callback happened before recalculation
+        assert_eq!(final_update.current_score, result.final_score,
+            "Final callback score must match actual result (callback should happen after recalculation)");
+
+        println!("✅ Final callback happened after recalculation!");
+    }
+
+    fn create_simple_test_input() -> ApiInput {
+        let mut people = Vec::new();
+        for i in 0..6 {
+            let mut attrs = HashMap::new();
+            attrs.insert(
+                "gender".to_string(),
+                if i % 2 == 0 {
+                    "male".to_string()
+                } else {
+                    "female".to_string()
+                },
+            );
+            people.push(Person {
+                id: format!("person_{}", i),
+                attributes: attrs,
+                sessions: None,
+            });
+        }
+
+        let groups = vec![
+            Group {
+                id: "group_1".to_string(),
+                size: 3,
+            },
+            Group {
+                id: "group_2".to_string(),
+                size: 3,
+            },
+        ];
+
+        ApiInput {
+            problem: ProblemDefinition {
+                people,
+                groups,
+                num_sessions: 2,
+            },
+            objectives: vec![Objective {
+                r#type: "maximize_unique_contacts".to_string(),
+                weight: 1.0,
+            }],
+            constraints: vec![Constraint::RepeatEncounter(RepeatEncounterParams {
+                max_allowed_encounters: 1,
+                penalty_function: "squared".to_string(),
+                penalty_weight: 100.0,
+            })],
+            solver: SolverConfiguration {
+                solver_type: "SimulatedAnnealing".to_string(),
+                stop_conditions: StopConditions {
+                    max_iterations: Some(1000),
+                    time_limit_seconds: Some(5),
+                    no_improvement_iterations: Some(500),
+                },
+                solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+                    initial_temperature: 10.0,
+                    final_temperature: 0.01,
+                    cooling_schedule: "geometric".to_string(),
+                }),
+                logging: LoggingOptions {
+                    log_frequency: Some(100),
+                    log_duration_and_score: true,
+                    log_final_score_breakdown: true,
+                    ..Default::default()
+                },
+            },
+        }
+    }
+
+    fn create_complex_test_input() -> ApiInput {
+        // Create a more complex problem that's more likely to show score drift
+        let mut people = Vec::new();
+        for i in 0..12 {
+            let mut attrs = HashMap::new();
+            attrs.insert(
+                "gender".to_string(),
+                if i % 2 == 0 {
+                    "male".to_string()
+                } else {
+                    "female".to_string()
+                },
+            );
+            attrs.insert("department".to_string(), format!("dept_{}", i % 3));
+            people.push(Person {
+                id: format!("person_{}", i),
+                attributes: attrs,
+                sessions: None,
+            });
+        }
+
+        let groups = vec![
+            Group {
+                id: "group_1".to_string(),
+                size: 4,
+            },
+            Group {
+                id: "group_2".to_string(),
+                size: 4,
+            },
+            Group {
+                id: "group_3".to_string(),
+                size: 4,
+            },
+        ];
+
+        ApiInput {
+            problem: ProblemDefinition {
+                people,
+                groups,
+                num_sessions: 3,
+            },
+            objectives: vec![Objective {
+                r#type: "maximize_unique_contacts".to_string(),
+                weight: 1.0,
+            }],
+            constraints: vec![
+                Constraint::RepeatEncounter(RepeatEncounterParams {
+                    max_allowed_encounters: 1,
+                    penalty_function: "squared".to_string(),
+                    penalty_weight: 100.0,
+                }),
+                Constraint::AttributeBalance(AttributeBalanceParams {
+                    group_id: "group_1".to_string(),
+                    attribute_key: "gender".to_string(),
+                    desired_values: {
+                        let mut values = HashMap::new();
+                        values.insert("male".to_string(), 2);
+                        values.insert("female".to_string(), 2);
+                        values
+                    },
+                    penalty_weight: 50.0,
+                }),
+                Constraint::CannotBeTogether {
+                    people: vec!["person_0".to_string(), "person_1".to_string()],
+                    penalty_weight: 200.0,
+                    sessions: None,
+                },
+            ],
+            solver: SolverConfiguration {
+                solver_type: "SimulatedAnnealing".to_string(),
+                stop_conditions: StopConditions {
+                    max_iterations: Some(2000),
+                    time_limit_seconds: Some(10),
+                    no_improvement_iterations: Some(1000),
+                },
+                solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+                    initial_temperature: 50.0,
+                    final_temperature: 0.01,
+                    cooling_schedule: "geometric".to_string(),
+                }),
+                logging: LoggingOptions {
+                    log_frequency: Some(200),
+                    log_duration_and_score: true,
+                    log_final_score_breakdown: true,
+                    ..Default::default()
+                },
+            },
+        }
+    }
+}

@@ -472,9 +472,10 @@ impl Solver for SimulatedAnnealing {
                 let elapsed_since_last_callback =
                     get_elapsed_seconds_between(last_callback_time, current_time);
 
-                // Call on first iteration, last iteration, or after sufficient time has passed
+                // Call on first iteration or after sufficient time has passed
                 // Add minimum 50ms gap to prevent excessive callbacks
-                if i == 0 || i == self.max_iterations - 1 || elapsed_since_last_callback >= 0.1 {
+                // NOTE: We don't call on last iteration here because we send a final callback after recalculation
+                if i == 0 || elapsed_since_last_callback >= 0.1 {
                     let current_cost = current_state.calculate_cost();
                     let progress = ProgressUpdate {
                         iteration: i + 1, // Report 1-based iteration numbers
@@ -548,7 +549,7 @@ impl Solver for SimulatedAnnealing {
                         );
 
                         let current_cost = current_state.calculate_cost();
-                        let next_cost = current_cost + delta_cost;
+                        let _next_cost = current_cost + delta_cost;
 
                         // Accept or reject the clique swap
                         if delta_cost < 0.0
@@ -598,6 +599,14 @@ impl Solver for SimulatedAnnealing {
                 let next_cost = current_cost + delta_cost;
 
                 if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
+                    // Debug: For zero temperature, we should only accept improving moves
+                    if temperature == 0.0 && delta_cost >= 0.0 {
+                        println!("WARNING: Hill climbing violation!");
+                        println!("  temperature: {}", temperature);
+                        println!("  delta_cost: {}", delta_cost);
+                        println!("  accepted non-improving move with zero temperature");
+                    }
+
                     current_state.apply_swap(day, p1_idx, p2_idx);
 
                     if next_cost < best_cost {
@@ -649,7 +658,21 @@ impl Solver for SimulatedAnnealing {
             }
         }
 
+        // Validate that our incremental tracking matches full recalculation
+        let recalculated_cost = best_state.calculate_cost();
+        if (recalculated_cost - best_cost).abs() > 0.001 {
+            println!("WARNING: Algorithm inconsistency detected!");
+            println!("  tracked best_cost: {}", best_cost);
+            println!("  recalculated cost: {}", recalculated_cost);
+            println!("  difference: {}", (recalculated_cost - best_cost).abs());
+        }
+
+        // Recalculate scores to ensure accuracy
+        best_state._recalculate_scores();
+        let final_cost = best_state.calculate_cost();
+
         // Send final progress update if callback is provided
+        // IMPORTANT: This must happen AFTER _recalculate_scores() to ensure accurate scores
         if let Some(callback) = &progress_callback {
             let final_temperature = self.initial_temperature
                 * (self.final_temperature / self.initial_temperature)
@@ -659,11 +682,11 @@ impl Solver for SimulatedAnnealing {
                 iteration: final_iteration + 1, // Report 1-based iteration numbers
                 max_iterations: self.max_iterations,
                 temperature: final_temperature,
-                current_score: best_cost,
-                best_score: best_cost,
-                current_contacts: best_state.unique_contacts,
-                best_contacts: best_state.unique_contacts,
-                repetition_penalty: best_state.repetition_penalty,
+                current_score: final_cost, // Use the recalculated final_cost
+                best_score: best_cost,     // Use the tracked best_cost (the actual best found)
+                current_contacts: best_state.unique_contacts, // These are now recalculated
+                best_contacts: best_state.unique_contacts, // These are now recalculated
+                repetition_penalty: best_state.repetition_penalty, // This is now recalculated
                 elapsed_seconds: get_elapsed_seconds(start_time),
                 no_improvement_count: no_improvement_counter,
             };
@@ -672,23 +695,9 @@ impl Solver for SimulatedAnnealing {
             callback(&final_progress);
         }
 
-        // Debug check: ensure algorithm consistency
-        let recalculated_cost = best_state.calculate_cost();
-        if (recalculated_cost - best_cost).abs() > 0.001 {
-            eprintln!("WARNING: Algorithm inconsistency detected!");
-            eprintln!("  tracked best_cost: {}", best_cost);
-            eprintln!("  recalculated cost: {}", recalculated_cost);
-            eprintln!("  difference: {}", (recalculated_cost - best_cost).abs());
-        }
-
-        // === FINAL RECALCULATION ===
-        // Do a final full recalculation to ensure all scores are accurate
-        // This is essential because incremental tracking can accumulate small errors
-        best_state._recalculate_scores();
-        let final_cost = best_state.calculate_cost();
-
         // Update the state parameter with the final optimized state
         *state = best_state.clone();
+        state._recalculate_scores();
 
         let elapsed = get_elapsed_seconds(start_time);
 

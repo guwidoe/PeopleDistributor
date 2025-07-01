@@ -1071,8 +1071,12 @@ impl State {
     }
 
     fn _recalculate_attribute_balance_penalty(&mut self) {
+        if std::env::var("DEBUG_ATTR_BALANCE").is_ok() {
+            println!("DEBUG: _recalculate_attribute_balance_penalty - starting recalculation");
+        }
+
         self.attribute_balance_penalty = 0.0;
-        for day_schedule in &self.schedule {
+        for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
             for (group_idx, group_people) in day_schedule.iter().enumerate() {
                 let group_id = &self.group_idx_to_id[group_idx];
 
@@ -1110,10 +1114,30 @@ impl State {
                         // Add the weighted penalty to the total
                         let weighted_penalty =
                             penalty_for_this_constraint * constraint.penalty_weight;
+
+                        if std::env::var("DEBUG_ATTR_BALANCE").is_ok() && weighted_penalty > 0.001 {
+                            println!("DEBUG: _recalculate - day {}, group {} ({}), constraint '{}' on '{}':", 
+                                    day_idx, group_idx, group_id, constraint.attribute_key, constraint.group_id);
+                            println!("  group_people: {:?}", group_people);
+                            println!("  value_counts: {:?}", value_counts);
+                            println!(
+                                "  penalty_for_this_constraint: {}",
+                                penalty_for_this_constraint
+                            );
+                            println!("  weighted_penalty: {}", weighted_penalty);
+                        }
+
                         self.attribute_balance_penalty += weighted_penalty;
                     }
                 }
             }
+        }
+
+        if std::env::var("DEBUG_ATTR_BALANCE").is_ok() {
+            println!(
+                "DEBUG: _recalculate_attribute_balance_penalty - final result: {}",
+                self.attribute_balance_penalty
+            );
         }
     }
 
@@ -1470,30 +1494,118 @@ impl State {
 
         // Attribute Balance Delta
         for ac in &self.attribute_balance_constraints {
-            let old_penalty_g1 = self.calculate_group_attribute_penalty_for_members(g1_members, ac);
-            let old_penalty_g2 = self.calculate_group_attribute_penalty_for_members(g2_members, ac);
+            let g1_id = &self.group_idx_to_id[g1_idx];
+            let g2_id = &self.group_idx_to_id[g2_idx];
 
-            let mut next_g1_members: Vec<usize> = g1_members
-                .iter()
-                .filter(|&&p| p != p1_idx)
-                .cloned()
-                .collect();
-            next_g1_members.push(p2_idx);
-            let mut next_g2_members: Vec<usize> = g2_members
-                .iter()
-                .filter(|&&p| p != p2_idx)
-                .cloned()
-                .collect();
-            next_g2_members.push(p1_idx);
+            if ac.group_id == "ALL" {
+                // For "ALL" constraints, we need to calculate the penalty for all groups on this day
+                // because the constraint applies globally and a swap can affect the balance across all groups
 
-            let new_penalty_g1 =
-                self.calculate_group_attribute_penalty_for_members(&next_g1_members, ac);
-            let new_penalty_g2 =
-                self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
+                let old_penalty_total = {
+                    let mut total = 0.0;
+                    for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
+                        if group_idx == g1_idx {
+                            // Use the current g1 members (before swap)
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        } else if group_idx == g2_idx {
+                            // Use the current g2 members (before swap)
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        } else {
+                            // Other groups are unchanged
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        }
+                    }
+                    total
+                };
 
-            let delta_penalty =
-                (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
-            delta_cost += delta_penalty;
+                let new_penalty_total = {
+                    let mut total = 0.0;
+                    for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
+                        if group_idx == g1_idx {
+                            // Calculate penalty for g1 after swap (p1 -> p2)
+                            let mut next_g1_members: Vec<usize> = group_members
+                                .iter()
+                                .filter(|&&p| p != p1_idx)
+                                .cloned()
+                                .collect();
+                            next_g1_members.push(p2_idx);
+                            total += self.calculate_group_attribute_penalty_for_members(
+                                &next_g1_members,
+                                ac,
+                            );
+                        } else if group_idx == g2_idx {
+                            // Calculate penalty for g2 after swap (p2 -> p1)
+                            let mut next_g2_members: Vec<usize> = group_members
+                                .iter()
+                                .filter(|&&p| p != p2_idx)
+                                .cloned()
+                                .collect();
+                            next_g2_members.push(p1_idx);
+                            total += self.calculate_group_attribute_penalty_for_members(
+                                &next_g2_members,
+                                ac,
+                            );
+                        } else {
+                            // Other groups are unchanged
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        }
+                    }
+                    total
+                };
+
+                let delta_penalty = new_penalty_total - old_penalty_total;
+                delta_cost += delta_penalty;
+            } else {
+                // For specific group constraints, only calculate if the constraint applies to one of the affected groups
+                let applies_to_g1 = ac.group_id == *g1_id;
+                let applies_to_g2 = ac.group_id == *g2_id;
+
+                if !applies_to_g1 && !applies_to_g2 {
+                    continue; // Skip constraint that doesn't apply to either group
+                }
+
+                let old_penalty_g1 = if applies_to_g1 {
+                    self.calculate_group_attribute_penalty_for_members(g1_members, ac)
+                } else {
+                    0.0
+                };
+                let old_penalty_g2 = if applies_to_g2 {
+                    self.calculate_group_attribute_penalty_for_members(g2_members, ac)
+                } else {
+                    0.0
+                };
+
+                let new_penalty_g1 = if applies_to_g1 {
+                    let mut next_g1_members: Vec<usize> = g1_members
+                        .iter()
+                        .filter(|&&p| p != p1_idx)
+                        .cloned()
+                        .collect();
+                    next_g1_members.push(p2_idx);
+                    self.calculate_group_attribute_penalty_for_members(&next_g1_members, ac)
+                } else {
+                    0.0
+                };
+                let new_penalty_g2 = if applies_to_g2 {
+                    let mut next_g2_members: Vec<usize> = g2_members
+                        .iter()
+                        .filter(|&&p| p != p2_idx)
+                        .cloned()
+                        .collect();
+                    next_g2_members.push(p1_idx);
+                    self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac)
+                } else {
+                    0.0
+                };
+
+                let delta_penalty =
+                    (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+                delta_cost += delta_penalty;
+            }
         }
 
         // Hard Constraint Delta - Cliques
@@ -1837,31 +1949,128 @@ impl State {
         self.locations[day][p2_idx] = (g1_idx, g1_vec_idx);
 
         // === UPDATE ATTRIBUTE BALANCE PENALTY ===
+        if std::env::var("DEBUG_ATTR_BALANCE").is_ok() {
+            println!(
+                "DEBUG: apply_swap - before attribute balance update: {}",
+                self.attribute_balance_penalty
+            );
+        }
+
         for ac in &self.attribute_balance_constraints {
-            let old_penalty_g1 = self.calculate_group_attribute_penalty_for_members(g1_members, ac);
-            let old_penalty_g2 = self.calculate_group_attribute_penalty_for_members(g2_members, ac);
+            // Get group IDs for filtering
+            let g1_id = &self.group_idx_to_id[g1_idx];
+            let g2_id = &self.group_idx_to_id[g2_idx];
 
-            let mut next_g1_members: Vec<usize> = g1_members
-                .iter()
-                .filter(|&&p| p != p1_idx)
-                .cloned()
-                .collect();
-            next_g1_members.push(p2_idx);
-            let mut next_g2_members: Vec<usize> = g2_members
-                .iter()
-                .filter(|&&p| p != p2_idx)
-                .cloned()
-                .collect();
-            next_g2_members.push(p1_idx);
+            if ac.group_id == "ALL" {
+                // For "ALL" constraints, we need to recalculate the penalty for all groups on this day
+                // because the constraint applies globally and a swap can affect the balance across all groups
 
-            let new_penalty_g1 =
-                self.calculate_group_attribute_penalty_for_members(&next_g1_members, ac);
-            let new_penalty_g2 =
-                self.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
+                let old_penalty_total = {
+                    let mut total = 0.0;
+                    for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
+                        if group_idx == g1_idx {
+                            // Use the old g1 members (before swap)
+                            total +=
+                                self.calculate_group_attribute_penalty_for_members(g1_members, ac);
+                        } else if group_idx == g2_idx {
+                            // Use the old g2 members (before swap)
+                            total +=
+                                self.calculate_group_attribute_penalty_for_members(g2_members, ac);
+                        } else {
+                            // Other groups are unchanged
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        }
+                    }
+                    total
+                };
 
-            let delta_penalty =
-                (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
-            self.attribute_balance_penalty += delta_penalty;
+                let new_penalty_total = {
+                    let mut total = 0.0;
+                    for group_members in &self.schedule[day] {
+                        total +=
+                            self.calculate_group_attribute_penalty_for_members(group_members, ac);
+                    }
+                    total
+                };
+
+                let delta_penalty = new_penalty_total - old_penalty_total;
+
+                if std::env::var("DEBUG_ATTR_BALANCE").is_ok() && delta_penalty.abs() > 0.001 {
+                    println!(
+                        "DEBUG: apply_swap - ALL constraint '{}' on day {}:",
+                        ac.attribute_key, day
+                    );
+                    println!("  old_penalty_total: {}", old_penalty_total);
+                    println!("  new_penalty_total: {}", new_penalty_total);
+                    println!("  delta_penalty: {}", delta_penalty);
+                }
+
+                self.attribute_balance_penalty += delta_penalty;
+            } else {
+                // For specific group constraints, only update if the constraint applies to one of the affected groups
+                let applies_to_g1 = ac.group_id == *g1_id;
+                let applies_to_g2 = ac.group_id == *g2_id;
+
+                if !applies_to_g1 && !applies_to_g2 {
+                    continue; // Skip constraint that doesn't apply to either group
+                }
+
+                let old_penalty_g1 = if applies_to_g1 {
+                    self.calculate_group_attribute_penalty_for_members(g1_members, ac)
+                } else {
+                    0.0
+                };
+                let old_penalty_g2 = if applies_to_g2 {
+                    self.calculate_group_attribute_penalty_for_members(g2_members, ac)
+                } else {
+                    0.0
+                };
+
+                // Use the UPDATED schedule to get the new group members
+                let new_g1_members = &self.schedule[day][g1_idx];
+                let new_g2_members = &self.schedule[day][g2_idx];
+
+                let new_penalty_g1 = if applies_to_g1 {
+                    self.calculate_group_attribute_penalty_for_members(new_g1_members, ac)
+                } else {
+                    0.0
+                };
+                let new_penalty_g2 = if applies_to_g2 {
+                    self.calculate_group_attribute_penalty_for_members(new_g2_members, ac)
+                } else {
+                    0.0
+                };
+
+                let delta_penalty =
+                    (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+
+                if std::env::var("DEBUG_ATTR_BALANCE").is_ok() && delta_penalty.abs() > 0.001 {
+                    println!(
+                        "DEBUG: apply_swap - specific constraint '{}' on group '{}' (applies_to_g1={}, applies_to_g2={}):",
+                        ac.attribute_key, ac.group_id, applies_to_g1, applies_to_g2
+                    );
+                    println!(
+                        "  old_penalty_g1: {}, old_penalty_g2: {}",
+                        old_penalty_g1, old_penalty_g2
+                    );
+                    println!(
+                        "  new_penalty_g1: {}, new_penalty_g2: {}",
+                        new_penalty_g1, new_penalty_g2
+                    );
+                    println!("  delta_penalty: {}", delta_penalty);
+                    println!("  g1_id: {}, g2_id: {}", g1_id, g2_id);
+                }
+
+                self.attribute_balance_penalty += delta_penalty;
+            }
+        }
+
+        if std::env::var("DEBUG_ATTR_BALANCE").is_ok() {
+            println!(
+                "DEBUG: apply_swap - after attribute balance update: {}",
+                self.attribute_balance_penalty
+            );
         }
 
         // === UPDATE CONSTRAINT PENALTIES (THIS WAS MISSING!) ===
@@ -3280,5 +3489,587 @@ mod tests {
         let solution = result.unwrap();
         assert!(solution.schedule.len() > 0);
         assert!(solution.unique_contacts > 0);
+    }
+
+    #[test]
+    fn test_attribute_balance_bug_with_json() {
+        use crate::run_solver;
+
+        println!("=== Testing Attribute Balance Bug with JSON Test Case ===");
+
+        // Load the debug test case
+        let test_case_path = "tests/test_cases/debug_attribute_balance_bug.json";
+        let test_case_content =
+            std::fs::read_to_string(test_case_path).expect("Failed to read debug test case");
+
+        let input: ApiInput =
+            serde_json::from_str(&test_case_content).expect("Failed to parse debug test case");
+
+        let result = run_solver(&input);
+
+        match result {
+            Ok(solver_result) => {
+                println!("Solver completed successfully");
+                println!("Final result score: {}", solver_result.final_score);
+            }
+            Err(e) => {
+                println!("Solver failed: {:?}", e);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod attribute_balance_tests {
+    use super::*;
+    use crate::models::*;
+
+    #[test]
+    fn test_attribute_balance_incremental_vs_recalculation() {
+        println!("=== Testing Attribute Balance Incremental Tracking ===");
+
+        // Create a test case with attribute balance constraints
+        let input = create_attribute_balance_test_input();
+        let mut state = State::new(&input).unwrap();
+
+        println!("Initial state:");
+        println!(
+            "  attribute_balance_penalty: {}",
+            state.attribute_balance_penalty
+        );
+        println!("  total cost: {}", state.calculate_cost());
+
+        // Perform several swaps and check consistency after each one
+        for swap_num in 1..=10 {
+            // Find two people to swap (avoid cliques and immovable people)
+            let swappable_people: Vec<usize> = (0..state.person_idx_to_id.len())
+                .filter(|&p_idx| state.person_to_clique_id[p_idx].is_none())
+                .collect();
+
+            if swappable_people.len() < 2 {
+                break;
+            }
+
+            let p1_idx = swappable_people[0];
+            let p2_idx = swappable_people[1];
+            let day = 0; // Test on first day
+
+            // Calculate delta using incremental method
+            let delta_cost = state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
+            let cost_before = state.calculate_cost();
+            let attr_penalty_before = state.attribute_balance_penalty;
+
+            println!(
+                "\nSwap {}: person {} <-> person {} on day {}",
+                swap_num, p1_idx, p2_idx, day
+            );
+            println!("  Before swap:");
+            println!("    attribute_balance_penalty: {}", attr_penalty_before);
+            println!("    total cost: {}", cost_before);
+            println!("  Predicted delta: {}", delta_cost);
+
+            // Apply the swap using incremental updates
+            state.apply_swap(day, p1_idx, p2_idx);
+
+            let cost_after_incremental = state.calculate_cost();
+            let attr_penalty_after_incremental = state.attribute_balance_penalty;
+            let actual_delta = cost_after_incremental - cost_before;
+
+            println!("  After incremental swap:");
+            println!(
+                "    attribute_balance_penalty: {}",
+                attr_penalty_after_incremental
+            );
+            println!("    total cost: {}", cost_after_incremental);
+            println!("    actual delta: {}", actual_delta);
+
+            // Now do full recalculation
+            state._recalculate_scores();
+            let cost_after_recalc = state.calculate_cost();
+            let attr_penalty_after_recalc = state.attribute_balance_penalty;
+
+            println!("  After recalculation:");
+            println!(
+                "    attribute_balance_penalty: {}",
+                attr_penalty_after_recalc
+            );
+            println!("    total cost: {}", cost_after_recalc);
+
+            // Check for discrepancies
+            let delta_prediction_error = (actual_delta - delta_cost).abs();
+            let recalc_error = (cost_after_recalc - cost_after_incremental).abs();
+            let attr_penalty_error =
+                (attr_penalty_after_recalc - attr_penalty_after_incremental).abs();
+
+            println!("  Errors:");
+            println!("    delta prediction error: {}", delta_prediction_error);
+            println!("    recalculation cost error: {}", recalc_error);
+            println!("    attribute penalty error: {}", attr_penalty_error);
+
+            // Assert that incremental and recalculation match
+            if delta_prediction_error > 0.001 {
+                panic!(
+                    "Delta prediction error too large: {}",
+                    delta_prediction_error
+                );
+            }
+            if recalc_error > 0.001 {
+                panic!("Recalculation cost error too large: {}", recalc_error);
+            }
+            if attr_penalty_error > 0.001 {
+                panic!("Attribute penalty error too large: {}", attr_penalty_error);
+            }
+        }
+
+        println!("\n=== All swaps passed incremental vs recalculation test ===");
+    }
+
+    #[test]
+    fn test_attribute_balance_bug_reproduction() {
+        println!("=== Testing Specific Attribute Balance Bug ===");
+
+        let input = create_attribute_balance_test_input();
+        let mut state = State::new(&input).unwrap();
+
+        // Print initial state
+        println!("Initial schedule:");
+        for (day, day_schedule) in state.schedule.iter().enumerate() {
+            println!("  Day {}:", day);
+            for (group_idx, group_people) in day_schedule.iter().enumerate() {
+                let group_id = &state.group_idx_to_id[group_idx];
+                let people_names: Vec<String> = group_people
+                    .iter()
+                    .map(|&p_idx| state.person_idx_to_id[p_idx].clone())
+                    .collect();
+                println!("    Group {} ({}): {:?}", group_idx, group_id, people_names);
+            }
+        }
+
+        println!(
+            "Initial attribute balance penalty: {}",
+            state.attribute_balance_penalty
+        );
+
+        // Force a specific swap that should create an attribute balance violation
+        // Swap Alice (female) from group 0 with Charlie (male) from group 1
+        let alice_idx = state.person_id_to_idx["alice"];
+        let charlie_idx = state.person_id_to_idx["charlie"];
+
+        println!(
+            "Alice (female) idx: {}, Charlie (male) idx: {}",
+            alice_idx, charlie_idx
+        );
+
+        let (alice_group, _) = state.locations[0][alice_idx];
+        let (charlie_group, _) = state.locations[0][charlie_idx];
+
+        println!(
+            "Before swap: Alice in group {}, Charlie in group {}",
+            alice_group, charlie_group
+        );
+
+        // Swap Alice and Charlie (should be in different groups)
+        if alice_group != charlie_group {
+            let delta = state.calculate_swap_cost_delta(0, alice_idx, charlie_idx);
+            println!("Calculated delta: {}", delta);
+
+            let cost_before = state.calculate_cost();
+            let attr_penalty_before = state.attribute_balance_penalty;
+
+            println!(
+                "Before swap: cost={}, attr_penalty={}",
+                cost_before, attr_penalty_before
+            );
+
+            // Apply the swap
+            state.apply_swap(0, alice_idx, charlie_idx);
+
+            let cost_after_incremental = state.calculate_cost();
+            let attr_penalty_after_incremental = state.attribute_balance_penalty;
+            let actual_delta = cost_after_incremental - cost_before;
+
+            println!(
+                "After incremental swap: cost={}, attr_penalty={}, actual_delta={}",
+                cost_after_incremental, attr_penalty_after_incremental, actual_delta
+            );
+
+            // Now recalculate
+            state._recalculate_scores();
+
+            let cost_after_recalc = state.calculate_cost();
+            let attr_penalty_after_recalc = state.attribute_balance_penalty;
+
+            println!(
+                "After recalculation: cost={}, attr_penalty={}",
+                cost_after_recalc, attr_penalty_after_recalc
+            );
+
+            let attr_penalty_error =
+                (attr_penalty_after_recalc - attr_penalty_after_incremental).abs();
+            let cost_error = (cost_after_recalc - cost_after_incremental).abs();
+
+            println!(
+                "Errors: attr_penalty_error={}, cost_error={}",
+                attr_penalty_error, cost_error
+            );
+
+            if attr_penalty_error > 0.001 {
+                println!("BUG DETECTED: Attribute penalty mismatch!");
+                println!("  Incremental: {}", attr_penalty_after_incremental);
+                println!("  Recalculated: {}", attr_penalty_after_recalc);
+                println!("  Difference: {}", attr_penalty_error);
+            }
+        } else {
+            println!("Alice and Bob are in the same group, no swap needed");
+        }
+    }
+
+    #[test]
+    fn test_attribute_balance_delta_calculation() {
+        println!("=== Testing Attribute Balance Delta Calculation ===");
+
+        let input = create_attribute_balance_test_input();
+        let mut state = State::new(&input).unwrap();
+
+        // Test a specific swap
+        let p1_idx = 0; // Should be "alice" (female)
+        let p2_idx = 1; // Should be "bob" (male)
+        let day = 0;
+
+        println!(
+            "Testing swap: {} <-> {} on day {}",
+            state.person_idx_to_id[p1_idx], state.person_idx_to_id[p2_idx], day
+        );
+
+        // Get current group assignments
+        let (p1_group, _) = state.locations[day][p1_idx];
+        let (p2_group, _) = state.locations[day][p2_idx];
+
+        println!(
+            "  {} is in group {} ({})",
+            state.person_idx_to_id[p1_idx], p1_group, state.group_idx_to_id[p1_group]
+        );
+        println!(
+            "  {} is in group {} ({})",
+            state.person_idx_to_id[p2_idx], p2_group, state.group_idx_to_id[p2_group]
+        );
+
+        // Calculate attribute balance penalty before swap
+        let penalty_before = state.attribute_balance_penalty;
+        println!("  Attribute balance penalty before: {}", penalty_before);
+
+        // Calculate delta
+        let delta = state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
+        println!("  Calculated delta: {}", delta);
+
+        // Apply swap and check actual change
+        let cost_before = state.calculate_cost();
+        state.apply_swap(day, p1_idx, p2_idx);
+        let cost_after = state.calculate_cost();
+        let penalty_after = state.attribute_balance_penalty;
+        let actual_delta = cost_after - cost_before;
+
+        println!("  Attribute balance penalty after: {}", penalty_after);
+        println!("  Actual delta: {}", actual_delta);
+        println!("  Penalty change: {}", penalty_after - penalty_before);
+
+        // Now recalculate and compare
+        state._recalculate_scores();
+        let penalty_recalc = state.attribute_balance_penalty;
+        let cost_recalc = state.calculate_cost();
+
+        println!("  After recalculation:");
+        println!("    Attribute balance penalty: {}", penalty_recalc);
+        println!("    Total cost: {}", cost_recalc);
+
+        assert!(
+            (penalty_recalc - penalty_after).abs() < 0.001,
+            "Attribute penalty mismatch: incremental={}, recalc={}",
+            penalty_after,
+            penalty_recalc
+        );
+    }
+
+    fn create_attribute_balance_test_input() -> ApiInput {
+        ApiInput {
+            problem: ProblemDefinition {
+                people: vec![
+                    Person {
+                        id: "alice".to_string(),
+                        attributes: [("gender".to_string(), "female".to_string())].into(),
+                        sessions: None,
+                    },
+                    Person {
+                        id: "bob".to_string(),
+                        attributes: [("gender".to_string(), "male".to_string())].into(),
+                        sessions: None,
+                    },
+                    Person {
+                        id: "charlie".to_string(),
+                        attributes: [("gender".to_string(), "male".to_string())].into(),
+                        sessions: None,
+                    },
+                    Person {
+                        id: "diana".to_string(),
+                        attributes: [("gender".to_string(), "female".to_string())].into(),
+                        sessions: None,
+                    },
+                    Person {
+                        id: "eve".to_string(),
+                        attributes: [("gender".to_string(), "female".to_string())].into(),
+                        sessions: None,
+                    },
+                    Person {
+                        id: "frank".to_string(),
+                        attributes: [("gender".to_string(), "male".to_string())].into(),
+                        sessions: None,
+                    },
+                ],
+                groups: vec![
+                    Group {
+                        id: "team1".to_string(),
+                        size: 3,
+                    },
+                    Group {
+                        id: "team2".to_string(),
+                        size: 3,
+                    },
+                ],
+                num_sessions: 1,
+            },
+            objectives: vec![Objective {
+                r#type: "maximize_unique_contacts".to_string(),
+                weight: 1.0,
+            }],
+            constraints: vec![
+                Constraint::AttributeBalance(AttributeBalanceParams {
+                    group_id: "team1".to_string(),
+                    attribute_key: "gender".to_string(),
+                    desired_values: [("male".to_string(), 2), ("female".to_string(), 1)].into(),
+                    penalty_weight: 100.0,
+                }),
+                Constraint::AttributeBalance(AttributeBalanceParams {
+                    group_id: "team2".to_string(),
+                    attribute_key: "gender".to_string(),
+                    desired_values: [("male".to_string(), 1), ("female".to_string(), 2)].into(),
+                    penalty_weight: 100.0,
+                }),
+            ],
+            solver: SolverConfiguration {
+                solver_type: "SimulatedAnnealing".to_string(),
+                stop_conditions: StopConditions {
+                    max_iterations: Some(10),
+                    time_limit_seconds: None,
+                    no_improvement_iterations: None,
+                },
+                solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+                    initial_temperature: 1.0,
+                    final_temperature: 0.1,
+                    cooling_schedule: "geometric".to_string(),
+                }),
+                logging: LoggingOptions::default(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_attribute_balance_detailed_debugging() {
+        println!("=== DETAILED ATTRIBUTE BALANCE DEBUGGING ===");
+
+        let input = create_attribute_balance_test_input();
+        let mut state = State::new(&input).unwrap();
+
+        println!("Initial state:");
+        println!(
+            "  attribute_balance_penalty: {}",
+            state.attribute_balance_penalty
+        );
+
+        // Print attribute constraints
+        println!("Attribute balance constraints:");
+        for (i, ac) in state.attribute_balance_constraints.iter().enumerate() {
+            println!(
+                "  {}: group_id='{}', attribute_key='{}', penalty_weight={}",
+                i, ac.group_id, ac.attribute_key, ac.penalty_weight
+            );
+            println!("    desired_values: {:?}", ac.desired_values);
+        }
+
+        // Find two people in different groups for testing
+        let mut test_people = None;
+        for p1 in 0..state.person_idx_to_id.len() {
+            for p2 in (p1 + 1)..state.person_idx_to_id.len() {
+                let (g1, _) = state.locations[0][p1];
+                let (g2, _) = state.locations[0][p2];
+                if g1 != g2 {
+                    test_people = Some((p1, p2));
+                    break;
+                }
+            }
+            if test_people.is_some() {
+                break;
+            }
+        }
+
+        if let Some((p1_idx, p2_idx)) = test_people {
+            println!(
+                "\nTesting swap: {} <-> {}",
+                state.person_idx_to_id[p1_idx], state.person_idx_to_id[p2_idx]
+            );
+
+            let (g1_idx, _) = state.locations[0][p1_idx];
+            let (g2_idx, _) = state.locations[0][p2_idx];
+
+            println!(
+                "  {} in group {} ({})",
+                state.person_idx_to_id[p1_idx], g1_idx, state.group_idx_to_id[g1_idx]
+            );
+            println!(
+                "  {} in group {} ({})",
+                state.person_idx_to_id[p2_idx], g2_idx, state.group_idx_to_id[g2_idx]
+            );
+
+            let g1_members = &state.schedule[0][g1_idx];
+            let g2_members = &state.schedule[0][g2_idx];
+
+            println!(
+                "  g1_members: {:?}",
+                g1_members
+                    .iter()
+                    .map(|&p| &state.person_idx_to_id[p])
+                    .collect::<Vec<_>>()
+            );
+            println!(
+                "  g2_members: {:?}",
+                g2_members
+                    .iter()
+                    .map(|&p| &state.person_idx_to_id[p])
+                    .collect::<Vec<_>>()
+            );
+
+            // Calculate delta step by step
+            println!("\n--- DELTA CALCULATION ---");
+            let mut total_delta = 0.0;
+
+            for (i, ac) in state.attribute_balance_constraints.iter().enumerate() {
+                println!(
+                    "Constraint {}: group_id='{}', attribute_key='{}'",
+                    i, ac.group_id, ac.attribute_key
+                );
+
+                // Check if constraint applies to these groups
+                let g1_id = &state.group_idx_to_id[g1_idx];
+                let g2_id = &state.group_idx_to_id[g2_idx];
+
+                let applies_to_g1 = ac.group_id == *g1_id || ac.group_id == "ALL";
+                let applies_to_g2 = ac.group_id == *g2_id || ac.group_id == "ALL";
+
+                println!("  applies_to_g1 ({}): {}", g1_id, applies_to_g1);
+                println!("  applies_to_g2 ({}): {}", g2_id, applies_to_g2);
+
+                if !applies_to_g1 && !applies_to_g2 {
+                    println!("  SKIPPING - constraint doesn't apply to either group");
+                    continue;
+                }
+
+                let old_penalty_g1 =
+                    state.calculate_group_attribute_penalty_for_members(g1_members, ac);
+                let old_penalty_g2 =
+                    state.calculate_group_attribute_penalty_for_members(g2_members, ac);
+
+                println!("  old_penalty_g1: {}", old_penalty_g1);
+                println!("  old_penalty_g2: {}", old_penalty_g2);
+
+                // Calculate new group compositions
+                let mut next_g1_members: Vec<usize> = g1_members
+                    .iter()
+                    .filter(|&&p| p != p1_idx)
+                    .cloned()
+                    .collect();
+                next_g1_members.push(p2_idx);
+                let mut next_g2_members: Vec<usize> = g2_members
+                    .iter()
+                    .filter(|&&p| p != p2_idx)
+                    .cloned()
+                    .collect();
+                next_g2_members.push(p1_idx);
+
+                println!(
+                    "  next_g1_members: {:?}",
+                    next_g1_members
+                        .iter()
+                        .map(|&p| &state.person_idx_to_id[p])
+                        .collect::<Vec<_>>()
+                );
+                println!(
+                    "  next_g2_members: {:?}",
+                    next_g2_members
+                        .iter()
+                        .map(|&p| &state.person_idx_to_id[p])
+                        .collect::<Vec<_>>()
+                );
+
+                let new_penalty_g1 =
+                    state.calculate_group_attribute_penalty_for_members(&next_g1_members, ac);
+                let new_penalty_g2 =
+                    state.calculate_group_attribute_penalty_for_members(&next_g2_members, ac);
+
+                println!("  new_penalty_g1: {}", new_penalty_g1);
+                println!("  new_penalty_g2: {}", new_penalty_g2);
+
+                let delta_penalty =
+                    (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
+                println!("  delta_penalty: {}", delta_penalty);
+
+                total_delta += delta_penalty;
+                println!("  running total_delta: {}", total_delta);
+            }
+
+            println!("FINAL DELTA: {}", total_delta);
+
+            // Now apply the swap and track incremental updates
+            println!("\n--- APPLY SWAP ---");
+            let attr_penalty_before = state.attribute_balance_penalty;
+            println!("attribute_balance_penalty before: {}", attr_penalty_before);
+
+            state.apply_swap(0, p1_idx, p2_idx);
+
+            let attr_penalty_after = state.attribute_balance_penalty;
+            println!("attribute_balance_penalty after: {}", attr_penalty_after);
+
+            let actual_delta = attr_penalty_after - attr_penalty_before;
+            println!("actual delta: {}", actual_delta);
+
+            // Now recalculate
+            println!("\n--- RECALCULATION ---");
+            state._recalculate_scores();
+
+            let attr_penalty_recalc = state.attribute_balance_penalty;
+            println!(
+                "attribute_balance_penalty after recalc: {}",
+                attr_penalty_recalc
+            );
+
+            println!("\n--- COMPARISON ---");
+            println!("Expected delta: {}", total_delta);
+            println!("Actual delta: {}", actual_delta);
+            println!("Delta error: {}", (actual_delta - total_delta).abs());
+
+            println!("Incremental result: {}", attr_penalty_after);
+            println!("Recalculated result: {}", attr_penalty_recalc);
+            println!(
+                "Incremental vs recalc error: {}",
+                (attr_penalty_recalc - attr_penalty_after).abs()
+            );
+
+            if (actual_delta - total_delta).abs() > 0.001 {
+                println!("BUG DETECTED: Delta calculation mismatch!");
+            }
+            if (attr_penalty_recalc - attr_penalty_after).abs() > 0.001 {
+                println!("BUG DETECTED: Incremental vs recalculation mismatch!");
+            }
+        } else {
+            println!("No suitable test people found (all in same groups)");
+        }
     }
 }

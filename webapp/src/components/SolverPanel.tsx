@@ -100,12 +100,23 @@ export function SolverPanel() {
           return false;
         }
         
+        // Debug logging for progress updates
+        if (progress.iteration % 1000 === 0 || progress.iteration < 10) {
+          console.log(`[SolverPanel] Progress ${progress.iteration}: current_score=${progress.current_score}, best_score=${progress.best_score}`);
+        }
+        
         setSolverState({
           currentIteration: progress.iteration,
           bestScore: progress.best_score,
           elapsedTime: progress.elapsed_seconds * 1000, // Convert to milliseconds
           noImprovementCount: progress.no_improvement_count,
         });
+        
+        // Log significant score improvements
+        if (progress.best_score < (window as any).lastLoggedBestScore - 50 || !(window as any).lastLoggedBestScore) {
+          console.log(`[SolverPanel] Significant improvement: best_score dropped to ${progress.best_score} at iteration ${progress.iteration}`);
+          (window as any).lastLoggedBestScore = progress.best_score;
+        }
         
         // Check if solver was cancelled
         if (cancelledRef.current) {
@@ -117,6 +128,12 @@ export function SolverPanel() {
 
       // Run the solver with progress updates using Web Worker
       const { solution, lastProgress } = await solverWorkerService.solveWithProgress(problemWithSettings, progressCallback);
+      
+      // Debug logging
+      console.log('[SolverPanel] Solver completed');
+      console.log('[SolverPanel] Solution final_score:', solution.final_score);
+      console.log('[SolverPanel] Last progress best_score:', lastProgress?.best_score);
+      console.log('[SolverPanel] Last progress current_score:', lastProgress?.current_score);
       
       // Mark solver as completed to prevent late progress updates
       solverCompletedRef.current = true;
@@ -147,6 +164,7 @@ export function SolverPanel() {
       await new Promise(resolve => setTimeout(resolve, 50));
       
       // Update final solver state with actual final values from solution
+      console.log('[SolverPanel] Setting final solver state with bestScore:', solution.final_score);
       setSolverState({ 
         isRunning: false, 
         isComplete: true,

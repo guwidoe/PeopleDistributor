@@ -198,3 +198,89 @@ pub fn get_default_settings() -> Result<String, JsValue> {
 
     Ok(settings_json)
 }
+
+#[wasm_bindgen]
+pub fn test_callback_consistency(problem_json: &str) -> Result<String, JsValue> {
+    init_panic_hook();
+
+    let api_input: ApiInput = serde_json::from_str(problem_json)
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+
+    // Capture all progress updates using Arc<Mutex<>> for thread safety
+    use std::sync::{Arc, Mutex};
+    let captured_updates = Arc::new(Mutex::new(Vec::new()));
+    let captured_updates_clone = Arc::clone(&captured_updates);
+
+    let rust_callback = Box::new(move |progress: &ProgressUpdate| -> bool {
+        captured_updates_clone
+            .lock()
+            .unwrap()
+            .push(progress.clone());
+        true // Continue optimization
+    }) as Box<dyn Fn(&ProgressUpdate) -> bool>;
+
+    // SAFETY: WASM is single-threaded, so we can safely transmute to add Send
+    let rust_callback: Box<dyn Fn(&ProgressUpdate) -> bool + Send> =
+        unsafe { std::mem::transmute(rust_callback) };
+
+    let result = solver_core::run_solver_with_progress(&api_input, Some(&rust_callback))
+        .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?;
+
+    let final_result_score = result.final_score;
+    let captured_updates = captured_updates.lock().unwrap();
+
+    // Analyze the results
+    let mut analysis = serde_json::Map::new();
+
+    if let Some(final_update) = captured_updates.last() {
+        analysis.insert(
+            "final_callback_score".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(final_update.current_score).unwrap(),
+            ),
+        );
+        analysis.insert(
+            "final_result_score".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(final_result_score).unwrap()),
+        );
+        analysis.insert(
+            "scores_match".to_string(),
+            serde_json::Value::Bool(
+                (final_update.current_score - final_result_score).abs() < 0.001,
+            ),
+        );
+        analysis.insert(
+            "total_updates".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(captured_updates.len())),
+        );
+
+        // Check for score consistency throughout
+        let mut score_jumps = Vec::new();
+        for i in 1..captured_updates.len() {
+            let prev_best = captured_updates[i - 1].best_score;
+            let curr_best = captured_updates[i].best_score;
+            if curr_best > prev_best + 0.001 {
+                score_jumps.push(serde_json::json!({
+                    "iteration": captured_updates[i].iteration,
+                    "from": prev_best,
+                    "to": curr_best,
+                    "jump": curr_best - prev_best
+                }));
+            }
+        }
+        analysis.insert(
+            "score_jumps".to_string(),
+            serde_json::Value::Array(score_jumps),
+        );
+    } else {
+        analysis.insert(
+            "error".to_string(),
+            serde_json::Value::String("No progress updates captured".to_string()),
+        );
+    }
+
+    let analysis_json = serde_json::to_string(&analysis)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize analysis: {}", e)))?;
+
+    Ok(analysis_json)
+}
