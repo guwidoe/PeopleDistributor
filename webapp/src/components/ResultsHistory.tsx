@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store';
 import { 
   BarChart3, 
@@ -18,7 +18,9 @@ import {
   Download,
   Target,
   Users,
-  Layers
+  Layers,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
 
@@ -37,9 +39,25 @@ export function ResultsHistory() {
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
 
   const currentProblem = currentProblemId ? savedProblems[currentProblemId] : null;
   const results = currentProblem?.results || [];
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setExportDropdownOpen(null);
+      }
+    };
+
+    if (exportDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [exportDropdownOpen]);
 
   const toggleExpanded = (resultId: string) => {
     const newExpanded = new Set(expandedResults);
@@ -102,24 +120,94 @@ export function ResultsHistory() {
     }
   };
 
-  const handleExportResult = (result: ProblemResult) => {
-    const exportData = {
-      result,
-      problem: currentProblem?.problem,
-      exportedAt: Date.now(),
-    };
+  const handleExportResult = (result: ProblemResult, format: 'json' | 'csv' | 'excel') => {
+    const fileName = result.name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'result';
     
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
+    if (format === 'json') {
+      const exportData = {
+        result,
+        problem: currentProblem?.problem,
+        exportedAt: Date.now(),
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
+      });
+      downloadFile(blob, `${fileName}.json`);
+    } else if (format === 'csv') {
+      const csvData = generateCSV(result);
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      downloadFile(blob, `${fileName}.csv`);
+    } else if (format === 'excel') {
+      const csvData = generateCSV(result);
+      const blob = new Blob([csvData], { type: 'application/vnd.ms-excel' });
+      downloadFile(blob, `${fileName}.xls`);
+    }
+    
+    setExportDropdownOpen(null);
+  };
+
+  const downloadFile = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `result_${result.name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'result'}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const generateCSV = (result: ProblemResult) => {
+    const headers = [
+      'Person ID',
+      'Group ID', 
+      'Session',
+      'Person Name',
+      'Person Attributes'
+    ];
+
+    const rows = result.solution.assignments.map(assignment => {
+      const person = currentProblem?.problem.people.find(p => p.id === assignment.person_id);
+      const personName = person?.attributes.name || assignment.person_id;
+      const personAttrs = person ? Object.entries(person.attributes)
+        .filter(([key]) => key !== 'name')
+        .map(([key, value]) => `${key}:${value}`)
+        .join('; ') : '';
+
+      return [
+        assignment.person_id,
+        assignment.group_id,
+        assignment.session_id + 1, // Convert to 1-based for user display
+        personName,
+        personAttrs
+      ];
+    });
+
+    // Add metadata at the top
+    const metadata = [
+      ['Result Name', result.name || 'Unnamed Result'],
+      ['Export Date', new Date().toISOString()],
+      ['Final Score', result.solution.final_score.toFixed(2)],
+      ['Unique Contacts', result.solution.unique_contacts.toString()],
+      ['Duration', formatDuration(result.duration)],
+      ['Iterations', result.solution.iteration_count.toLocaleString()],
+      ['Repetition Penalty', result.solution.repetition_penalty.toFixed(2)],
+      ['Balance Penalty', result.solution.attribute_balance_penalty.toFixed(2)],
+      ['Constraint Penalty', result.solution.constraint_penalty.toFixed(2)],
+      [], // Empty row
+      headers
+    ];
+
+    const allRows = [...metadata, ...rows];
+    
+    return allRows.map(row => 
+      row.map(cell => 
+        typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+          ? `"${cell.replace(/"/g, '""')}"` 
+          : cell
+      ).join(',')
+    ).join('\n');
   };
 
   const formatDate = (timestamp: number) => {
@@ -491,13 +579,66 @@ export function ResultsHistory() {
                             <Edit3 className="h-4 w-4" />
                             <span>Rename</span>
                           </button>
-                          <button
-                            onClick={() => handleExportResult(result)}
-                            className="btn-secondary flex items-center space-x-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            <span>Export</span>
-                          </button>
+                          <div className="relative" ref={dropdownRef}>
+                            <button
+                              onClick={() => setExportDropdownOpen(
+                                exportDropdownOpen === result.id ? null : result.id
+                              )}
+                              className="btn-secondary flex items-center space-x-2"
+                            >
+                              <Download className="h-4 w-4" />
+                              <span>Export</span>
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+                            
+                            {exportDropdownOpen === result.id && (
+                              <div className="absolute left-0 mt-1 w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
+                                   style={{ 
+                                     backgroundColor: 'var(--bg-primary)', 
+                                     borderColor: 'var(--border-primary)' 
+                                   }}>
+                                <button
+                                  onClick={() => handleExportResult(result, 'json')}
+                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                  style={{ 
+                                    color: 'var(--text-primary)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                  <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>Export as JSON</span>
+                                </button>
+                                <button
+                                  onClick={() => handleExportResult(result, 'csv')}
+                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                  style={{ 
+                                    color: 'var(--text-primary)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>Export as CSV</span>
+                                </button>
+                                <button
+                                  onClick={() => handleExportResult(result, 'excel')}
+                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                  style={{ 
+                                    color: 'var(--text-primary)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                                  <span>Export as Excel</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => handleDelete(result.id)}
