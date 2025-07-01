@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"],
+      "virtual:wasm-solver": ["./src/types/wasm.d.ts"]
     },
     "target": "ES2022",
     "useDefineForClassFields": true,
@@ -12,9 +12,9 @@
     "skipLibCheck": true,
 
     /* Bundler mode */
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",

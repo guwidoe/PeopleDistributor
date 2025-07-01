@@ -1,3 +1,5 @@
+/// <reference path="../types/wasm.d.ts" />
+
 import type {
   Problem,
   Solution,
@@ -36,8 +38,8 @@ class WasmService {
     this.loading = true;
 
     try {
-      // Load the WASM module from the public/pkg directory
-      const wasmModule = await import("/pkg/solver_wasm.js").catch((error) => {
+      // Load the WASM module via the virtual alias
+      const wasmModule = await import("virtual:wasm-solver").catch((error) => {
         console.warn(
           "WASM module not found. This might be a build issue:",
           error.message

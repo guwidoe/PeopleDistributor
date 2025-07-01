@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "virtual:wasm-solver": path.resolve(
+        __dirname,
+        "./public/pkg/solver_wasm.js"
+      ),
     },
   },
   server: {
