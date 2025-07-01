@@ -78,9 +78,9 @@ self.onmessage = async function(e) {
             // Parse and log the progress for debugging
             try {
               const progress = JSON.parse(progressJson);
-              console.log(`[Worker] Progress ${progressCallCount}: iteration=${progress.iteration}, current_score=${progress.current_score}, best_score=${progress.best_score}`);
+              // console.log(`[Worker] Progress ${progressCallCount}: iteration=${progress.iteration}, current_score=${progress.current_score}, best_score=${progress.best_score}`);
             } catch (e) {
-              console.log(`[Worker] Progress ${progressCallCount}: ${progressJson}`);
+              // console.log(`[Worker] Progress ${progressCallCount}: ${progressJson}`);
             }
             
             self.postMessage({ 
@@ -92,25 +92,25 @@ self.onmessage = async function(e) {
             return true; // Always continue for now - cancellation will be handled differently
           };
           
-          console.log('[Worker] Starting solve_with_progress...');
+          // console.log('[Worker] Starting solve_with_progress...');
           const result = wasmModule.solve_with_progress(problemJson, progressCallback);
-          console.log('[Worker] solve_with_progress completed');
+          // console.log('[Worker] solve_with_progress completed');
 
           // Parse and log the final result for debugging
           try {
             const parsedResult = JSON.parse(result);
-            console.log(`[Worker] Final result: final_score=${parsedResult.final_score}, unique_contacts=${parsedResult.unique_contacts}`);
+            // console.log(`[Worker] Final result: final_score=${parsedResult.final_score}, unique_contacts=${parsedResult.unique_contacts}`);
           } catch (e) {
-            console.log(`[Worker] Final result (raw): ${result}`);
+            // console.log(`[Worker] Final result (raw): ${result}`);
           }
 
           // Parse and log the last progress for comparison
           if (lastProgressJson) {
             try {
               const lastProgress = JSON.parse(lastProgressJson);
-              console.log(`[Worker] Last progress: current_score=${lastProgress.current_score}, best_score=${lastProgress.best_score}`);
+              // console.log(`[Worker] Last progress: current_score=${lastProgress.current_score}, best_score=${lastProgress.best_score}`);
             } catch (e) {
-              console.log(`[Worker] Last progress (raw): ${lastProgressJson}`);
+              // console.log(`[Worker] Last progress (raw): ${lastProgressJson}`);
             }
           }
 

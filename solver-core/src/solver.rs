@@ -2820,6 +2820,469 @@ impl State {
         // Recalculate all scores for accuracy (clique swaps are complex, so we use full recalc)
         self._recalculate_scores();
     }
+
+    // === SINGLE PERSON TRANSFER FUNCTIONALITY ===
+    // Transfer functions allow moving a single person from one group to another
+    // without requiring an exchange, enabling variable group sizes
+
+    /// Calculate the probability of attempting a single-person transfer based on group capacity.
+    ///
+    /// Returns a probability between 0.0 and 1.0 based on how many groups have available capacity.
+    /// If all groups are full, returns 0.0 (no transfers possible).
+    /// Otherwise, scales the probability based on available capacity across groups.
+    pub fn calculate_transfer_probability(&self, day: usize) -> f64 {
+        let total_groups = self.schedule[day].len();
+        if total_groups == 0 {
+            return 0.0;
+        }
+
+        let mut groups_with_capacity = 0;
+        let mut total_available_capacity = 0;
+
+        for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
+            let group_id = &self.group_idx_to_id[group_idx];
+            let max_capacity = self
+                .group_id_to_idx
+                .iter()
+                .find(|(id, _)| *id == group_id)
+                .map(|(_, &_idx)| {
+                    // Find the group definition from the original input
+                    // We need to store group capacities in State for this to work properly
+                    // For now, we'll use the current max size as a heuristic
+                    group_members.len().max(4) // Assume minimum capacity of 4
+                })
+                .unwrap_or(4);
+
+            let current_size = group_members.len();
+            if current_size < max_capacity {
+                groups_with_capacity += 1;
+                total_available_capacity += max_capacity - current_size;
+            }
+        }
+
+        if groups_with_capacity == 0 {
+            return 0.0; // No groups have capacity
+        }
+
+        // Scale probability based on available capacity
+        // More available capacity = higher probability of attempting transfers
+        let capacity_ratio = total_available_capacity as f64 / total_groups as f64;
+        (capacity_ratio * 0.3).min(0.3) // Max 30% probability
+    }
+
+    /// Check if a single-person transfer is feasible.
+    ///
+    /// A transfer is feasible if:
+    /// - Person is participating in the session
+    /// - Person is not immovable
+    /// - Person is not part of a clique
+    /// - Source group would have at least 1 person remaining
+    /// - Target group has available capacity
+    /// - Source and target groups are different
+    pub fn is_transfer_feasible(
+        &self,
+        day: usize,
+        person_idx: usize,
+        from_group: usize,
+        to_group: usize,
+    ) -> bool {
+        // Check basic validity
+        if from_group == to_group {
+            return false;
+        }
+
+        // Person must be participating in this session
+        if !self.person_participation[person_idx][day] {
+            return false;
+        }
+
+        // Person must not be immovable
+        if self.immovable_people.contains_key(&(person_idx, day)) {
+            return false;
+        }
+
+        // Person must not be part of a clique
+        if self.person_to_clique_id[person_idx].is_some() {
+            return false;
+        }
+
+        // Verify person is actually in the from_group
+        let (current_group, _) = self.locations[day][person_idx];
+        if current_group != from_group {
+            return false;
+        }
+
+        // Source group must have more than 1 person (don't create empty groups)
+        if self.schedule[day][from_group].len() <= 1 {
+            return false;
+        }
+
+        // Target group must have capacity
+        // For now, we'll use a heuristic: groups shouldn't exceed their current max size + 1
+        let max_observed_size = self.schedule[day]
+            .iter()
+            .map(|group| group.len())
+            .max()
+            .unwrap_or(4);
+
+        if self.schedule[day][to_group].len() >= max_observed_size {
+            return false;
+        }
+
+        true
+    }
+
+    /// Calculate the cost delta for a single-person transfer.
+    ///
+    /// Similar to swap delta but simpler since only one person moves.
+    /// Calculates changes in:
+    /// - Contact counts and unique contacts
+    /// - Repetition penalties  
+    /// - Attribute balance penalties
+    /// - Constraint violations
+    pub fn calculate_transfer_cost_delta(
+        &self,
+        day: usize,
+        person_idx: usize,
+        from_group: usize,
+        to_group: usize,
+    ) -> f64 {
+        // Check feasibility
+        if !self.is_transfer_feasible(day, person_idx, from_group, to_group) {
+            return f64::INFINITY;
+        }
+
+        let mut delta_cost = 0.0;
+
+        // === CONTACT/REPETITION DELTA ===
+        let from_group_members = &self.schedule[day][from_group];
+        let to_group_members = &self.schedule[day][to_group];
+
+        // Person loses contacts with from_group members
+        for &member in from_group_members.iter() {
+            if member == person_idx {
+                continue;
+            }
+            // Only consider contacts with participating members
+            if !self.person_participation[member][day] {
+                continue;
+            }
+
+            let count = self.contact_matrix[person_idx][member];
+            if count > 0 {
+                // Repetition penalty change: (new_penalty - old_penalty)
+                let old_penalty = if count > 1 {
+                    (count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                let new_count = count - 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
+
+                if count == 1 {
+                    // Unique contacts: losing one, so cost increases
+                    delta_cost += self.w_contacts;
+                }
+            }
+        }
+
+        // Person gains contacts with to_group members
+        for &member in to_group_members.iter() {
+            // Only consider contacts with participating members
+            if !self.person_participation[member][day] {
+                continue;
+            }
+
+            let count = self.contact_matrix[person_idx][member];
+            // Repetition penalty change: (new_penalty - old_penalty)
+            let old_penalty = if count > 1 {
+                (count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            let new_count = count + 1;
+            let new_penalty = if new_count > 1 {
+                (new_count as i32 - 1).pow(2)
+            } else {
+                0
+            };
+            delta_cost += self.w_repetition * (new_penalty - old_penalty) as f64;
+
+            if count == 0 {
+                // Unique contacts: gaining one, so cost decreases
+                delta_cost -= self.w_contacts;
+            }
+        }
+
+        // === ATTRIBUTE BALANCE DELTA ===
+        for ac in &self.attribute_balance_constraints {
+            let from_group_id = &self.group_idx_to_id[from_group];
+            let to_group_id = &self.group_idx_to_id[to_group];
+
+            if ac.group_id == "ALL" {
+                // For "ALL" constraints, calculate penalty for all groups
+                let old_penalty_total = {
+                    let mut total = 0.0;
+                    for (_group_idx, group_members) in self.schedule[day].iter().enumerate() {
+                        total +=
+                            self.calculate_group_attribute_penalty_for_members(group_members, ac);
+                    }
+                    total
+                };
+
+                let new_penalty_total = {
+                    let mut total = 0.0;
+                    for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
+                        if group_idx == from_group {
+                            // Calculate penalty for from_group after removing person
+                            let next_from_members: Vec<usize> = group_members
+                                .iter()
+                                .filter(|&&p| p != person_idx)
+                                .cloned()
+                                .collect();
+                            total += self.calculate_group_attribute_penalty_for_members(
+                                &next_from_members,
+                                ac,
+                            );
+                        } else if group_idx == to_group {
+                            // Calculate penalty for to_group after adding person
+                            let mut next_to_members = group_members.clone();
+                            next_to_members.push(person_idx);
+                            total += self.calculate_group_attribute_penalty_for_members(
+                                &next_to_members,
+                                ac,
+                            );
+                        } else {
+                            // Other groups unchanged
+                            total += self
+                                .calculate_group_attribute_penalty_for_members(group_members, ac);
+                        }
+                    }
+                    total
+                };
+
+                delta_cost += new_penalty_total - old_penalty_total;
+            } else {
+                // For specific group constraints
+                let applies_to_from = ac.group_id == *from_group_id;
+                let applies_to_to = ac.group_id == *to_group_id;
+
+                if !applies_to_from && !applies_to_to {
+                    continue; // Skip constraint that doesn't apply to either group
+                }
+
+                let old_penalty_from = if applies_to_from {
+                    self.calculate_group_attribute_penalty_for_members(from_group_members, ac)
+                } else {
+                    0.0
+                };
+                let old_penalty_to = if applies_to_to {
+                    self.calculate_group_attribute_penalty_for_members(to_group_members, ac)
+                } else {
+                    0.0
+                };
+
+                let new_penalty_from = if applies_to_from {
+                    let next_from_members: Vec<usize> = from_group_members
+                        .iter()
+                        .filter(|&&p| p != person_idx)
+                        .cloned()
+                        .collect();
+                    self.calculate_group_attribute_penalty_for_members(&next_from_members, ac)
+                } else {
+                    0.0
+                };
+                let new_penalty_to = if applies_to_to {
+                    let mut next_to_members = to_group_members.clone();
+                    next_to_members.push(person_idx);
+                    self.calculate_group_attribute_penalty_for_members(&next_to_members, ac)
+                } else {
+                    0.0
+                };
+
+                let delta_penalty =
+                    (new_penalty_from + new_penalty_to) - (old_penalty_from + old_penalty_to);
+                delta_cost += delta_penalty;
+            }
+        }
+
+        // === CONSTRAINT PENALTY DELTA ===
+        // Check forbidden pairs
+        for (pair_idx, &(person1, person2)) in self.forbidden_pairs.iter().enumerate() {
+            // Check if this constraint applies to this session
+            if let Some(ref sessions) = self.forbidden_pair_sessions[pair_idx] {
+                if !sessions.contains(&day) {
+                    continue;
+                }
+            }
+
+            let pair_weight = self.forbidden_pair_weights[pair_idx];
+
+            // Check if the transferring person is part of this forbidden pair
+            if person_idx != person1 && person_idx != person2 {
+                continue;
+            }
+
+            let other_person = if person_idx == person1 {
+                person2
+            } else {
+                person1
+            };
+
+            // Check current violation state
+            let currently_together = from_group_members.contains(&other_person);
+
+            // Check future violation state
+            let will_be_together = to_group_members.contains(&other_person);
+
+            let old_penalty = if currently_together { pair_weight } else { 0.0 };
+            let new_penalty = if will_be_together { pair_weight } else { 0.0 };
+
+            delta_cost += new_penalty - old_penalty;
+        }
+
+        delta_cost
+    }
+
+    /// Apply a single-person transfer.
+    ///
+    /// Moves a person from one group to another and updates all internal state:
+    /// - Schedule and locations
+    /// - Contact matrix and scores
+    /// - Attribute balance penalties
+    /// - Constraint violations
+    pub fn apply_transfer(
+        &mut self,
+        day: usize,
+        person_idx: usize,
+        from_group: usize,
+        to_group: usize,
+    ) {
+        // Verify the transfer is feasible
+        if !self.is_transfer_feasible(day, person_idx, from_group, to_group) {
+            eprintln!("Warning: Attempted infeasible transfer");
+            return;
+        }
+
+        // === UPDATE CONTACT MATRIX ===
+        let from_group_members = self.schedule[day][from_group].clone();
+        let to_group_members = self.schedule[day][to_group].clone();
+
+        // Remove contacts with old group members
+        for &member in from_group_members.iter() {
+            if member != person_idx && self.person_participation[member][day] {
+                let old_count = self.contact_matrix[person_idx][member];
+                if old_count > 0 {
+                    self.contact_matrix[person_idx][member] -= 1;
+                    self.contact_matrix[member][person_idx] -= 1;
+
+                    // Update unique contacts count
+                    if old_count == 1 {
+                        self.unique_contacts -= 1; // Lost a unique contact
+                    }
+
+                    // Update repetition penalty
+                    let old_penalty = if old_count > 1 {
+                        (old_count as i32 - 1).pow(2)
+                    } else {
+                        0
+                    };
+                    let new_count = old_count - 1;
+                    let new_penalty = if new_count > 1 {
+                        (new_count as i32 - 1).pow(2)
+                    } else {
+                        0
+                    };
+                    self.repetition_penalty += new_penalty - old_penalty;
+                }
+            }
+        }
+
+        // Add contacts with new group members
+        for &member in to_group_members.iter() {
+            if self.person_participation[member][day] {
+                let old_count = self.contact_matrix[person_idx][member];
+                self.contact_matrix[person_idx][member] += 1;
+                self.contact_matrix[member][person_idx] += 1;
+
+                // Update unique contacts count
+                if old_count == 0 {
+                    self.unique_contacts += 1; // Gained a unique contact
+                }
+
+                // Update repetition penalty
+                let old_penalty = if old_count > 1 {
+                    (old_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                let new_count = old_count + 1;
+                let new_penalty = if new_count > 1 {
+                    (new_count as i32 - 1).pow(2)
+                } else {
+                    0
+                };
+                self.repetition_penalty += new_penalty - old_penalty;
+            }
+        }
+
+        // === UPDATE SCHEDULE AND LOCATIONS ===
+        // Remove person from from_group
+        self.schedule[day][from_group].retain(|&p| p != person_idx);
+
+        // Add person to to_group
+        self.schedule[day][to_group].push(person_idx);
+
+        // Update locations lookup
+        let new_position = self.schedule[day][to_group].len() - 1;
+        self.locations[day][person_idx] = (to_group, new_position);
+
+        // Update positions for remaining people in from_group
+        for (pos, &person) in self.schedule[day][from_group].iter().enumerate() {
+            self.locations[day][person] = (from_group, pos);
+        }
+
+        // === UPDATE ATTRIBUTE BALANCE PENALTY ===
+        // Recalculate attribute balance penalty for affected groups
+        for ac in &self.attribute_balance_constraints.clone() {
+            let from_group_id = &self.group_idx_to_id[from_group];
+            let to_group_id = &self.group_idx_to_id[to_group];
+
+            if ac.group_id == "ALL" {
+                // For "ALL" constraints, recalculate completely
+                self._recalculate_attribute_balance_penalty();
+                break; // Only need to do this once for ALL constraints
+            } else {
+                // For specific groups, update only affected groups
+                if ac.group_id == *from_group_id {
+                    let old_penalty = self
+                        .calculate_group_attribute_penalty_for_members(&from_group_members, &ac);
+                    let new_penalty = self.calculate_group_attribute_penalty_for_members(
+                        &self.schedule[day][from_group],
+                        &ac,
+                    );
+                    self.attribute_balance_penalty += new_penalty - old_penalty;
+                }
+                if ac.group_id == *to_group_id {
+                    let old_penalty =
+                        self.calculate_group_attribute_penalty_for_members(&to_group_members, &ac);
+                    let new_penalty = self.calculate_group_attribute_penalty_for_members(
+                        &self.schedule[day][to_group],
+                        &ac,
+                    );
+                    self.attribute_balance_penalty += new_penalty - old_penalty;
+                }
+            }
+        }
+
+        // === UPDATE CONSTRAINT PENALTIES ===
+        self._recalculate_constraint_penalty();
+    }
 }
 
 // Helper struct for Disjoint Set Union

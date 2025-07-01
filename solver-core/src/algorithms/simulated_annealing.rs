@@ -458,6 +458,12 @@ impl Solver for SimulatedAnnealing {
             );
         }
 
+        // Pre-calculate move probabilities for performance
+        let clique_swap_probability = current_state.calculate_clique_swap_probability();
+        let transfer_probabilities: Vec<f64> = (0..current_state.num_sessions as usize)
+            .map(|day| current_state.calculate_transfer_probability(day))
+            .collect();
+
         for i in 0..self.max_iterations {
             final_iteration = i;
             let temperature = self.initial_temperature
@@ -506,11 +512,12 @@ impl Solver for SimulatedAnnealing {
             // --- Choose a random move ---
             let day = rng.random_range(0..current_state.num_sessions as usize);
 
-            // Decide whether to attempt a clique swap or regular swap
-            let clique_swap_probability = current_state.calculate_clique_swap_probability();
-            let should_attempt_clique_swap = rng.random::<f64>() < clique_swap_probability;
+            // Use pre-calculated move probabilities for performance
+            let transfer_probability = transfer_probabilities[day];
+            let move_selector = rng.random::<f64>();
 
-            if should_attempt_clique_swap && !current_state.cliques.is_empty() {
+            if move_selector < clique_swap_probability && !current_state.cliques.is_empty() {
+                // === CLIQUE SWAP ===
                 // --- Attempt Clique Swap ---
                 let clique_idx = rng.random_range(0..current_state.cliques.len());
                 let clique = &current_state.cliques[clique_idx];
@@ -575,8 +582,55 @@ impl Solver for SimulatedAnnealing {
                         }
                     }
                 }
+            } else if move_selector < clique_swap_probability + transfer_probability {
+                // === SINGLE PERSON TRANSFER ===
+                let transferable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
+                    .filter(|&p_idx| current_state.person_participation[p_idx][day])
+                    .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
+                    .filter(|&p_idx| current_state.person_to_clique_id[p_idx].is_none())
+                    .collect();
+
+                if !transferable_people.is_empty() {
+                    let person_idx =
+                        transferable_people[rng.random_range(0..transferable_people.len())];
+                    let (from_group, _) = current_state.locations[day][person_idx];
+
+                    // Find potential target groups
+                    let num_groups = current_state.group_idx_to_id.len();
+                    let possible_target_groups: Vec<usize> = (0..num_groups)
+                        .filter(|&g| g != from_group)
+                        .filter(|&g| {
+                            current_state.is_transfer_feasible(day, person_idx, from_group, g)
+                        })
+                        .collect();
+
+                    if !possible_target_groups.is_empty() {
+                        let to_group = possible_target_groups
+                            [rng.random_range(0..possible_target_groups.len())];
+
+                        // Calculate delta cost for transfer
+                        let delta_cost = current_state
+                            .calculate_transfer_cost_delta(day, person_idx, from_group, to_group);
+                        let current_cost = current_state.calculate_cost();
+                        let next_cost = current_cost + delta_cost;
+
+                        // Accept or reject the transfer
+                        if delta_cost < 0.0
+                            || rng.random::<f64>() < (-delta_cost / temperature).exp()
+                        {
+                            current_state.apply_transfer(day, person_idx, from_group, to_group);
+
+                            if next_cost < best_cost {
+                                best_cost = next_cost;
+                                best_state = current_state.clone();
+                                no_improvement_counter = 0;
+                                improvement_found = true;
+                            }
+                        }
+                    }
+                }
             } else {
-                // --- Regular Single Person Swap ---
+                // === REGULAR PERSON SWAP ===
                 let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
                     .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
                     .filter(|&p_idx| current_state.person_to_clique_id[p_idx].is_none())

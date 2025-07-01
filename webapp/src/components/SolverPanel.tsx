@@ -510,37 +510,22 @@ export function SolverPanel() {
 
       {/* Problem Status */}
       <div className="card">
-                    <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Problem Status</h3>
+        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Problem Status</h3>
         {problem ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-primary-50 rounded-lg">
-              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-primary-600 font-medium text-sm">
-                  {problem.people.length}
-                </span>
-              </div>
               <div className="text-2xl font-bold text-primary-600">
                 {problem.people.length}
               </div>
               <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>People</div>
             </div>
             <div className="text-center p-4 bg-success-50 rounded-lg">
-              <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-success-600 font-medium text-sm">
-                  {problem.num_sessions}
-                </span>
-              </div>
               <div className="text-2xl font-bold text-success-600">
                 {problem.num_sessions}
               </div>
               <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sessions</div>
             </div>
             <div className="text-center p-4 bg-warning-50 rounded-lg">
-              <div className="w-8 h-8 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-warning-600 font-medium text-sm">
-                  {problem.constraints.length}
-                </span>
-              </div>
               <div className="text-2xl font-bold text-warning-600">
                 {problem.constraints.length}
               </div>
