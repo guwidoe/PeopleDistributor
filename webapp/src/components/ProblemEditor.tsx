@@ -1392,40 +1392,37 @@ export function ProblemEditor() {
       {/* Content */}
         {activeSection === 'people' && (
           <div className="space-y-4">
-            {/* Collapsible Attributes Section */}
-            <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            {/* Attributes Section Header */}
+            <div className="flex items-center justify-between">
               <button
                 onClick={() => setShowAttributesSection(!showAttributesSection)}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-opacity-50 transition-colors"
-                style={{ backgroundColor: showAttributesSection ? 'var(--bg-tertiary)' : 'transparent' }}
+                className="flex items-center gap-3 text-left transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  {showAttributesSection ? (
-                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-                  )}
-                  <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
-                    Attribute Definitions ({attributeDefinitions.length})
-                  </h3>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAttributeForm(true);
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md font-medium text-white text-sm transition-colors"
-                  style={{ backgroundColor: 'var(--color-accent)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                >
-                  <Plus className="w-3 h-3" />
-                  Add Attribute
-                </button>
+                {showAttributesSection ? (
+                  <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                ) : (
+                  <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+                )}
+                <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                <h3 className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+                  Attribute Definitions ({attributeDefinitions.length})
+                </h3>
               </button>
+              <button
+                onClick={() => setShowAttributeForm(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md font-medium text-white text-sm transition-colors"
+                style={{ backgroundColor: 'var(--color-accent)' }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                <Plus className="w-3 h-3" />
+                Add Attribute
+              </button>
+            </div>
 
-              {showAttributesSection && (
+            {/* Collapsible Attributes Section */}
+            {showAttributesSection && (
+              <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
                 <div className="p-4 space-y-3">
                   <div className="rounded-md p-3 border text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
                     <p style={{ color: 'var(--text-secondary)' }}>
@@ -1475,8 +1472,8 @@ export function ProblemEditor() {
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* People Section */}
             <div className="flex items-center justify-between">
@@ -1539,14 +1536,14 @@ export function ProblemEditor() {
               <p className="text-sm">Add groups where people will be assigned</p>
             </div>
           )}
-          </div>
-        )}
+        </div>
+      )}
 
-        {activeSection === 'sessions' && (
+      {activeSection === 'sessions' && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions Configuration</h3>
           
-                      <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -1579,11 +1576,9 @@ export function ProblemEditor() {
         </div>
       )}
 
-
-
-        {activeSection === 'constraints' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+      {activeSection === 'constraints' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Constraints ({problem?.constraints.length || 0})</h3>
             <button
               onClick={() => setShowConstraintForm(true)}
@@ -1595,7 +1590,7 @@ export function ProblemEditor() {
               <Plus className="w-4 h-4" />
               Add Constraint
             </button>
-            </div>
+          </div>
           
           <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
             <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>About Constraints</h4>
@@ -1741,8 +1736,8 @@ export function ProblemEditor() {
               <p className="text-sm">Add constraints to guide the optimization process</p>
             </div>
           )}
-          </div>
-        )}
+        </div>
+      )}
 
       {/* Forms */}
       {showPersonForm && renderPersonForm()}
