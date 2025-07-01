@@ -546,6 +546,10 @@ impl State {
 
         state._recalculate_locations_from_schedule();
         state._recalculate_scores();
+
+        // Calculate initial scores
+        state._recalculate_scores();
+
         Ok(state)
     }
 
@@ -1104,8 +1108,9 @@ impl State {
                         }
 
                         // Add the weighted penalty to the total
-                        self.attribute_balance_penalty +=
+                        let weighted_penalty =
                             penalty_for_this_constraint * constraint.penalty_weight;
+                        self.attribute_balance_penalty += weighted_penalty;
                     }
                 }
             }
@@ -1488,7 +1493,7 @@ impl State {
 
             let delta_penalty =
                 (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
-            delta_cost += delta_penalty * ac.penalty_weight;
+            delta_cost += delta_penalty;
         }
 
         // Hard Constraint Delta - Cliques
@@ -1844,7 +1849,7 @@ impl State {
 
             let delta_penalty =
                 (new_penalty_g1 + new_penalty_g2) - (old_penalty_g1 + old_penalty_g2);
-            self.attribute_balance_penalty += delta_penalty * ac.penalty_weight;
+            self.attribute_balance_penalty += delta_penalty;
         }
 
         // === UPDATE CONSTRAINT PENALTIES (THIS WAS MISSING!) ===

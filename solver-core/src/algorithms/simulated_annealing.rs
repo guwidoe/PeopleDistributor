@@ -672,8 +672,6 @@ impl Solver for SimulatedAnnealing {
             callback(&final_progress);
         }
 
-        let final_cost = best_cost; // Use tracked best cost instead of recalculating
-
         // Debug check: ensure algorithm consistency
         let recalculated_cost = best_state.calculate_cost();
         if (recalculated_cost - best_cost).abs() > 0.001 {
@@ -682,6 +680,15 @@ impl Solver for SimulatedAnnealing {
             eprintln!("  recalculated cost: {}", recalculated_cost);
             eprintln!("  difference: {}", (recalculated_cost - best_cost).abs());
         }
+
+        // === FINAL RECALCULATION ===
+        // Do a final full recalculation to ensure all scores are accurate
+        // This is essential because incremental tracking can accumulate small errors
+        best_state._recalculate_scores();
+        let final_cost = best_state.calculate_cost();
+
+        // Update the state parameter with the final optimized state
+        *state = best_state.clone();
 
         let elapsed = get_elapsed_seconds(start_time);
 

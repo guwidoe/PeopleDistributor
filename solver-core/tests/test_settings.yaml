@@ -22,3 +22,5 @@
 #
 mode: "all"
 filter_patterns: []
+# mode: "filter"
+# filter_patterns: ["UI"]
