@@ -58,14 +58,14 @@ export function ResultComparison() {
   const getBestResult = () => {
     if (selectedResults.length === 0) return null;
     return selectedResults.reduce((best, current) => 
-      current.solution.final_score > best.solution.final_score ? current : best
+      current.solution.final_score < best.solution.final_score ? current : best
     );
   };
 
   const getWorstResult = () => {
     if (selectedResults.length === 0) return null;
     return selectedResults.reduce((worst, current) => 
-      current.solution.final_score < worst.solution.final_score ? current : worst
+      current.solution.final_score > worst.solution.final_score ? current : worst
     );
   };
 
@@ -166,7 +166,7 @@ export function ResultComparison() {
                   <div>
                     <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Difference</p>
                     <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {(bestResult.solution.final_score - worstResult.solution.final_score).toFixed(2)}
+                      {(worstResult.solution.final_score - bestResult.solution.final_score).toFixed(2)}
                     </p>
                   </div>
                 )}
@@ -375,7 +375,7 @@ export function ResultComparison() {
         {/* Footer */}
         <div className="flex items-center justify-between p-6 border-t" style={{ borderColor: 'var(--border-primary)' }}>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Higher scores are better. Penalties are subtracted from the base score.
+            Lower scores are better (penalty-based scoring). The solver minimizes total penalties.
           </p>
           <div className="flex space-x-3">
             <button

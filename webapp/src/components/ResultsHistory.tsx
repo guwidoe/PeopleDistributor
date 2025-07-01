@@ -150,7 +150,7 @@ export function ResultsHistory() {
   const getBestResult = () => {
     if (results.length === 0) return null;
     return results.reduce((best, current) => 
-      current.solution.final_score > best.solution.final_score ? current : best
+      current.solution.final_score < best.solution.final_score ? current : best
     );
   };
 
