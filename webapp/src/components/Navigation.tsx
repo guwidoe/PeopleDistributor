@@ -71,22 +71,6 @@ export function Navigation() {
           })}
         </div>
       </nav>
-
-      {/* Problem Manager Button (when no current problem) */}
-      {!currentProblemName && (
-        <div className="text-center">
-          <button
-            onClick={() => setShowProblemManager(true)}
-            className="btn-primary flex items-center space-x-2 mx-auto"
-          >
-            <FolderOpen className="h-4 w-4" />
-            <span>Manage Problems</span>
-          </button>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>
-            Create or load a problem to get started
-          </p>
-        </div>
-      )}
     </div>
   );
 } 

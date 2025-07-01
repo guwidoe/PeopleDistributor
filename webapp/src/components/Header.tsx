@@ -21,6 +21,16 @@ export function Header() {
           </Link>
           
           <div className="flex items-center space-x-2 sm:space-x-4">
+            {!currentProblemName && (
+              <button
+                onClick={() => setShowProblemManager(true)}
+                className="btn-secondary flex items-center space-x-2"
+                title="Manage problems"
+              >
+                <FolderOpen className="h-4 w-4" />
+                <span className="hidden sm:inline">Manage Problems</span>
+              </button>
+            )}
             {currentProblemName && (
               <div className="hidden sm:flex items-center space-x-2 text-sm p-2 rounded-md" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                 <FolderOpen className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />

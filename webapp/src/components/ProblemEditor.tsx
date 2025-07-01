@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Tag, Clock, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
@@ -444,14 +444,17 @@ export function ProblemEditor() {
           break;
 
         case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id || !constraintForm.sessions?.length) {
+          if (!constraintForm.person_id || !constraintForm.group_id) {
             throw new Error('Please fill in all required fields for immovable person');
           }
+          // If no sessions selected, apply to all sessions
+          const allSessions = Array.from({ length: sessionsCount }, (_, i) => i);
+          const immovableSessions = constraintForm.sessions?.length ? constraintForm.sessions : allSessions;
           newConstraint = {
             type: 'ImmovablePerson',
             person_id: constraintForm.person_id,
             group_id: constraintForm.group_id,
-            sessions: constraintForm.sessions
+            sessions: immovableSessions
           };
           break;
 
@@ -497,18 +500,46 @@ export function ProblemEditor() {
 
   const handleEditConstraint = (constraint: Constraint, index: number) => {
     setEditingConstraint({ constraint, index });
-    setConstraintForm({
-      type: constraint.type,
-      max_allowed_encounters: constraint.max_allowed_encounters,
-      penalty_function: constraint.penalty_function,
-      penalty_weight: constraint.penalty_weight,
-      group_id: constraint.group_id,
-      attribute_key: constraint.attribute_key,
-      desired_values: constraint.desired_values,
-      person_id: constraint.person_id,
-      people: constraint.people,
-      sessions: constraint.sessions
-    });
+    
+    // Extract fields based on constraint type
+    switch (constraint.type) {
+      case 'RepeatEncounter':
+        setConstraintForm({
+          type: constraint.type,
+          max_allowed_encounters: constraint.max_allowed_encounters,
+          penalty_function: constraint.penalty_function,
+          penalty_weight: constraint.penalty_weight
+        });
+        break;
+      case 'AttributeBalance':
+        setConstraintForm({
+          type: constraint.type,
+          group_id: constraint.group_id,
+          attribute_key: constraint.attribute_key,
+          desired_values: constraint.desired_values,
+          penalty_weight: constraint.penalty_weight
+        });
+        break;
+      case 'ImmovablePerson':
+        setConstraintForm({
+          type: constraint.type,
+          person_id: constraint.person_id,
+          group_id: constraint.group_id,
+          sessions: constraint.sessions,
+          penalty_weight: undefined // ImmovablePerson doesn't have penalty_weight
+        });
+        break;
+      case 'MustStayTogether':
+      case 'CannotBeTogether':
+        setConstraintForm({
+          type: constraint.type,
+          people: constraint.people,
+          sessions: constraint.sessions,
+          penalty_weight: constraint.penalty_weight
+        });
+        break;
+    }
+    
     setShowConstraintForm(true);
   };
 
@@ -545,14 +576,17 @@ export function ProblemEditor() {
           break;
 
         case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id || !constraintForm.sessions?.length) {
+          if (!constraintForm.person_id || !constraintForm.group_id) {
             throw new Error('Please fill in all required fields for immovable person');
           }
+          // If no sessions selected, apply to all sessions
+          const allUpdateSessions = Array.from({ length: sessionsCount }, (_, i) => i);
+          const immovableUpdateSessions = constraintForm.sessions?.length ? constraintForm.sessions : allUpdateSessions;
           updatedConstraint = {
             type: 'ImmovablePerson',
             person_id: constraintForm.person_id,
             group_id: constraintForm.group_id,
-            sessions: constraintForm.sessions
+            sessions: immovableUpdateSessions
           };
           break;
 
@@ -925,7 +959,7 @@ export function ProblemEditor() {
 
     return (
       <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-                  <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto modal-content">
+        <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Constraint' : 'Add Constraint'}
@@ -1127,7 +1161,7 @@ export function ProblemEditor() {
 
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                    Sessions *
+                    Apply to Sessions (optional)
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {sessions.map(sessionIdx => (
@@ -1156,7 +1190,7 @@ export function ProblemEditor() {
                     ))}
                   </div>
                   <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                    Sessions where this person must be in the specified group
+                    Leave empty to apply to all sessions
                   </p>
                 </div>
               </>
@@ -1233,27 +1267,29 @@ export function ProblemEditor() {
               </>
             )}
 
-            {/* Penalty Weight */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Penalty Weight
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                value={constraintForm.penalty_weight || ''}
-                onChange={(e) => setConstraintForm(prev => ({ 
-                  ...prev, 
-                  penalty_weight: parseFloat(e.target.value) || 100 
-                }))}
-                className="input"
-              />
-              <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                Higher values make this constraint more important (1-10000). 
-                Use 1000+ for hard constraints, 10-100 for preferences.
-              </p>
-            </div>
+            {/* Penalty Weight - only for constraints that use it */}
+            {constraintForm.type !== 'ImmovablePerson' && (
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Penalty Weight
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={constraintForm.penalty_weight || ''}
+                  onChange={(e) => setConstraintForm(prev => ({ 
+                    ...prev, 
+                    penalty_weight: parseFloat(e.target.value) || 100 
+                  }))}
+                  className="input"
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                  Higher values make this constraint more important (1-10000). 
+                  Use 1000+ for hard constraints, 10-100 for preferences.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 mt-6">
@@ -1576,48 +1612,127 @@ export function ProblemEditor() {
           </div>
 
           {problem?.constraints.length ? (
-            <div className="space-y-3">
-              {problem.constraints.map((constraint, index) => (
-                <div key={index} className="rounded-lg border p-4 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.type}</h4>
-                        <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs font-medium">
-                          Weight: {constraint.penalty_weight || 'Default'}
-                        </span>
-                      </div>
-                      
-                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        <div>Group: <span style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
-                        <div>Attribute: <span style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
-                        <div>Desired distribution: <span style={{ color: 'var(--text-primary)' }}>{Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</span></div>
-                      </div>
-                    </div>
+            <div className="space-y-6">
+              {/* Group constraints by type */}
+              {(() => {
+                const constraintsByType = problem.constraints.reduce((acc, constraint, index) => {
+                  if (!acc[constraint.type]) {
+                    acc[constraint.type] = [];
+                  }
+                  acc[constraint.type].push({ constraint, index });
+                  return acc;
+                }, {} as Record<string, { constraint: Constraint; index: number }[]>);
+
+                const constraintTypeLabels = {
+                  'RepeatEncounter': 'Repeat Encounter Limits',
+                  'AttributeBalance': 'Attribute Balance',
+                  'ImmovablePerson': 'Immovable People',
+                  'MustStayTogether': 'Must Stay Together',
+                  'CannotBeTogether': 'Cannot Be Together'
+                };
+
+                return Object.entries(constraintsByType).map(([type, items]) => (
+                  <div key={type} className="space-y-3">
+                    <h4 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }}></div>
+                      {constraintTypeLabels[type as keyof typeof constraintTypeLabels] || type}
+                      <span className="text-sm font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                        {items.length}
+                      </span>
+                    </h4>
                     
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditConstraint(constraint, index)}
-                        className="p-1 transition-colors"
-                        style={{ color: 'var(--text-tertiary)' }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary-600)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteConstraint(index)}
-                        className="p-1 transition-colors"
-                        style={{ color: 'var(--text-tertiary)' }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
+                      {items.map(({ constraint, index }) => (
+                        <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                                  {constraint.type}
+                                </span>
+                                {constraint.type !== 'ImmovablePerson' && (
+                                  <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>
+                                    Weight: {(constraint as any).penalty_weight}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                                {constraint.type === 'RepeatEncounter' && (
+                                  <>
+                                    <div>Max encounters: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.max_allowed_encounters}</span></div>
+                                    <div>Penalty function: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.penalty_function}</span></div>
+                                  </>
+                                )}
+                                
+                                {constraint.type === 'AttributeBalance' && (
+                                  <>
+                                    <div>Group: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
+                                    <div>Attribute: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
+                                    <div className="break-words">Distribution: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</span></div>
+                                  </>
+                                )}
+                                
+                                {constraint.type === 'ImmovablePerson' && (
+                                  <>
+                                    <div>Person: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span></div>
+                                    <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
+                                    <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                  </>
+                                )}
+                                
+                                {(constraint.type === 'MustStayTogether' || constraint.type === 'CannotBeTogether') && (
+                                  <>
+                                    <div className="break-words">People: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.people.join(', ')}</span></div>
+                                    {constraint.sessions && constraint.sessions.length > 0 ? (
+                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                    ) : (
+                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex gap-1 ml-2">
+                              <button
+                                onClick={() => handleEditConstraint(constraint, index)}
+                                className="p-1.5 rounded transition-colors"
+                                style={{ color: 'var(--text-tertiary)' }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = 'var(--color-accent)';
+                                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--text-tertiary)';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteConstraint(index)}
+                                className="p-1.5 rounded transition-colors"
+                                style={{ color: 'var(--text-tertiary)' }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = 'var(--color-error-600)';
+                                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--text-tertiary)';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           ) : (
             <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>

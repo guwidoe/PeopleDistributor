@@ -11,13 +11,6 @@ export interface Group {
 }
 
 // Constraint types matching solver-core exactly
-export type ConstraintType =
-  | "RepeatEncounter"
-  | "AttributeBalance"
-  | "ImmovablePerson"
-  | "MustStayTogether"
-  | "CannotBeTogether";
-
 export interface RepeatEncounterParams {
   max_allowed_encounters: number;
   penalty_function: "linear" | "squared";
@@ -37,19 +30,23 @@ export interface ImmovablePersonParams {
   sessions: number[]; // Sessions where this person must be in this group
 }
 
-export interface Constraint {
-  type: ConstraintType;
-  // Union of all possible constraint parameters
-  max_allowed_encounters?: number;
-  penalty_function?: "linear" | "squared";
-  penalty_weight?: number;
-  group_id?: string;
-  attribute_key?: string;
-  desired_values?: Record<string, number>;
-  person_id?: string;
-  people?: string[];
-  sessions?: number[];
-}
+// Constraint union type matching solver-core's tagged enum structure
+export type Constraint =
+  | ({ type: "RepeatEncounter" } & RepeatEncounterParams)
+  | ({ type: "AttributeBalance" } & AttributeBalanceParams)
+  | ({ type: "ImmovablePerson" } & ImmovablePersonParams)
+  | {
+      type: "MustStayTogether";
+      people: string[];
+      penalty_weight: number;
+      sessions?: number[]; // Optional: if undefined, applies to all sessions
+    }
+  | {
+      type: "CannotBeTogether";
+      people: string[];
+      penalty_weight: number;
+      sessions?: number[]; // Optional: if undefined, applies to all sessions
+    };
 
 export interface Problem {
   people: Person[];
