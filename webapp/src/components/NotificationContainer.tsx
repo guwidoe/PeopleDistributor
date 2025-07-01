@@ -67,7 +67,7 @@ export function NotificationContainer() {
             <div className="flex items-start space-x-3">
               <Icon className={`h-5 w-5 mt-0.5 ${getIconColor(notification.type)}`} />
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium text-gray-900">
+                <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                   {notification.title}
                 </h4>
                 <p className="text-sm text-gray-700 mt-1">

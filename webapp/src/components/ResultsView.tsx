@@ -85,10 +85,10 @@ Groups: ${problem?.groups.length || 0}`;
   });
 
   const renderMetricCard = (title: string, value: string | number, icon: React.ComponentType<any>, color: string) => (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
           <p className={`text-2xl font-bold ${color}`}>{value}</p>
         </div>
         {React.createElement(icon, { className: `w-8 h-8 ${color.replace('text-', 'text-').replace('-600', '-400')}` })}
@@ -111,12 +111,12 @@ Groups: ${problem?.groups.length || 0}`;
   const renderScheduleGrid = () => (
     <div className="space-y-6">
       {sessionData.map(({ sessionIndex, groups, totalPeople }) => (
-        <div key={sessionIndex} className="bg-white rounded-lg border border-gray-200 p-6">
+        <div key={sessionIndex} className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-medium text-gray-900">
+            <h4 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>
               Session {sessionIndex + 1}
             </h4>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
               {totalPeople} people assigned
             </span>
           </div>
@@ -125,8 +125,8 @@ Groups: ${problem?.groups.length || 0}`;
             {groups.map(group => (
               <div key={group.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h5 className="font-medium text-gray-900">{group.id}</h5>
-                  <span className="text-xs text-gray-500">
+                  <h5 className="font-medium" style={{ color: 'var(--text-primary)' }}>{group.id}</h5>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                     {group.people.length}/{group.size}
                   </span>
                 </div>
@@ -148,7 +148,7 @@ Groups: ${problem?.groups.length || 0}`;
   );
 
   const renderScheduleList = () => (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="rounded-lg border overflow-hidden transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -173,7 +173,7 @@ Groups: ${problem?.groups.length || 0}`;
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <Users className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm font-medium text-gray-900">{displayName}</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{displayName}</span>
                     </div>
                   </td>
                   {Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
@@ -204,8 +204,8 @@ Groups: ${problem?.groups.length || 0}`;
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Optimization Results</h2>
-          <p className="text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Optimization Results</h2>
+          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Final score: {solution.final_score.toFixed(2)} • 
             {solution.iteration_count.toLocaleString()} iterations • 
             {(solution.elapsed_time_ms / 1000).toFixed(2)}s
@@ -240,53 +240,53 @@ Groups: ${problem?.groups.length || 0}`;
       {/* Detailed Breakdown */}
       {showDetails && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Score Breakdown</h3>
+          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text-primary)' }}>Score Breakdown</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Unique Contacts</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unique Contacts</span>
                 <span className="font-medium text-green-600">+{solution.unique_contacts}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Repetition Penalty</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</span>
                 <span className="font-medium text-orange-600">-{solution.repetition_penalty}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Attribute Balance Penalty</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Attribute Balance Penalty</span>
                 <span className="font-medium text-purple-600">-{solution.attribute_balance_penalty}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Constraint Penalty</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</span>
                 <span className="font-medium text-red-600">-{solution.constraint_penalty}</span>
               </div>
               <div className="border-t pt-2 flex justify-between items-center">
-                <span className="font-medium text-gray-900">Final Score</span>
-                <span className="font-bold text-lg text-gray-900">{solution.final_score.toFixed(2)}</span>
+                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Final Score</span>
+                <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>{solution.final_score.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Problem Summary</h3>
+          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text-primary)' }}>Problem Summary</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total People</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total People</span>
                 <span className="font-medium">{problem?.people.length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Groups</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Groups</span>
                 <span className="font-medium">{problem?.groups.length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Sessions</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sessions</span>
                 <span className="font-medium">{problem?.num_sessions || 0}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Constraints</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraints</span>
                 <span className="font-medium">{problem?.constraints.length || 0}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Total Assignments</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Assignments</span>
                 <span className="font-medium">{solution.assignments.length}</span>
               </div>
             </div>
@@ -295,10 +295,10 @@ Groups: ${problem?.groups.length || 0}`;
       )}
 
       {/* Schedule View */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="border-b border-gray-200 px-6 py-4">
+      <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+        <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Group Assignments</h3>
+            <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Group Assignments</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('grid')}

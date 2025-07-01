@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Tag, Clock } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
@@ -36,7 +36,10 @@ export function ProblemEditor() {
     generateDemoData,
     attributeDefinitions,
     addAttributeDefinition,
-    removeAttributeDefinition 
+    removeAttributeDefinition,
+    currentProblemId,
+    saveProblem,
+    updateCurrentProblem
   } = useAppStore();
   
   const [activeSection, setActiveSection] = useState<'people' | 'groups' | 'sessions' | 'attributes' | 'constraints'>('people');
@@ -61,6 +64,14 @@ export function ProblemEditor() {
 
   const [newAttribute, setNewAttribute] = useState({ key: '', values: [''] });
   const [sessionsCount, setSessionsCount] = useState(problem?.num_sessions || 3);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (problem && currentProblemId) {
+      // Debounced auto-save will be handled by the storage service
+      updateCurrentProblem(currentProblemId, problem);
+    }
+  }, [problem, currentProblemId, updateCurrentProblem]);
 
   // Constraint form states
   const [showConstraintForm, setShowConstraintForm] = useState(false);
@@ -601,10 +612,10 @@ export function ProblemEditor() {
       : 'All sessions';
 
     return (
-      <div key={person.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h4 className="font-medium text-gray-900 mb-2">{displayName}</h4>
+              <div key={person.id} className="rounded-lg border p-4 hover:shadow-md transition-all" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{displayName}</h4>
             <div className="space-y-1">
               <p className="text-sm text-blue-600 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
@@ -615,8 +626,8 @@ export function ProblemEditor() {
                 return (
                   <div key={key} className="flex items-center gap-1 text-xs">
                     <Tag className="w-3 h-3 text-gray-400" />
-                    <span className="text-gray-600">{key}:</span>
-                    <span className="font-medium text-gray-800">{value}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{key}:</span>
+                    <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{value}</span>
                   </div>
                 );
               })}
@@ -643,10 +654,10 @@ export function ProblemEditor() {
 
   const renderGroupCard = (group: Group) => {
     return (
-      <div key={group.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h4 className="font-medium text-gray-900 mb-2">{group.id}</h4>
+              <div key={group.id} className="rounded-lg border p-4 hover:shadow-md transition-all" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>{group.id}</h4>
             <p className="text-sm text-gray-600">
               Capacity: {group.size} people per session
             </p>
@@ -675,8 +686,8 @@ export function ProblemEditor() {
     const sessions = Array.from({ length: sessionsCount }, (_, i) => i);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+                  <div className="rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Person' : 'Add Person'}
@@ -803,8 +814,8 @@ export function ProblemEditor() {
     const isEditing = editingGroup !== null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+                  <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Group' : 'Add Group'}
@@ -885,8 +896,8 @@ export function ProblemEditor() {
     const sessions = Array.from({ length: sessionsCount }, (_, i) => i);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+                  <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Constraint' : 'Add Constraint'}
@@ -1242,7 +1253,7 @@ export function ProblemEditor() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Problem Setup</h2>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Setup</h2>
           <p className="text-gray-600 mt-1">Configure people, groups, and constraints for optimization</p>
         </div>
         <div className="flex gap-2">
@@ -1271,7 +1282,7 @@ export function ProblemEditor() {
       </div>
 
       {/* Navigation */}
-      <div className="border-b border-gray-200">
+      <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <nav className="flex space-x-8">
           {[
             { id: 'people', label: 'People', icon: Users, count: problem?.people.length },
@@ -1292,7 +1303,7 @@ export function ProblemEditor() {
               <Icon className="w-4 h-4" />
               {label}
               {typeof count === 'number' && (
-                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs">
                   {count}
                 </span>
               )}
@@ -1358,12 +1369,12 @@ export function ProblemEditor() {
 
         {activeSection === 'sessions' && (
         <div className="space-y-4">
-          <h3 className="text-lg font-medium">Sessions Configuration</h3>
+          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions Configuration</h3>
           
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Number of Sessions
                 </label>
                 <input
@@ -1418,13 +1429,13 @@ export function ProblemEditor() {
           {attributeDefinitions.length ? (
             <div className="space-y-3">
               {attributeDefinitions.map(def => (
-                <div key={def.key} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div key={def.key} className="rounded-lg border p-4 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 capitalize">{def.key}</h4>
+                      <h4 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>{def.key}</h4>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {def.values.map(value => (
-                          <span key={value} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             {value}
                           </span>
                         ))}
@@ -1488,12 +1499,12 @@ export function ProblemEditor() {
           {problem?.constraints.length ? (
             <div className="space-y-3">
               {problem.constraints.map((constraint, index) => (
-                <div key={index} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div key={index} className="rounded-lg border p-4 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-medium text-gray-900">{constraint.type}</h4>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.type}</h4>
+                        <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs font-medium">
                           Weight: {constraint.penalty_weight || 'Default'}
                         </span>
                       </div>
@@ -1569,8 +1580,8 @@ export function ProblemEditor() {
       {showConstraintForm && renderConstraintForm()}
       
       {showAttributeForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">
                 {editingAttribute ? 'Edit Attribute Definition' : 'Add Attribute Definition'}

@@ -1,14 +1,22 @@
 import { useEffect } from 'react';
 import { useAppStore } from './store';
+import { useThemeStore } from './store/theme';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { ProblemEditor } from './components/ProblemEditor';
 import { SolverPanel } from './components/SolverPanel';
 import { ResultsView } from './components/ResultsView';
+import { ResultsHistory } from './components/ResultsHistory';
+import { ProblemManager } from './components/ProblemManager';
 import { NotificationContainer } from './components/NotificationContainer';
 
 function App() {
-  const { ui } = useAppStore();
+  const { ui, initializeApp, setShowProblemManager } = useAppStore();
+
+  // Initialize app on start
+  useEffect(() => {
+    initializeApp();
+  }, [initializeApp]);
 
   const renderContent = () => {
     switch (ui.activeTab) {
@@ -18,13 +26,15 @@ function App() {
         return <SolverPanel />;
       case 'results':
         return <ResultsView />;
+      case 'manage':
+        return <ResultsHistory />;
       default:
         return <ProblemEditor />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen transition-colors" style={{ backgroundColor: 'var(--bg-secondary)' }}>
       {/* Header */}
       <Header />
       
@@ -33,16 +43,22 @@ function App() {
         {/* Navigation */}
         <div className="mb-6">
           <Navigation />
-      </div>
+        </div>
 
         {/* Content Area */}
         <div className="animate-fade-in">
           {renderContent()}
-          </div>
+        </div>
       </main>
 
       {/* Notifications */}
       <NotificationContainer />
+
+      {/* Problem Manager Modal */}
+      <ProblemManager 
+        isOpen={ui.showProblemManager} 
+        onClose={() => setShowProblemManager(false)} 
+      />
     </div>
   );
 }

@@ -477,7 +477,7 @@ impl Solver for SimulatedAnnealing {
                 if i == 0 || i == self.max_iterations - 1 || elapsed_since_last_callback >= 0.1 {
                     let current_cost = current_state.calculate_cost();
                     let progress = ProgressUpdate {
-                        iteration: i,
+                        iteration: i + 1, // Report 1-based iteration numbers
                         max_iterations: self.max_iterations,
                         temperature,
                         current_score: current_cost,
@@ -653,7 +653,7 @@ impl Solver for SimulatedAnnealing {
                     .powf(final_iteration as f64 / self.max_iterations as f64);
 
             let final_progress = ProgressUpdate {
-                iteration: final_iteration,
+                iteration: final_iteration + 1, // Report 1-based iteration numbers
                 max_iterations: self.max_iterations,
                 temperature: final_temperature,
                 current_score: best_cost,

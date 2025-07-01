@@ -9,7 +9,12 @@ import type {
   Person,
   Group,
   AttributeDefinition,
+  SavedProblem,
+  ProblemResult,
+  ProblemSummary,
+  SolverSettings,
 } from "../types";
+import { problemStorage } from "../services/problemStorage";
 
 // Re-export types for easier access
 export type {
@@ -27,6 +32,7 @@ interface AppStore extends AppState {
   // Problem management
   setProblem: (problem: Problem) => void;
   updateProblem: (updates: Partial<Problem>) => void;
+  updateCurrentProblem: (problemId: string, problem: Problem) => void;
 
   // Solution management
   setSolution: (solution: Solution | null) => void;
@@ -39,15 +45,44 @@ interface AppStore extends AppState {
   resetSolver: () => void;
 
   // UI management
-  setActiveTab: (tab: "problem" | "solver" | "results") => void;
+  setActiveTab: (tab: "problem" | "solver" | "results" | "manage") => void;
   setLoading: (loading: boolean) => void;
   addNotification: (notification: Omit<Notification, "id">) => void;
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
 
+  // Problem Management actions
+  loadSavedProblems: () => void;
+  createNewProblem: (name: string, isTemplate?: boolean) => void;
+  loadProblem: (id: string) => void;
+  saveProblem: (name: string) => void;
+  deleteProblem: (id: string) => void;
+  duplicateProblem: (
+    id: string,
+    newName: string,
+    includeResults?: boolean
+  ) => void;
+  renameProblem: (id: string, newName: string) => void;
+  toggleTemplate: (id: string) => void;
+  addResult: (
+    solution: Solution,
+    solverSettings: SolverSettings,
+    customName?: string
+  ) => void;
+  updateResultName: (resultId: string, newName: string) => void;
+  deleteResult: (resultId: string) => void;
+  selectResultsForComparison: (resultIds: string[]) => void;
+  exportProblem: (id: string) => void;
+  importProblem: (file: File) => void;
+
+  // UI state for problem management
+  setShowProblemManager: (show: boolean) => void;
+  setShowResultComparison: (show: boolean) => void;
+
   // Utility actions
   reset: () => void;
   generateDemoData: () => void;
+  initializeApp: () => void;
 
   // New actions for attribute management
   attributeDefinitions: AttributeDefinition[];
@@ -67,10 +102,15 @@ const initialState: AppState = {
     elapsedTime: 0,
     noImprovementCount: 0,
   },
+  currentProblemId: null,
+  savedProblems: {},
+  selectedResultIds: [],
   ui: {
     activeTab: "problem",
     isLoading: false,
     notifications: [],
+    showProblemManager: false,
+    showResultComparison: false,
   },
   attributeDefinitions: [
     { key: "gender", values: ["male", "female"] },
@@ -95,6 +135,15 @@ export const useAppStore = create<AppStore>()(
         const currentProblem = get().problem;
         if (currentProblem) {
           set({ problem: { ...currentProblem, ...updates } });
+        }
+      },
+
+      updateCurrentProblem: (problemId, problem) => {
+        try {
+          problemStorage.updateProblem(problemId, problem);
+          set({ problem });
+        } catch (error) {
+          console.error("Failed to update problem:", error);
         }
       },
 
@@ -192,8 +241,444 @@ export const useAppStore = create<AppStore>()(
           ui: { ...state.ui, notifications: [] },
         })),
 
+      // Problem Management actions
+      loadSavedProblems: () => {
+        const savedProblems = problemStorage.getAllProblems();
+        const currentProblemId = problemStorage.getCurrentProblemId();
+        set({ savedProblems, currentProblemId });
+
+        // Load current problem if it exists
+        if (currentProblemId && savedProblems[currentProblemId]) {
+          set({ problem: savedProblems[currentProblemId].problem });
+        }
+      },
+
+      createNewProblem: (name, isTemplate = false) => {
+        const currentProblem = get().problem;
+        if (!currentProblem) {
+          get().addNotification({
+            type: "error",
+            title: "No Problem to Save",
+            message: "Please create a problem definition first.",
+          });
+          return;
+        }
+
+        try {
+          const savedProblem = problemStorage.createProblem(
+            name,
+            currentProblem,
+            isTemplate
+          );
+          problemStorage.setCurrentProblemId(savedProblem.id);
+
+          set((state) => ({
+            savedProblems: {
+              ...state.savedProblems,
+              [savedProblem.id]: savedProblem,
+            },
+            currentProblemId: savedProblem.id,
+          }));
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Saved",
+            message: `Problem "${name}" has been saved successfully.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Save Failed",
+            message:
+              error instanceof Error ? error.message : "Failed to save problem",
+          });
+        }
+      },
+
+      loadProblem: (id) => {
+        const savedProblem = problemStorage.getProblem(id);
+        if (!savedProblem) {
+          get().addNotification({
+            type: "error",
+            title: "Problem Not Found",
+            message: "The requested problem could not be found.",
+          });
+          return;
+        }
+
+        problemStorage.setCurrentProblemId(id);
+        set({
+          problem: savedProblem.problem,
+          currentProblemId: id,
+          solution: null, // Clear current solution when loading new problem
+        });
+
+        get().addNotification({
+          type: "success",
+          title: "Problem Loaded",
+          message: `Problem "${savedProblem.name}" has been loaded.`,
+        });
+      },
+
+      saveProblem: (name) => {
+        const { currentProblemId, problem } = get();
+        if (!problem) {
+          get().addNotification({
+            type: "error",
+            title: "No Problem to Save",
+            message: "Please create a problem definition first.",
+          });
+          return;
+        }
+
+        try {
+          if (currentProblemId) {
+            // Update existing problem
+            problemStorage.updateProblem(currentProblemId, problem);
+            if (name) {
+              problemStorage.renameProblem(currentProblemId, name);
+            }
+          } else {
+            // Create new problem
+            const savedProblem = problemStorage.createProblem(name, problem);
+            problemStorage.setCurrentProblemId(savedProblem.id);
+            set((state) => ({
+              savedProblems: {
+                ...state.savedProblems,
+                [savedProblem.id]: savedProblem,
+              },
+              currentProblemId: savedProblem.id,
+            }));
+          }
+
+          // Reload saved problems to get updated data
+          get().loadSavedProblems();
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Saved",
+            message: `Problem "${name}" has been saved successfully.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Save Failed",
+            message:
+              error instanceof Error ? error.message : "Failed to save problem",
+          });
+        }
+      },
+
+      deleteProblem: (id) => {
+        try {
+          const problemName = get().savedProblems[id]?.name || "Unknown";
+          problemStorage.deleteProblem(id);
+
+          set((state) => {
+            const newSavedProblems = { ...state.savedProblems };
+            delete newSavedProblems[id];
+
+            return {
+              savedProblems: newSavedProblems,
+              currentProblemId:
+                state.currentProblemId === id ? null : state.currentProblemId,
+              problem: state.currentProblemId === id ? null : state.problem,
+            };
+          });
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Deleted",
+            message: `Problem "${problemName}" has been deleted.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Delete Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to delete problem",
+          });
+        }
+      },
+
+      duplicateProblem: (id, newName, includeResults = false) => {
+        try {
+          const duplicatedProblem = problemStorage.duplicateProblem(
+            id,
+            newName,
+            includeResults
+          );
+
+          set((state) => ({
+            savedProblems: {
+              ...state.savedProblems,
+              [duplicatedProblem.id]: duplicatedProblem,
+            },
+          }));
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Duplicated",
+            message: `Problem "${newName}" has been created as a copy.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Duplication Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to duplicate problem",
+          });
+        }
+      },
+
+      renameProblem: (id, newName) => {
+        try {
+          problemStorage.renameProblem(id, newName);
+
+          set((state) => ({
+            savedProblems: {
+              ...state.savedProblems,
+              [id]: { ...state.savedProblems[id], name: newName },
+            },
+          }));
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Renamed",
+            message: `Problem has been renamed to "${newName}".`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Rename Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to rename problem",
+          });
+        }
+      },
+
+      toggleTemplate: (id) => {
+        try {
+          problemStorage.toggleTemplate(id);
+          get().loadSavedProblems(); // Reload to get updated data
+
+          const isTemplate = get().savedProblems[id]?.isTemplate;
+          get().addNotification({
+            type: "success",
+            title: isTemplate ? "Marked as Template" : "Unmarked as Template",
+            message: `Problem has been ${
+              isTemplate ? "marked" : "unmarked"
+            } as a template.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Update Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to update template status",
+          });
+        }
+      },
+
+      addResult: (solution, solverSettings, customName) => {
+        const { currentProblemId } = get();
+        if (!currentProblemId) {
+          get().addNotification({
+            type: "error",
+            title: "No Current Problem",
+            message:
+              "Please save the current problem first before adding results.",
+          });
+          return;
+        }
+
+        try {
+          const result = problemStorage.addResult(
+            currentProblemId,
+            solution,
+            solverSettings,
+            customName
+          );
+
+          // Update the store with the new result
+          set((state) => ({
+            savedProblems: {
+              ...state.savedProblems,
+              [currentProblemId]: {
+                ...state.savedProblems[currentProblemId],
+                results: [
+                  ...state.savedProblems[currentProblemId].results,
+                  result,
+                ],
+              },
+            },
+          }));
+
+          get().addNotification({
+            type: "success",
+            title: "Result Saved",
+            message: `Result "${result.name}" has been saved to the current problem.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Save Result Failed",
+            message:
+              error instanceof Error ? error.message : "Failed to save result",
+          });
+        }
+      },
+
+      updateResultName: (resultId, newName) => {
+        const { currentProblemId } = get();
+        if (!currentProblemId) return;
+
+        try {
+          problemStorage.updateResultName(currentProblemId, resultId, newName);
+          get().loadSavedProblems(); // Reload to get updated data
+
+          get().addNotification({
+            type: "success",
+            title: "Result Renamed",
+            message: `Result has been renamed to "${newName}".`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Rename Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to rename result",
+          });
+        }
+      },
+
+      deleteResult: (resultId) => {
+        const { currentProblemId } = get();
+        if (!currentProblemId) return;
+
+        try {
+          problemStorage.deleteResult(currentProblemId, resultId);
+          get().loadSavedProblems(); // Reload to get updated data
+
+          get().addNotification({
+            type: "success",
+            title: "Result Deleted",
+            message: "Result has been deleted successfully.",
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Delete Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to delete result",
+          });
+        }
+      },
+
+      selectResultsForComparison: (resultIds) => {
+        set({ selectedResultIds: resultIds });
+      },
+
+      exportProblem: (id) => {
+        try {
+          const exportedData = problemStorage.exportProblem(id);
+          const problemName = get().savedProblems[id]?.name || "problem";
+
+          // Create and download file
+          const blob = new Blob([JSON.stringify(exportedData, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${problemName
+            .replace(/[^a-z0-9]/gi, "_")
+            .toLowerCase()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          get().addNotification({
+            type: "success",
+            title: "Problem Exported",
+            message: `Problem "${problemName}" has been exported successfully.`,
+          });
+        } catch (error) {
+          get().addNotification({
+            type: "error",
+            title: "Export Failed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to export problem",
+          });
+        }
+      },
+
+      importProblem: (file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const content = e.target?.result as string;
+            const exportedData = JSON.parse(content);
+
+            const importedProblem = problemStorage.importProblem(exportedData);
+
+            set((state) => ({
+              savedProblems: {
+                ...state.savedProblems,
+                [importedProblem.id]: importedProblem,
+              },
+            }));
+
+            get().addNotification({
+              type: "success",
+              title: "Problem Imported",
+              message: `Problem "${importedProblem.name}" has been imported successfully.`,
+            });
+          } catch (error) {
+            get().addNotification({
+              type: "error",
+              title: "Import Failed",
+              message:
+                "Failed to import problem. Please check the file format.",
+            });
+          }
+        };
+        reader.readAsText(file);
+      },
+
+      // UI state for problem management
+      setShowProblemManager: (show) =>
+        set((state) => ({
+          ui: { ...state.ui, showProblemManager: show },
+        })),
+
+      setShowResultComparison: (show) =>
+        set((state) => ({
+          ui: { ...state.ui, showResultComparison: show },
+        })),
+
       // Utility actions
       reset: () => set(initialState),
+
+      // Initialize app on first load
+      initializeApp: () => {
+        get().loadSavedProblems();
+      },
 
       // New actions for attribute management
       setAttributeDefinitions: (definitions) =>

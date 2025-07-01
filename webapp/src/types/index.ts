@@ -119,16 +119,56 @@ export interface SolverState {
   error?: string;
 }
 
+// Problem Management types
+export interface ProblemResult {
+  id: string;
+  name?: string; // Custom name or auto-generated
+  solution: Solution;
+  solverSettings: SolverSettings;
+  timestamp: number; // Unix timestamp when result was created
+  duration: number; // Actual solve time in milliseconds
+}
+
+export interface SavedProblem {
+  id: string;
+  name: string;
+  problem: Problem;
+  results: ProblemResult[];
+  createdAt: number;
+  updatedAt: number;
+  isTemplate?: boolean; // Mark as template for easy duplication
+}
+
+export interface ProblemSummary {
+  id: string;
+  name: string;
+  peopleCount: number;
+  groupsCount: number;
+  sessionsCount: number;
+  resultsCount: number;
+  createdAt: number;
+  updatedAt: number;
+  isTemplate?: boolean;
+}
+
 // UI State types
 export interface AppState {
   problem: Problem | null;
   solution: Solution | null;
   solverState: SolverState;
   attributeDefinitions: AttributeDefinition[];
+
+  // Problem Management
+  currentProblemId: string | null;
+  savedProblems: Record<string, SavedProblem>; // Keyed by problem ID
+  selectedResultIds: string[]; // For comparison
+
   ui: {
-    activeTab: "problem" | "solver" | "results";
+    activeTab: "problem" | "solver" | "results" | "manage";
     isLoading: boolean;
     notifications: Notification[];
+    showProblemManager: boolean;
+    showResultComparison: boolean;
   };
 }
 
@@ -155,6 +195,13 @@ export interface GroupFormData {
 export interface AttributeDefinition {
   key: string;
   values: string[]; // Possible values for this attribute
+}
+
+// Export/Import types
+export interface ExportedProblem {
+  version: string; // For future compatibility
+  problem: SavedProblem;
+  exportedAt: number;
 }
 
 // WASM Module types

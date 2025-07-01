@@ -6,11 +6,13 @@ import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
 
 export function SolverPanel() {
-  const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification } = useAppStore();
+  const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, currentProblemId, updateProblem } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
-  const [solverSettings, setSolverSettings] = useState<SolverSettings>({
+
+  // Get solver settings from the current problem, with fallback to defaults
+  const getDefaultSolverSettings = (): SolverSettings => ({
     solver_type: "SimulatedAnnealing",
     stop_conditions: {
       max_iterations: 10000,
@@ -34,6 +36,14 @@ export function SolverPanel() {
       log_stop_condition: true,
     },
   });
+
+  const solverSettings = problem?.settings || getDefaultSolverSettings();
+
+  const updateSolverSettings = (newSettings: SolverSettings) => {
+    if (problem) {
+      updateProblem({ settings: newSettings });
+    }
+  };
 
   // No more simulation needed - real progress comes from WASM solver
 
@@ -152,6 +162,11 @@ export function SolverPanel() {
         message: `Found solution with score ${solution.final_score.toFixed(2)}`,
       });
 
+      // Automatically save result if there's a current problem
+      if (currentProblemId) {
+        addResult(solution, solverSettings);
+      }
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
@@ -227,8 +242,8 @@ export function SolverPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Solver</h2>
-          <p className="text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Solver</h2>
+          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Run the optimization algorithm to find the best solution
           </p>
         </div>
@@ -244,7 +259,7 @@ export function SolverPanel() {
       {/* Settings Panel */}
       {showSettings && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Solver Settings</h3>
+                      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="label">Max Iterations</label>
@@ -252,7 +267,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.max_iterations || 10000}
-                onChange={(e) => setSolverSettings({
+                onChange={(e) => updateSolverSettings({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -269,7 +284,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.time_limit_seconds || 30}
-                onChange={(e) => setSolverSettings({
+                onChange={(e) => updateSolverSettings({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -286,7 +301,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.no_improvement_iterations || 5000}
-                onChange={(e) => setSolverSettings({
+                onChange={(e) => updateSolverSettings({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -297,7 +312,7 @@ export function SolverPanel() {
                 max="50000"
                 placeholder="Iterations without improvement before stopping"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 Stop after this many iterations without improvement
               </p>
             </div>
@@ -307,7 +322,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}
-                onChange={(e) => setSolverSettings({
+                onChange={(e) => updateSolverSettings({
                   ...solverSettings,
                   solver_params: {
                     ...solverSettings.solver_params,
@@ -328,7 +343,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}
-                onChange={(e) => setSolverSettings({
+                onChange={(e) => updateSolverSettings({
                   ...solverSettings,
                   solver_params: {
                     ...solverSettings.solver_params,
@@ -350,12 +365,12 @@ export function SolverPanel() {
       {/* Status Card */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Solver Status</h3>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Solver Status</h3>
           <div className="flex items-center space-x-2">
             <div className={`w-3 h-3 rounded-full ${
               solverState.isRunning ? 'bg-success-500 animate-pulse-slow' : 'bg-gray-300'
             }`}></div>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               {solverState.isRunning ? 'Running' : 'Idle'}
             </span>
           </div>
@@ -364,11 +379,11 @@ export function SolverPanel() {
         {/* Progress Bars */}
         <div className="space-y-4 mb-6">
           <div>
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>Iteration Progress</span>
               <span>{solverState.currentIteration.toLocaleString()} / {(solverSettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
                 className="h-2 rounded-full transition-all duration-300"
                 style={{ 
@@ -382,11 +397,11 @@ export function SolverPanel() {
           </div>
           
           <div>
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>Time Progress</span>
               <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
                 className="h-2 rounded-full transition-all duration-300"
                 style={{ 
@@ -400,11 +415,11 @@ export function SolverPanel() {
           </div>
           
           <div>
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>No Improvement Progress</span>
               <span>{solverState.noImprovementCount.toLocaleString()} / {(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
                 className="h-2 rounded-full transition-all duration-300"
                 style={{ 
@@ -425,21 +440,21 @@ export function SolverPanel() {
             <div className="text-2xl font-bold text-primary-600">
               {solverState.currentIteration.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600">Iterations</div>
+            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Iterations</div>
           </div>
           <div className="text-center p-4 bg-success-50 rounded-lg">
             <TrendingUp className="h-8 w-8 text-success-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-success-600">
               {solverState.bestScore.toFixed(2)}
             </div>
-            <div className="text-sm text-gray-600">Best Score</div>
+            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Best Score</div>
           </div>
           <div className="text-center p-4 bg-warning-50 rounded-lg">
             <Clock className="h-8 w-8 text-warning-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-warning-600">
               {(solverState.elapsedTime / 1000).toFixed(1)}s
             </div>
-            <div className="text-sm text-gray-600">Elapsed Time</div>
+            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
         </div>
 
@@ -477,7 +492,7 @@ export function SolverPanel() {
 
       {/* Problem Status */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Problem Status</h3>
+                    <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Problem Status</h3>
         {problem ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-primary-50 rounded-lg">
@@ -489,7 +504,7 @@ export function SolverPanel() {
               <div className="text-2xl font-bold text-primary-600">
                 {problem.people.length}
               </div>
-              <div className="text-sm text-gray-600">People</div>
+              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>People</div>
             </div>
             <div className="text-center p-4 bg-success-50 rounded-lg">
               <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -500,7 +515,7 @@ export function SolverPanel() {
               <div className="text-2xl font-bold text-success-600">
                 {problem.num_sessions}
               </div>
-              <div className="text-sm text-gray-600">Sessions</div>
+              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sessions</div>
             </div>
             <div className="text-center p-4 bg-warning-50 rounded-lg">
               <div className="w-8 h-8 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-2">
@@ -511,7 +526,7 @@ export function SolverPanel() {
               <div className="text-2xl font-bold text-warning-600">
                 {problem.constraints.length}
               </div>
-              <div className="text-sm text-gray-600">Constraints</div>
+              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraints</div>
             </div>
           </div>
         ) : (
@@ -525,14 +540,14 @@ export function SolverPanel() {
 
       {/* Algorithm Info */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Algorithm Information</h3>
+                    <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Algorithm Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">Simulated Annealing</h4>
-            <p className="text-sm text-gray-600 mb-3">
+                          <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Simulated Annealing</h4>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               A probabilistic optimization algorithm that mimics the annealing process in metallurgy.
             </p>
-            <ul className="text-sm text-gray-600 space-y-1">
+            <ul className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               <li>• Starts with high temperature for exploration</li>
               <li>• Gradually cools to focus on local improvements</li>
               <li>• Can escape local optima</li>
@@ -540,26 +555,26 @@ export function SolverPanel() {
             </ul>
           </div>
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">Current Parameters</h4>
+                          <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Current Parameters</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Initial Temperature:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Initial Temperature:</span>
                 <span className="font-medium">{solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Final Temperature:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Final Temperature:</span>
                 <span className="font-medium">{solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Max Iterations:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Max Iterations:</span>
                 <span className="font-medium">{(solverSettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Time Limit:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Time Limit:</span>
                 <span className="font-medium">{solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">No Improvement Limit:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>No Improvement Limit:</span>
                 <span className="font-medium">{(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
               </div>
             </div>
