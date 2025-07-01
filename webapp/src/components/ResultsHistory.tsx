@@ -82,6 +82,20 @@ export function ResultsHistory() {
     }
   };
 
+  const handleBulkDelete = () => {
+    if (selectedResultIds.length === 0) return;
+    
+    const count = selectedResultIds.length;
+    const message = `Are you sure you want to delete ${count} result${count > 1 ? 's' : ''}? This action cannot be undone.`;
+    
+    if (confirm(message)) {
+      selectedResultIds.forEach(resultId => {
+        deleteResult(resultId);
+      });
+      selectResultsForComparison([]);
+    }
+  };
+
   const handleCompareSelected = () => {
     if (selectedResultIds.length >= 2) {
       setShowResultComparison(true);
@@ -177,6 +191,13 @@ export function ResultsHistory() {
                   <span>Compare</span>
                 </button>
               )}
+              <button
+                onClick={handleBulkDelete}
+                className="btn-danger flex items-center space-x-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete {selectedResultIds.length > 1 ? `${selectedResultIds.length} Results` : 'Result'}</span>
+              </button>
               <button
                 onClick={() => selectResultsForComparison([])}
                 className="btn-secondary"

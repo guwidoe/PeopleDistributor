@@ -4,6 +4,7 @@ import { useAppStore } from './store';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { ProblemManager } from './components/ProblemManager';
+import { ResultComparison } from './components/ResultComparison';
 import { NotificationContainer } from './components/NotificationContainer';
 
 function MainApp() {
@@ -40,6 +41,9 @@ function MainApp() {
         isOpen={ui.showProblemManager} 
         onClose={() => setShowProblemManager(false)} 
       />
+
+      {/* Result Comparison Modal */}
+      {ui.showResultComparison && <ResultComparison />}
     </div>
   );
 }
