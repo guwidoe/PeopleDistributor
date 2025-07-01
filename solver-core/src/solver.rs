@@ -935,9 +935,25 @@ impl State {
         let mut weighted_constraint_penalty = 0.0;
         let mut violation_count = 0;
 
-        for day_schedule in &self.schedule {
+        // === FORBIDDEN PAIR VIOLATIONS ===
+        for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
             for group in day_schedule {
                 for (pair_idx, &(p1, p2)) in self.forbidden_pairs.iter().enumerate() {
+                    // Check if this forbidden pair applies to this session
+                    if let Some(ref sessions) = self.forbidden_pair_sessions[pair_idx] {
+                        if !sessions.contains(&day_idx) {
+                            continue; // Skip this constraint for this session
+                        }
+                    }
+                    // If sessions is None, apply to all sessions
+
+                    // Check if both people are participating in this session
+                    if !self.person_participation[p1][day_idx]
+                        || !self.person_participation[p2][day_idx]
+                    {
+                        continue; // Skip if either person is not participating
+                    }
+
                     let mut p1_in = false;
                     let mut p2_in = false;
                     for &member in group {
@@ -956,8 +972,67 @@ impl State {
             }
         }
 
+        // === CLIQUE VIOLATIONS ===
+        for (clique_idx, clique) in self.cliques.iter().enumerate() {
+            for (day_idx, day_schedule) in self.schedule.iter().enumerate() {
+                // Check if this clique applies to this session
+                if let Some(ref sessions) = self.clique_sessions[clique_idx] {
+                    if !sessions.contains(&day_idx) {
+                        continue; // Skip this constraint for this session
+                    }
+                }
+                // If sessions is None, apply to all sessions
+
+                // Only consider clique members who are participating in this session
+                let participating_members: Vec<usize> = clique
+                    .iter()
+                    .filter(|&&member| self.person_participation[member][day_idx])
+                    .cloned()
+                    .collect();
+
+                // If fewer than 2 members are participating, no constraint to enforce
+                if participating_members.len() < 2 {
+                    continue;
+                }
+
+                let mut group_counts = vec![0; day_schedule.len()];
+
+                // Count how many participating clique members are in each group
+                for &member in &participating_members {
+                    let (group_idx, _) = self.locations[day_idx][member];
+                    group_counts[group_idx] += 1;
+                }
+
+                // Count violations: total participating clique members minus the largest group
+                let max_in_one_group = *group_counts.iter().max().unwrap_or(&0);
+                let separated_members = participating_members.len() as i32 - max_in_one_group;
+                if separated_members > 0 {
+                    weighted_constraint_penalty +=
+                        separated_members as f64 * self.clique_weights[clique_idx];
+                    violation_count += separated_members;
+                }
+            }
+        }
+
+        // === IMMOVABLE PERSON VIOLATIONS ===
+        for ((person_idx, session_idx), required_group_idx) in &self.immovable_people {
+            // Only check immovable constraints for people who are participating
+            if self.person_participation[*person_idx][*session_idx] {
+                let (actual_group_idx, _) = self.locations[*session_idx][*person_idx];
+                if actual_group_idx != *required_group_idx {
+                    // Add weighted penalty (assuming weight of 1000.0 for immovable violations)
+                    weighted_constraint_penalty += 1000.0;
+                    violation_count += 1;
+                }
+            }
+        }
+
         // Verify the unweighted count matches our cached value
-        debug_assert_eq!(violation_count, self.constraint_penalty);
+        debug_assert_eq!(
+            violation_count, self.constraint_penalty,
+            "Constraint penalty mismatch: calculated={}, cached={}",
+            violation_count, self.constraint_penalty
+        );
 
         (self.repetition_penalty as f64 * self.w_repetition)
             + self.attribute_balance_penalty
@@ -1584,7 +1659,7 @@ impl State {
             return; // Same group, no swap needed
         }
 
-        // Update contact matrix with participation awareness
+        // === UPDATE CONTACT MATRIX ===
         let g1_members = &self.schedule[day][g1_idx].clone();
         let g2_members = &self.schedule[day][g2_idx].clone();
 
@@ -1688,11 +1763,167 @@ impl State {
             }
         }
 
-        // Update the schedule and locations
+        // === UPDATE SCHEDULE AND LOCATIONS ===
         self.schedule[day][g1_idx][g1_vec_idx] = p2_idx;
         self.schedule[day][g2_idx][g2_vec_idx] = p1_idx;
         self.locations[day][p1_idx] = (g2_idx, g2_vec_idx);
         self.locations[day][p2_idx] = (g1_idx, g1_vec_idx);
+
+        // === UPDATE CONSTRAINT PENALTIES (THIS WAS MISSING!) ===
+
+        // Update forbidden pair violations
+        for (pair_idx, &(person_a, person_b)) in self.forbidden_pairs.iter().enumerate() {
+            // Check if this forbidden pair applies to this session
+            if let Some(ref sessions) = self.forbidden_pair_sessions[pair_idx] {
+                if !sessions.contains(&day) {
+                    continue; // Skip this constraint for this session
+                }
+            }
+
+            // Check if both people are participating in this session
+            if !self.person_participation[person_a][day]
+                || !self.person_participation[person_b][day]
+            {
+                continue; // Skip if either person is not participating
+            }
+
+            // Check if this swap affects this forbidden pair
+            if (person_a == p1_idx || person_a == p2_idx)
+                || (person_b == p1_idx || person_b == p2_idx)
+            {
+                // Check if they were together before the swap (use original group assignments)
+                let a_group_before = if person_a == p1_idx {
+                    g1_idx
+                } else if person_a == p2_idx {
+                    g2_idx
+                } else {
+                    self.locations[day][person_a].0
+                };
+                let b_group_before = if person_b == p1_idx {
+                    g1_idx
+                } else if person_b == p2_idx {
+                    g2_idx
+                } else {
+                    self.locations[day][person_b].0
+                };
+                let were_together_before = a_group_before == b_group_before;
+
+                // Check if they are together after the swap (use new group assignments)
+                let a_group_after = if person_a == p1_idx {
+                    g2_idx
+                } else if person_a == p2_idx {
+                    g1_idx
+                } else {
+                    self.locations[day][person_a].0
+                };
+                let b_group_after = if person_b == p1_idx {
+                    g2_idx
+                } else if person_b == p2_idx {
+                    g1_idx
+                } else {
+                    self.locations[day][person_b].0
+                };
+                let are_together_after = a_group_after == b_group_after;
+
+                // Update the violation count
+                if were_together_before && !are_together_after {
+                    // They were together before but not after - violation removed
+                    self.forbidden_pair_violations[pair_idx] -= 1;
+                } else if !were_together_before && are_together_after {
+                    // They were not together before but are after - violation added
+                    self.forbidden_pair_violations[pair_idx] += 1;
+                }
+            }
+        }
+
+        // Update clique violations
+        for (clique_idx, clique) in self.cliques.iter().enumerate() {
+            // Check if this clique applies to this session
+            if let Some(ref sessions) = self.clique_sessions[clique_idx] {
+                if !sessions.contains(&day) {
+                    continue; // Skip this constraint for this session
+                }
+            }
+
+            // Check if this swap affects this clique
+            let clique_affected = clique.contains(&p1_idx) || clique.contains(&p2_idx);
+            if clique_affected {
+                // Only consider clique members who are participating in this session
+                let participating_members: Vec<usize> = clique
+                    .iter()
+                    .filter(|&&member| self.person_participation[member][day])
+                    .cloned()
+                    .collect();
+
+                // If fewer than 2 members are participating, no constraint to enforce
+                if participating_members.len() >= 2 {
+                    // Calculate violations before the swap
+                    let mut group_counts_before = vec![0; self.schedule[day].len()];
+                    for &member in &participating_members {
+                        let group_before = if member == p1_idx {
+                            g1_idx
+                        } else if member == p2_idx {
+                            g2_idx
+                        } else {
+                            self.locations[day][member].0
+                        };
+                        group_counts_before[group_before] += 1;
+                    }
+                    let max_before = *group_counts_before.iter().max().unwrap_or(&0);
+                    let violations_before = participating_members.len() as i32 - max_before;
+
+                    // Calculate violations after the swap
+                    let mut group_counts_after = vec![0; self.schedule[day].len()];
+                    for &member in &participating_members {
+                        let group_after = if member == p1_idx {
+                            g2_idx
+                        } else if member == p2_idx {
+                            g1_idx
+                        } else {
+                            self.locations[day][member].0
+                        };
+                        group_counts_after[group_after] += 1;
+                    }
+                    let max_after = *group_counts_after.iter().max().unwrap_or(&0);
+                    let violations_after = participating_members.len() as i32 - max_after;
+
+                    // Update the cached violation count
+                    self.clique_violations[clique_idx] += violations_after - violations_before;
+                }
+            }
+        }
+
+        // Update immovable person violations
+        for ((person_idx, session_idx), required_group_idx) in &self.immovable_people {
+            if *session_idx == day && self.person_participation[*person_idx][day] {
+                if *person_idx == p1_idx {
+                    // p1 moved from g1 to g2
+                    let was_violation_before = g1_idx != *required_group_idx;
+                    let is_violation_after = g2_idx != *required_group_idx;
+
+                    if was_violation_before && !is_violation_after {
+                        self.immovable_violations -= 1; // Violation fixed
+                    } else if !was_violation_before && is_violation_after {
+                        self.immovable_violations += 1; // New violation
+                    }
+                } else if *person_idx == p2_idx {
+                    // p2 moved from g2 to g1
+                    let was_violation_before = g2_idx != *required_group_idx;
+                    let is_violation_after = g1_idx != *required_group_idx;
+
+                    if was_violation_before && !is_violation_after {
+                        self.immovable_violations -= 1; // Violation fixed
+                    } else if !was_violation_before && is_violation_after {
+                        self.immovable_violations += 1; // New violation
+                    }
+                }
+            }
+        }
+
+        // Update the legacy constraint_penalty field for backward compatibility
+        self.constraint_penalty = self.forbidden_pair_violations.iter().sum::<i32>()
+            + self.clique_violations.iter().sum::<i32>()
+            + self.immovable_violations;
     }
 
     pub fn validate_scores(&mut self) {
