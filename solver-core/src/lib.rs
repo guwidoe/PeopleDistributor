@@ -228,7 +228,7 @@ pub fn run_solver(input: &ApiInput) -> Result<SolverResult, SolverError> {
 /// #     },
 /// # };
 ///
-/// let progress_callback = Box::new(|progress: &ProgressUpdate| -> bool {
+/// let progress_callback: ProgressCallback = Box::new(|progress: &ProgressUpdate| -> bool {
 ///     println!("Iteration {}/{}: Score = {:.2}, Temperature = {:.4}",
 ///              progress.iteration, progress.max_iterations,
 ///              progress.current_score, progress.temperature);

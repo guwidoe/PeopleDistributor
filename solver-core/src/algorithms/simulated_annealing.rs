@@ -179,7 +179,7 @@ fn get_elapsed_seconds_since_start(start_time: f64) -> u64 {
 /// #     solver: config,
 /// # };
 /// let mut state = State::new(&input)?;
-/// let result = solver.solve(&mut state)?;
+/// let result = solver.solve(&mut state, None)?;
 ///
 /// println!("Final score: {}", result.final_score);
 /// println!("Unique contacts: {}", result.unique_contacts);
@@ -380,7 +380,7 @@ impl Solver for SimulatedAnnealing {
     /// let mut state = State::new(&input)?;
     ///
     /// // Run optimization
-    /// let result = solver.solve(&mut state)?;
+    /// let result = solver.solve(&mut state, None)?;
     ///
     /// // Analyze results
     /// println!("Optimization completed!");

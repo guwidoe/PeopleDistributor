@@ -1,4 +1,3 @@
-use serde_json::json;
 use solver_core::models::*;
 use solver_core::solver::State;
 

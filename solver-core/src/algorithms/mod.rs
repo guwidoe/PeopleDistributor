@@ -20,7 +20,7 @@
 //!
 //! ```no_run
 //! use solver_core::algorithms::Solver;
-//! use solver_core::models::{SolverResult, SolverConfiguration};
+//! use solver_core::models::{SolverResult, SolverConfiguration, ProgressCallback};
 //! use solver_core::solver::{SolverError, State};
 //!
 //! pub struct MyAlgorithm {
@@ -35,7 +35,7 @@
 //! }
 //!
 //! impl Solver for MyAlgorithm {
-//!     fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
+//!     fn solve(&self, state: &mut State, _progress_callback: Option<&ProgressCallback>) -> Result<SolverResult, SolverError> {
 //!         // implement your optimization algorithm here
 //!         todo!()
 //!     }
@@ -81,13 +81,13 @@ pub mod simulated_annealing;
 ///
 /// ```no_run
 /// use solver_core::algorithms::Solver;
-/// use solver_core::models::SolverResult;
+/// use solver_core::models::{SolverResult, ProgressCallback};
 /// use solver_core::solver::{SolverError, State};
 ///
 /// struct SimpleHillClimbing;
 ///
 /// impl Solver for SimpleHillClimbing {
-///     fn solve(&self, state: &mut State) -> Result<SolverResult, SolverError> {
+///     fn solve(&self, state: &mut State, _progress_callback: Option<&ProgressCallback>) -> Result<SolverResult, SolverError> {
 ///         let mut iterations = 0;
 ///         let mut no_improvement_count = 0;
 ///         
@@ -118,7 +118,7 @@ pub mod simulated_annealing;
 ///         }
 ///         
 ///         // Return the final result (the score is calculated internally)
-///         Ok(state.to_solver_result(0.0))  // Score computed in to_solver_result
+///         Ok(state.to_solver_result(0.0, no_improvement_count))
 ///     }
 /// }
 /// ```
