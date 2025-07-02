@@ -1,5 +1,8 @@
 use serde::Serialize;
-use solver_core::{ApiInput, ProgressCallback, ProgressUpdate, SolverResult};
+use solver_core::models::{
+    ApiInput, ProblemDefinition, ProgressCallback, ProgressUpdate, SolverResult,
+};
+use solver_core::run_solver_with_progress;
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -284,4 +287,34 @@ pub fn test_callback_consistency(problem_json: &str) -> Result<String, JsValue> 
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize analysis: {}", e)))?;
 
     Ok(analysis_json)
+}
+
+#[wasm_bindgen]
+pub fn get_recommended_settings(
+    problem_json: &str,
+    desired_runtime_seconds: u64,
+) -> Result<String, JsValue> {
+    init_panic_hook();
+
+    let problem: ProblemDefinition = match serde_json::from_str(problem_json) {
+        Ok(p) => p,
+        Err(e) => {
+            return Err(JsValue::from_str(&format!(
+                "Failed to parse problem JSON: {}",
+                e
+            )))
+        }
+    };
+
+    match solver_core::calculate_recommended_settings(&problem, desired_runtime_seconds) {
+        Ok(settings) => {
+            let settings_json = serde_json::to_string(&settings)
+                .map_err(|e| JsValue::from_str(&format!("Failed to serialize settings: {}", e)))?;
+            Ok(settings_json)
+        }
+        Err(e) => Err(JsValue::from_str(&format!(
+            "Failed to calculate settings: {}",
+            e
+        ))),
+    }
 }

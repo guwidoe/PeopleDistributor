@@ -8,6 +8,7 @@ declare namespace wasm_bindgen {
 	export function validate_problem(problem_json: string): string;
 	export function get_default_settings(): string;
 	export function test_callback_consistency(problem_json: string): string;
+	export function get_recommended_settings(problem_json: string, desired_runtime_seconds: bigint): string;
 	
 }
 
@@ -20,6 +21,7 @@ declare interface InitOutput {
   readonly validate_problem: (a: number, b: number, c: number) => void;
   readonly get_default_settings: (a: number) => void;
   readonly test_callback_consistency: (a: number, b: number, c: number) => void;
+  readonly get_recommended_settings: (a: number, b: number, c: number, d: bigint) => void;
   readonly greet: () => void;
   readonly init_panic_hook: () => void;
   readonly __wbindgen_exn_store: (a: number) => void;

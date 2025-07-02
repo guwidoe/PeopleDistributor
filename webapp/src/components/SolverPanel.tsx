@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import type { SolverSettings, SolverState } from '../types';
@@ -12,6 +12,7 @@ export function SolverPanel() {
   const [showMetrics, setShowMetrics] = useState(true);
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
+  const [desiredRuntime, setDesiredRuntime] = useState<number>(3);
 
   // Get solver settings from the current problem, with fallback to defaults
   const getDefaultSolverSettings = (): SolverSettings => ({
@@ -42,13 +43,45 @@ export function SolverPanel() {
 
   const solverSettings = problem?.settings || getDefaultSolverSettings();
 
-  const updateSolverSettings = (newSettings: SolverSettings) => {
-    if (problem) {
-      updateProblem({ settings: newSettings });
+  const handleSettingsChange = (newSettings: Partial<SolverSettings>) => {
+    if (problem && currentProblemId) {
+      const updatedProblem = {
+        ...problem,
+        settings: {
+          ...solverSettings,
+          ...newSettings,
+          // Deep merge for nested objects if necessary
+          ...(newSettings.solver_params && {
+            solver_params: {
+              ...solverSettings.solver_params,
+              ...newSettings.solver_params,
+            },
+          }),
+          ...(newSettings.stop_conditions && {
+            stop_conditions: {
+              ...solverSettings.stop_conditions,
+              ...newSettings.stop_conditions,
+            },
+          }),
+        },
+      };
+      updateProblem({ settings: updatedProblem.settings });
     }
   };
 
   // No more simulation needed - real progress comes from WASM solver
+
+  const formatIterationTime = (ms: number): string => {
+    if (ms >= 1) {
+      return `${ms.toFixed(2)} ms`;
+    }
+    const us = ms * 1000;
+    if (us >= 1) {
+      return `${us.toFixed(2)} µs`;
+    }
+    const ns = us * 1000;
+    return `${ns.toFixed(2)} ns`;
+  };
 
   const handleStartSolver = async () => {
     if (!problem) {
@@ -303,6 +336,53 @@ export function SolverPanel() {
     return Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
   };
 
+  const handleAutoSetSettings = async () => {
+    if (!problem) return;
+    try {
+      const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntime);
+
+      // Transform solver_params to UI structure if returned in flattened form
+      let uiSettings: SolverSettings = recommendedSettings as any;
+      const sp: any = (recommendedSettings as any).solver_params;
+      if (sp && !('SimulatedAnnealing' in sp) && sp.solver_type === 'SimulatedAnnealing') {
+        const {
+          initial_temperature,
+          final_temperature,
+          cooling_schedule,
+          reheat_after_no_improvement,
+        } = sp as any;
+
+        uiSettings = {
+          ...recommendedSettings,
+          solver_params: {
+            SimulatedAnnealing: {
+              initial_temperature,
+              final_temperature,
+              cooling_schedule,
+              reheat_after_no_improvement,
+            },
+          },
+        } as SolverSettings;
+      }
+
+      handleSettingsChange(uiSettings);
+      addNotification({
+        type: 'success',
+        title: 'Settings Updated',
+        message: 'Algorithm settings have been automatically configured.',
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error("Error getting recommended settings:", error);
+      addNotification({
+        type: 'error',
+        title: 'Auto-set Failed',
+        message: `Could not determine recommended settings. ${error instanceof Error ? error.message : ''}`,
+        duration: 5000,
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -340,7 +420,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.max_iterations || 10000}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -364,7 +444,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.time_limit_seconds || 30}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -388,7 +468,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.stop_conditions.no_improvement_iterations || 5000}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   stop_conditions: {
                     ...solverSettings.stop_conditions,
@@ -413,7 +493,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   solver_params: {
                     ...solverSettings.solver_params,
@@ -441,7 +521,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   solver_params: {
                     ...solverSettings.solver_params,
@@ -469,7 +549,7 @@ export function SolverPanel() {
                 type="number"
                 className="input"
                 value={solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0}
-                onChange={(e) => updateSolverSettings({
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
                   ...solverSettings,
                   solver_params: {
                     ...solverSettings.solver_params,
@@ -483,6 +563,33 @@ export function SolverPanel() {
                 max="50000"
                 placeholder="0 = disabled"
               />
+            </div>
+          </div>
+          {/* Automatic Configuration (top right) */}
+          <div className="flex justify-end mb-4 mt-2">
+            <div className="flex items-end gap-2 w-full md:w-auto">
+              <div className="flex-grow">
+                <label htmlFor="desiredRuntime" className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Desired Runtime (s)
+                </label>
+                <input
+                  id="desiredRuntime"
+                  type="number"
+                  value={desiredRuntime}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntime(Number(e.target.value))}
+                  disabled={solverState.isRunning}
+                  className="input w-full"
+                />
+              </div>
+              <Tooltip text="Run a short trial to estimate optimal solver parameters for the specified runtime.">
+                <button
+                  onClick={handleAutoSetSettings}
+                  disabled={solverState.isRunning}
+                  className="btn-primary whitespace-nowrap"
+                >
+                  Auto-set
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -582,6 +689,37 @@ export function SolverPanel() {
             </div>
             <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
+        </div>
+
+        {/* Control Buttons */}
+        <div className="flex space-x-3 mb-6">
+          {!solverState.isRunning ? (
+            <button
+              onClick={handleStartSolver}
+              className="btn-success flex-1 flex items-center justify-center space-x-2"
+              disabled={!problem || !problem.people?.length || !problem.groups?.length}
+            >
+              <Play className="h-4 w-4" />
+              <span>Start Solver</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleStopSolver}
+              className="btn-warning flex-1 flex items-center justify-center space-x-2"
+            >
+              <Pause className="h-4 w-4" />
+              <span>Cancel Solver</span>
+            </button>
+          )}
+          
+          <button
+            onClick={handleResetSolver}
+            className="btn-secondary flex items-center space-x-2"
+            disabled={solverState.isRunning}
+          >
+            <RotateCcw className="h-4 w-4" />
+            <span>Reset</span>
+          </button>
         </div>
 
         {/* Live Algorithm Metrics */}
@@ -758,7 +896,7 @@ export function SolverPanel() {
                     </Tooltip>
                   </div>
                   <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-pink)' }}>
-                    {(solverState.avgTimePerIterationMs || 0).toFixed(2)}ms
+                    {formatIterationTime(solverState.avgTimePerIterationMs || 0)}
                   </div>
                 </div>
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
@@ -775,7 +913,7 @@ export function SolverPanel() {
               </div>
 
               {/* Score Quality Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Attempted Delta</span>
@@ -796,6 +934,28 @@ export function SolverPanel() {
                   </div>
                   <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-amber)' }}>
                     {(solverState.avgAcceptedMoveDelta || 0).toFixed(3)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Max Attempted Delta</span>
+                    <Tooltip text="Largest score increase from an attempted move.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-red)' }}>
+                    {(solverState.biggestAttemptedIncrease || 0).toFixed(3)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Max Accepted Delta</span>
+                    <Tooltip text="Largest score increase from an accepted move (local optima escape).">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-orange)' }}>
+                    {(solverState.biggestAcceptedIncrease || 0).toFixed(3)}
                   </div>
                 </div>
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
@@ -849,37 +1009,6 @@ export function SolverPanel() {
               </div>
             </>
           )}
-        </div>
-
-        {/* Control Buttons */}
-        <div className="flex space-x-3">
-          {!solverState.isRunning ? (
-            <button
-              onClick={handleStartSolver}
-              className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem || !problem.people?.length || !problem.groups?.length}
-            >
-              <Play className="h-4 w-4" />
-              <span>Start Solver</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleStopSolver}
-              className="btn-warning flex-1 flex items-center justify-center space-x-2"
-            >
-              <Pause className="h-4 w-4" />
-              <span>Cancel Solver</span>
-            </button>
-          )}
-          
-          <button
-            onClick={handleResetSolver}
-            className="btn-secondary flex items-center space-x-2"
-            disabled={solverState.isRunning}
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span>Reset</span>
-          </button>
         </div>
       </div>
 

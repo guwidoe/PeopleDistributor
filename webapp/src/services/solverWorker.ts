@@ -1,4 +1,4 @@
-import type { Problem, Solution } from "../types";
+import type { Problem, Solution, SolverSettings } from "../types";
 import type { ProgressUpdate, ProgressCallback } from "./wasm";
 
 interface WorkerMessage {
@@ -105,6 +105,20 @@ export class SolverWorkerService {
             this.pendingMessages.delete(id);
           } else {
             console.error("Worker error:", data);
+          }
+          break;
+
+        case "RPC_SUCCESS":
+          if (pending) {
+            pending.resolve(data.result);
+            this.pendingMessages.delete(id);
+          }
+          break;
+
+        case "RPC_ERROR":
+          if (pending) {
+            pending.reject(new Error(data.error));
+            this.pendingMessages.delete(id);
           }
           break;
 
@@ -303,6 +317,52 @@ export class SolverWorkerService {
       this.isInitialized = false;
     }
     this.pendingMessages.clear();
+  }
+
+  // Helper to invoke RPC-style methods exposed by the worker / WASM module
+  private async callSolver(method: string, ...args: any[]): Promise<any> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    let data: any = {};
+
+    switch (method) {
+      case "get_default_settings":
+        // No extra data needed
+        data = {};
+        break;
+      case "get_recommended_settings":
+        // Expect args: problemJson, desired_runtime_seconds
+        data = {
+          problemJson: args[0],
+          desired_runtime_seconds: args[1],
+        };
+        break;
+      default:
+        // Generic mapping: send raw args array
+        data = { args };
+    }
+
+    const result = await this.sendMessage(method, data);
+    return result;
+  }
+
+  public async get_default_settings(): Promise<SolverSettings> {
+    const result = await this.callSolver("get_default_settings");
+    return JSON.parse(result as string);
+  }
+
+  public async get_recommended_settings(
+    problem: Problem,
+    desired_runtime_seconds: number
+  ): Promise<SolverSettings> {
+    const result = await this.callSolver(
+      "get_recommended_settings",
+      JSON.stringify(problem),
+      desired_runtime_seconds
+    );
+    return JSON.parse(result as string);
   }
 }
 

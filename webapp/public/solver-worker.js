@@ -127,8 +127,33 @@ self.onmessage = async function(e) {
         self.postMessage({ type: 'CANCELLED', id });
         break;
         
+      case 'get_default_settings':
+        try {
+          if (!wasmModule) {
+            throw new Error("WASM module not initialized.");
+          }
+          const settings = wasmModule.get_default_settings();
+          self.postMessage({ type: 'RPC_SUCCESS', id, data: { result: settings } });
+        } catch (error) {
+          self.postMessage({ type: 'RPC_ERROR', id, data: { error: error.message } });
+        }
+        break;
+
+      case 'get_recommended_settings':
+        try {
+          if (!wasmModule) {
+            throw new Error("WASM module not initialized.");
+          }
+          const { problemJson, desired_runtime_seconds } = data;
+          const settings = wasmModule.get_recommended_settings(problemJson, BigInt(desired_runtime_seconds));
+          self.postMessage({ type: 'RPC_SUCCESS', id, data: { result: settings } });
+        } catch (error) {
+          self.postMessage({ type: 'RPC_ERROR', id, data: { error: error.message } });
+        }
+        break;
+        
       default:
-        throw new Error(`Unknown message type: ${type}`);
+        console.warn(`Unknown message type: ${type}`);
     }
   } catch (error) {
     console.error('Worker error:', error);

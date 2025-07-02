@@ -61,8 +61,11 @@
 
 use crate::algorithms::simulated_annealing::SimulatedAnnealing;
 use crate::algorithms::Solver;
+use crate::models::{
+    ApiInput, ProblemDefinition, ProgressCallback, ProgressUpdate, SimulatedAnnealingParams,
+    SolverConfiguration, SolverParams, SolverResult, StopConditions,
+};
 use crate::solver::{SolverError, State};
-pub use models::{ApiInput, ProgressCallback, ProgressUpdate, SolverResult};
 
 pub mod algorithms;
 pub mod models;
@@ -246,15 +249,135 @@ pub fn run_solver(input: &ApiInput) -> Result<SolverResult, SolverError> {
 /// ```
 pub fn run_solver_with_progress(
     input: &ApiInput,
-    progress_callback: Option<&models::ProgressCallback>,
+    progress_callback: Option<&ProgressCallback>,
 ) -> Result<SolverResult, SolverError> {
     let mut state = State::new(input)?;
-    let solver = match input.solver.solver_type.as_str() {
+
+    let solver: Box<dyn algorithms::Solver> = match input.solver.solver_type.as_str() {
         "SimulatedAnnealing" => Box::new(SimulatedAnnealing::new(&input.solver)),
-        // "HillClimbing" => Box::new(HillClimbing::new(&input)), // Future extension
-        _ => panic!("Unknown solver type"),
+        _ => {
+            return Err(SolverError::ValidationError(format!(
+                "Unknown solver type: {}",
+                input.solver.solver_type
+            )))
+        }
     };
+
     solver.solve(&mut state, progress_callback)
+}
+
+/// Calculates recommended solver settings based on a trial run.
+///
+/// This function runs a short, high-temperature simulation to analyze the problem's
+/// characteristics and suggests a set of optimized `models::SolverSettings`.
+///
+/// # Arguments
+///
+/// * `problem` - The `ProblemDefinition` definition.
+/// * `desired_runtime_seconds` - The target runtime for the main solver execution.
+///
+/// # Returns
+///
+/// A `Result` containing the recommended `models::SolverSettings` or a `SolverError`.
+pub fn calculate_recommended_settings(
+    problem: &ProblemDefinition,
+    desired_runtime_seconds: u64,
+) -> Result<SolverConfiguration, SolverError> {
+    const TRIAL_ITERS: u64 = 10_000;
+
+    // trial configuration
+    let trial_cfg = SolverConfiguration {
+        solver_type: "SimulatedAnnealing".into(),
+        stop_conditions: StopConditions {
+            max_iterations: Some(TRIAL_ITERS),
+            time_limit_seconds: None,
+            no_improvement_iterations: None,
+        },
+        solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+            initial_temperature: 1_000_000.0,
+            final_temperature: 1_000_000.0,
+            cooling_schedule: "geometric".into(),
+            reheat_after_no_improvement: 0,
+        }),
+        logging: Default::default(),
+    };
+
+    // build ApiInput for the trial
+    let trial_input = ApiInput {
+        problem: problem.clone(),
+        objectives: vec![],
+        constraints: vec![],
+        solver: trial_cfg.clone(),
+    };
+
+    // set up progress capture
+    use std::sync::{Arc, Mutex};
+    let last_prog: Arc<Mutex<Option<ProgressUpdate>>> = Arc::new(Mutex::new(None));
+    let cb_holder = last_prog.clone();
+    let progress: ProgressCallback = Box::new(move |p: &ProgressUpdate| {
+        *cb_holder.lock().unwrap() = Some(p.clone());
+        true
+    });
+
+    // run trial
+    let mut state = State::new(&trial_input)?;
+    let solver = SimulatedAnnealing::new(&trial_cfg);
+
+    // === Platform-specific wall-clock timing ===
+    #[cfg(not(target_arch = "wasm32"))]
+    let trial_secs = {
+        let start = std::time::Instant::now();
+        solver.solve(&mut state, Some(&progress))?;
+        start.elapsed().as_secs_f64()
+    };
+
+    // In the browser we can use JS Date (ms) for timing.
+    #[cfg(target_arch = "wasm32")]
+    let trial_secs = {
+        use js_sys::Date;
+        let start = Date::now();
+        solver.solve(&mut state, Some(&progress))?;
+        (Date::now() - start) / 1000.0
+    };
+
+    let metrics = last_prog
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| SolverError::ValidationError("Trial run produced no progress".into()))?;
+
+    // compute heuristics
+    let init_temp = if metrics.biggest_attempted_increase > 0.0 {
+        -metrics.biggest_attempted_increase / (0.5f64).ln()
+    } else {
+        1.0
+    };
+    let final_temp = -1.0 / (0.05f64).ln();
+
+    let t_per_iter = trial_secs / TRIAL_ITERS as f64;
+    let target_secs = desired_runtime_seconds as f64 * 0.9;
+    let total_iters = if t_per_iter > 0.0 {
+        (target_secs / t_per_iter).round() as u64
+    } else {
+        2_000_000
+    };
+
+    // build recommended config
+    Ok(SolverConfiguration {
+        solver_type: "SimulatedAnnealing".into(),
+        stop_conditions: StopConditions {
+            max_iterations: Some(total_iters),
+            time_limit_seconds: Some(desired_runtime_seconds),
+            no_improvement_iterations: Some(total_iters / 2),
+        },
+        solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams {
+            initial_temperature: init_temp,
+            final_temperature: final_temp,
+            cooling_schedule: "geometric".into(),
+            reheat_after_no_improvement: total_iters / 3,
+        }),
+        logging: Default::default(),
+    })
 }
 
 #[cfg(test)]
