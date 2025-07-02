@@ -98,6 +98,10 @@ export interface Solution {
   constraint_penalty: number;
   iteration_count: number;
   elapsed_time_ms: number;
+  // Weighted penalty values (actual values used in cost calculation)
+  // Optional for backward compatibility with existing saved results
+  weighted_repetition_penalty?: number;
+  weighted_constraint_penalty?: number;
 }
 
 export interface Assignment {
@@ -159,6 +163,9 @@ export interface AppState {
   currentProblemId: string | null;
   savedProblems: Record<string, SavedProblem>; // Keyed by problem ID
   selectedResultIds: string[]; // For comparison
+
+  // Demo data dropdown state
+  demoDropdownOpen: boolean;
 
   ui: {
     activeTab: "problem" | "solver" | "results" | "manage";

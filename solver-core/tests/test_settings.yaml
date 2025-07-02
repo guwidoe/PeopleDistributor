@@ -23,4 +23,4 @@
 mode: "all"
 filter_patterns: []
 # mode: "filter"
-# filter_patterns: ["UI - Demo data test"]
+# filter_patterns: ["Benchmark - Very Large"]

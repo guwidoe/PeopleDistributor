@@ -9,9 +9,6 @@ import type {
   Person,
   Group,
   AttributeDefinition,
-  SavedProblem,
-  ProblemResult,
-  ProblemSummary,
   SolverSettings,
 } from "../types";
 import { problemStorage } from "../services/problemStorage";
@@ -82,7 +79,12 @@ interface AppStore extends AppState {
   // Utility actions
   reset: () => void;
   generateDemoData: () => void;
+  loadDemoCase: (demoCaseId: string) => Promise<void>;
   initializeApp: () => void;
+
+  // Demo data dropdown state
+  demoDropdownOpen: boolean;
+  setDemoDropdownOpen: (open: boolean) => void;
 
   // New actions for attribute management
   attributeDefinitions: AttributeDefinition[];
@@ -121,6 +123,7 @@ const initialState: AppState = {
     { key: "seniority", values: ["junior", "mid", "senior", "lead"] },
     { key: "location", values: ["office", "remote", "hybrid"] },
   ],
+  demoDropdownOpen: false,
 };
 
 export const useAppStore = create<AppStore>()(
@@ -650,6 +653,7 @@ export const useAppStore = create<AppStore>()(
               message: `Problem "${importedProblem.name}" has been imported successfully.`,
             });
           } catch (error) {
+            console.error("Import failed:", error);
             get().addNotification({
               type: "error",
               title: "Import Failed",
@@ -885,6 +889,35 @@ export const useAppStore = create<AppStore>()(
             "Generated sample problem with 12 people, 3 groups, and various constraints",
         });
       },
+
+      loadDemoCase: async (demoCaseId) => {
+        try {
+          const { loadDemoCase } = await import("../services/demoDataService");
+
+          set({ demoDropdownOpen: false });
+
+          const problem = await loadDemoCase(demoCaseId);
+          set({ problem });
+
+          get().addNotification({
+            type: "success",
+            title: "Demo Case Loaded",
+            message: `Loaded demo case with ${problem.people.length} people and ${problem.groups.length} groups`,
+          });
+        } catch (error) {
+          console.error("Failed to load demo case:", error);
+          set({ demoDropdownOpen: false });
+
+          get().addNotification({
+            type: "error",
+            title: "Demo Case Load Failed",
+            message:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      },
+
+      setDemoDropdownOpen: (open) => set({ demoDropdownOpen: open }),
     }),
     {
       name: "people-distributor-store",

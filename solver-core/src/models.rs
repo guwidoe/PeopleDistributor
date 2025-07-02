@@ -655,14 +655,18 @@ pub struct SolverResult {
     pub schedule: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
     /// Number of unique person-to-person contacts achieved
     pub unique_contacts: i32,
-    /// Penalty points for exceeding repeat encounter limits
+    /// Penalty points for exceeding repeat encounter limits (unweighted for backwards compatibility)
     pub repetition_penalty: i32,
     /// Penalty points for attribute balance violations
     pub attribute_balance_penalty: i32,
-    /// Total penalty points for constraint violations
+    /// Total penalty points for constraint violations (unweighted for backwards compatibility)
     pub constraint_penalty: i32,
     /// Number of iterations without improvement at the end of the run
     pub no_improvement_count: u64,
+    /// Weighted repetition penalty (actual penalty value used in cost calculation)
+    pub weighted_repetition_penalty: f64,
+    /// Weighted constraint penalty (actual penalty value used in cost calculation)
+    pub weighted_constraint_penalty: f64,
 }
 
 impl SolverResult {

@@ -192,9 +192,9 @@ export function ResultsHistory() {
       ['Unique Contacts', result.solution.unique_contacts.toString()],
       ['Duration', formatDuration(result.duration)],
       ['Iterations', result.solution.iteration_count.toLocaleString()],
-      ['Repetition Penalty', result.solution.repetition_penalty.toFixed(2)],
+      ['Repetition Penalty', (result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)],
       ['Balance Penalty', result.solution.attribute_balance_penalty.toFixed(2)],
-      ['Constraint Penalty', result.solution.constraint_penalty.toFixed(2)],
+      ['Constraint Penalty', (result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)],
       [], // Empty row
       headers
     ];
@@ -506,7 +506,7 @@ export function ResultsHistory() {
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
                             <div className="font-medium text-red-600">
-                              {result.solution.repetition_penalty.toFixed(2)}
+                              {(result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)}
                             </div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
@@ -518,7 +518,7 @@ export function ResultsHistory() {
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</div>
                             <div className="font-medium text-purple-600">
-                              {result.solution.constraint_penalty.toFixed(2)}
+                              {(result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)}
                             </div>
                           </div>
                         </div>

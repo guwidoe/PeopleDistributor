@@ -286,6 +286,9 @@ export class SolverWorkerService {
       constraint_penalty: rustResult.constraint_penalty,
       iteration_count: progressToUse?.iteration || 0,
       elapsed_time_ms: (progressToUse?.elapsed_seconds || 0) * 1000,
+      // Add the new weighted penalty fields
+      weighted_repetition_penalty: rustResult.weighted_repetition_penalty,
+      weighted_constraint_penalty: rustResult.weighted_constraint_penalty,
     };
   }
 

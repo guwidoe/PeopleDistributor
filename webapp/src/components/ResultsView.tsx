@@ -54,16 +54,10 @@ export function ResultsView() {
   const generateSummaryText = () => {
     if (!problem || !solution) return '';
     
-    return `Optimization Results Summary:
-  
-Final Score: ${solution.final_score.toFixed(2)}
-Unique Contacts: ${solution.unique_contacts}
-Repetition Penalty: ${solution.repetition_penalty}
-Constraint Penalty: ${solution.constraint_penalty}
-Iterations: ${solution.iteration_count}
-Time: ${(solution.elapsed_time_ms / 1000).toFixed(2)}s
-Sessions: ${problem?.num_sessions || 0}
-Groups: ${problem?.groups.length || 0}`;
+    const repPenalty = solution.weighted_repetition_penalty ?? solution.repetition_penalty;
+    const conPenalty = solution.weighted_constraint_penalty ?? solution.constraint_penalty;
+    
+    return `Optimization Results Summary:\n  \nFinal Score: ${solution.final_score.toFixed(2)}\nUnique Contacts: ${solution.unique_contacts}\nRepetition Penalty: ${repPenalty.toFixed(2)}\nConstraint Penalty: ${conPenalty.toFixed(2)}\nIterations: ${solution.iteration_count}\nTime: ${(solution.elapsed_time_ms / 1000).toFixed(2)}s\nSessions: ${problem?.num_sessions || 0}\nGroups: ${problem?.groups.length || 0}`;
   };
 
   // Group assignments by session for display
@@ -233,8 +227,8 @@ Groups: ${problem?.groups.length || 0}`;
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, "text-green-600")}
         {renderMetricCard("Unique Contacts", solution.unique_contacts, Users, "var(--color-primary-600)")}
-        {renderMetricCard("Repetition Penalty", solution.repetition_penalty, RefreshCw, "text-orange-600")}
-        {renderMetricCard("Constraint Penalty", solution.constraint_penalty, AlertTriangle, "text-red-600")}
+        {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, "text-orange-600")}
+        {renderMetricCard("Constraint Penalty", (solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(1), AlertTriangle, "text-red-600")}
       </div>
 
       {/* Detailed Breakdown */}
@@ -249,7 +243,7 @@ Groups: ${problem?.groups.length || 0}`;
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</span>
-                <span className="font-medium text-orange-600">-{solution.repetition_penalty}</span>
+                <span className="font-medium text-orange-600">-{(solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Attribute Balance Penalty</span>
@@ -257,7 +251,7 @@ Groups: ${problem?.groups.length || 0}`;
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</span>
-                <span className="font-medium text-red-600">-{solution.constraint_penalty}</span>
+                <span className="font-medium text-red-600">-{(solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(2)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between items-center">
                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Final Score</span>

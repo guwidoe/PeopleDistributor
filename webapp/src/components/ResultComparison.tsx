@@ -278,7 +278,7 @@ export function ResultComparison() {
                     {selectedResults.map((result) => (
                       <td key={result.id} className="p-4">
                         <span className="text-red-600 font-semibold">
-                          {result.solution.repetition_penalty.toFixed(2)}
+                          {(result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)}
                         </span>
                       </td>
                     ))}
@@ -312,7 +312,7 @@ export function ResultComparison() {
                     {selectedResults.map((result) => (
                       <td key={result.id} className="p-4">
                         <span className="text-purple-600 font-semibold">
-                          {result.solution.constraint_penalty.toFixed(2)}
+                          {(result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)}
                         </span>
                       </td>
                     ))}

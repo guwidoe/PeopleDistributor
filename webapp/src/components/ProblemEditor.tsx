@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
+import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
   solver_type: "SimulatedAnnealing",
@@ -35,6 +36,9 @@ export function ProblemEditor() {
     setProblem, 
     addNotification, 
     generateDemoData,
+    loadDemoCase,
+    demoDropdownOpen,
+    setDemoDropdownOpen,
     attributeDefinitions,
     addAttributeDefinition,
     removeAttributeDefinition,
@@ -47,6 +51,9 @@ export function ProblemEditor() {
   const activeSection = section || 'people';
 
   const [showAttributesSection, setShowAttributesSection] = useState(false);
+  const [peopleViewMode, setPeopleViewMode] = useState<'grid' | 'list'>('grid');
+  const [peopleSortBy, setPeopleSortBy] = useState<'name' | 'sessions'>('name');
+  const [peopleSortOrder, setPeopleSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Auto-expand attributes section when there are no attributes defined
   useEffect(() => {
@@ -75,6 +82,49 @@ export function ProblemEditor() {
 
   const [newAttribute, setNewAttribute] = useState({ key: '', values: [''] });
   const [sessionsCount, setSessionsCount] = useState(problem?.num_sessions || 3);
+
+  // Demo dropdown ref for click outside handling
+  const demoDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Demo cases with metrics state
+  const [demoCasesWithMetrics, setDemoCasesWithMetrics] = useState<DemoCaseWithMetrics[]>([]);
+  const [loadingDemoMetrics, setLoadingDemoMetrics] = useState(false);
+
+  // Load demo cases with metrics when dropdown is opened
+  useEffect(() => {
+    if (demoDropdownOpen && demoCasesWithMetrics.length === 0 && !loadingDemoMetrics) {
+      setLoadingDemoMetrics(true);
+      loadDemoCasesWithMetrics()
+        .then(cases => {
+          setDemoCasesWithMetrics(cases);
+        })
+        .catch(error => {
+          console.error('Failed to load demo cases with metrics:', error);
+          addNotification({
+            type: 'error',
+            title: 'Demo Cases Load Failed',
+            message: 'Failed to load demo case metrics',
+          });
+        })
+        .finally(() => {
+          setLoadingDemoMetrics(false);
+        });
+    }
+  }, [demoDropdownOpen, demoCasesWithMetrics.length, loadingDemoMetrics, addNotification]);
+
+  // Click outside to close demo dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (demoDropdownRef.current && !demoDropdownRef.current.contains(event.target as Node)) {
+        setDemoDropdownOpen(false);
+      }
+    };
+
+    if (demoDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [demoDropdownOpen, setDemoDropdownOpen]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -650,6 +700,42 @@ export function ProblemEditor() {
     });
   };
 
+  const sortPeople = (people: Person[]) => {
+    return [...people].sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+
+      if (peopleSortBy === 'name') {
+        aValue = (a.attributes.name || a.id).toLowerCase();
+        bValue = (b.attributes.name || b.id).toLowerCase();
+      } else if (peopleSortBy === 'sessions') {
+        aValue = a.sessions ? a.sessions.length : sessionsCount;
+        bValue = b.sessions ? b.sessions.length : sessionsCount;
+      } else {
+        return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return peopleSortOrder === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return peopleSortOrder === 'asc' 
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      }
+    });
+  };
+
+  const handleSortToggle = (sortBy: 'name' | 'sessions') => {
+    if (peopleSortBy === sortBy) {
+      setPeopleSortOrder(peopleSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPeopleSortBy(sortBy);
+      setPeopleSortOrder('asc');
+    }
+  };
+
   const renderPersonCard = (person: Person) => {
     const displayName = person.attributes.name || person.id;
     const sessionText = person.sessions 
@@ -698,6 +784,160 @@ export function ProblemEditor() {
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPeopleGrid = () => {
+    if (!problem?.people.length) {
+      return (
+        <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+          <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
+          <p>No people added yet</p>
+          <p className="text-sm">
+            {attributeDefinitions.length === 0 
+              ? "Consider defining attributes first, then add people to get started"
+              : "Add people to get started with your optimization problem"
+            }
+          </p>
+        </div>
+      );
+    }
+
+    const sortedPeople = sortPeople(problem.people);
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {sortedPeople.map(renderPersonCard)}
+      </div>
+    );
+  };
+
+  const renderPeopleList = () => {
+    if (!problem?.people.length) {
+      return (
+        <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+          <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
+          <p>No people added yet</p>
+          <p className="text-sm">
+            {attributeDefinitions.length === 0 
+              ? "Consider defining attributes first, then add people to get started"
+              : "Add people to get started with your optimization problem"
+            }
+          </p>
+        </div>
+      );
+    }
+
+    const sortedPeople = sortPeople(problem.people);
+    
+    return (
+      <div className="rounded-lg border overflow-hidden transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y" style={{ borderColor: 'var(--border-secondary)' }}>
+            <thead style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                  <button
+                    onClick={() => handleSortToggle('name')}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                  >
+                    Name
+                    <ArrowUpDown className="w-3 h-3" />
+                    {peopleSortBy === 'name' && (
+                      <span className="text-xs">{peopleSortOrder === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                  <button
+                    onClick={() => handleSortToggle('sessions')}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                  >
+                    Sessions
+                    <ArrowUpDown className="w-3 h-3" />
+                    {peopleSortBy === 'sessions' && (
+                      <span className="text-xs">{peopleSortOrder === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </button>
+                </th>
+                {attributeDefinitions.map(attr => (
+                  <th key={attr.key} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                    {attr.key}
+                  </th>
+                ))}
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-secondary)' }}>
+              {sortedPeople.map(person => {
+                const displayName = person.attributes.name || person.id;
+                const sessionText = person.sessions 
+                  ? `${person.sessions.length}/${sessionsCount} (${person.sessions.map(s => s + 1).join(', ')})`
+                  : `All (${sessionsCount})`;
+                
+                return (
+                  <tr 
+                    key={person.id} 
+                    className="transition-colors hover:bg-tertiary" 
+                    style={{ backgroundColor: 'var(--bg-primary)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Users className="w-4 h-4 mr-2" style={{ color: 'var(--text-tertiary)' }} />
+                        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{displayName}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm flex items-center gap-1" style={{ color: 'var(--color-accent)' }}>
+                        <Clock className="w-3 h-3" />
+                        {sessionText}
+                      </span>
+                    </td>
+                    {attributeDefinitions.map(attr => (
+                      <td key={attr.key} className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                          {person.attributes[attr.key] || '-'}
+                        </span>
+                      </td>
+                    ))}
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => handleEditPerson(person)}
+                          className="p-1 transition-colors"
+                          style={{ color: 'var(--text-tertiary)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-accent)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePerson(person.id)}
+                          className="p-1 transition-colors"
+                          style={{ color: 'var(--text-tertiary)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-error-600)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-tertiary)'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -1343,19 +1583,81 @@ export function ProblemEditor() {
             <Save className="w-4 h-4" />
             Save
           </button>
-          <button
-            onClick={generateDemoData}
-            className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-colors"
-            style={{ 
-              backgroundColor: 'var(--color-accent)', 
-              color: 'white',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-          >
-            <Zap className="w-4 h-4" />
-            Demo Data
-          </button>
+          <div className="relative" ref={demoDropdownRef}>
+            <button
+              onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Demo Data
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            
+            {demoDropdownOpen && (
+              <div className="absolute right-0 mt-1 w-80 rounded-md shadow-lg z-10 border overflow-hidden max-h-96 overflow-y-auto" 
+                   style={{ 
+                     backgroundColor: 'var(--bg-primary)', 
+                     borderColor: 'var(--border-primary)' 
+                   }}>
+                {loadingDemoMetrics ? (
+                  <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: 'var(--color-accent)' }}></div>
+                    <span className="ml-2 text-sm">Loading demo cases...</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Category groups */}
+                    {(['Simple', 'Intermediate', 'Advanced', 'Benchmark'] as const).map(category => {
+                      const casesInCategory = demoCasesWithMetrics.filter(c => c.category === category);
+                      if (casesInCategory.length === 0) return null;
+                      
+                      return (
+                        <div key={category}>
+                          <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-b"
+                               style={{ 
+                                 backgroundColor: 'var(--bg-tertiary)', 
+                                 borderColor: 'var(--border-primary)',
+                                 color: 'var(--text-tertiary)'
+                               }}>
+                            {category}
+                          </div>
+                          {casesInCategory.map(demoCase => (
+                            <button
+                              key={demoCase.id}
+                              onClick={() => loadDemoCase(demoCase.id)}
+                              className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
+                              style={{ 
+                                color: 'var(--text-primary)',
+                                backgroundColor: 'transparent',
+                                borderColor: 'var(--border-primary)'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm">{demoCase.name}</span>
+                                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                                  <Users className="w-3 h-3" />
+                                  <span>{demoCase.peopleCount}</span>
+                                  <Hash className="w-3 h-3 ml-1" />
+                                  <span>{demoCase.groupCount}</span>
+                                  <Calendar className="w-3 h-3 ml-1" />
+                                  <span>{demoCase.sessionCount}</span>
+                                </div>
+                              </div>
+                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                {demoCase.description}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1476,36 +1778,79 @@ export function ProblemEditor() {
             )}
 
             {/* People Section */}
-            <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium">People ({problem?.people.length || 0})</h3>
-            <button
-              onClick={() => setShowPersonForm(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              <Plus className="w-4 h-4" />
-              Add Person
-            </button>
+            <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+              <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)' }}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>
+                    People ({problem?.people.length || 0})
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    {/* View Toggle */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPeopleViewMode('grid')}
+                        className="px-3 py-1 rounded text-sm transition-colors"
+                        style={{
+                          backgroundColor: peopleViewMode === 'grid' ? 'var(--bg-tertiary)' : 'transparent',
+                          color: peopleViewMode === 'grid' ? 'var(--color-accent)' : 'var(--text-secondary)',
+                          border: peopleViewMode === 'grid' ? '1px solid var(--color-accent)' : '1px solid transparent'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (peopleViewMode !== 'grid') {
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (peopleViewMode !== 'grid') {
+                            e.currentTarget.style.color = 'var(--text-secondary)';
+                          }
+                        }}
+                      >
+                        <Hash className="w-4 h-4 inline mr-1" />
+                        Grid
+                      </button>
+                      <button
+                        onClick={() => setPeopleViewMode('list')}
+                        className="px-3 py-1 rounded text-sm transition-colors"
+                        style={{
+                          backgroundColor: peopleViewMode === 'list' ? 'var(--bg-tertiary)' : 'transparent',
+                          color: peopleViewMode === 'list' ? 'var(--color-accent)' : 'var(--text-secondary)',
+                          border: peopleViewMode === 'list' ? '1px solid var(--color-accent)' : '1px solid transparent'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (peopleViewMode !== 'list') {
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (peopleViewMode !== 'list') {
+                            e.currentTarget.style.color = 'var(--text-secondary)';
+                          }
+                        }}
+                      >
+                        <BarChart3 className="w-4 h-4 inline mr-1" />
+                        List
+                      </button>
+                    </div>
+                    {/* Add Person Button */}
+                    <button
+                      onClick={() => setShowPersonForm(true)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+                      style={{ backgroundColor: 'var(--color-accent)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Person
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                {peopleViewMode === 'grid' ? renderPeopleGrid() : renderPeopleList()}
+              </div>
             </div>
-
-          {problem?.people.length ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {problem.people.map(renderPersonCard)}
-            </div>
-          ) : (
-            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
-              <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
-              <p>No people added yet</p>
-              <p className="text-sm">
-                {attributeDefinitions.length === 0 
-                  ? "Consider defining attributes first, then add people to get started"
-                  : "Add people to get started with your optimization problem"
-                }
-              </p>
-            </div>
-          )}
         </div>
       )}
 
