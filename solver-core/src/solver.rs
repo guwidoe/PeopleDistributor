@@ -2501,8 +2501,8 @@ impl State {
         }
 
         let clique_ratio = people_in_cliques as f64 / total_people as f64;
-        // Probability scales with clique density, maxing out at 0.3 when all people are in cliques
-        (clique_ratio * 0.3).min(0.3)
+        // Probability scales with clique density, maxing out at 0.1 when all people are in cliques
+        (clique_ratio * 0.2).min(0.1)
     }
 
     /// Find all non-clique, movable people in a specific group for a given day
