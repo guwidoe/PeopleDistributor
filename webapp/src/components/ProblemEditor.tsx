@@ -1645,8 +1645,17 @@ export function ProblemEditor() {
       });
     });
     Object.entries(attrValueMap).forEach(([key, valSet]) => {
-      if (!attributeDefinitions.find(def => def.key === key)) {
-        addAttributeDefinition({ key, values: Array.from(valSet) });
+      const existing = attributeDefinitions.find(def => def.key === key);
+      const newValues = Array.from(valSet);
+      if (!existing) {
+        addAttributeDefinition({ key, values: newValues });
+      } else {
+        const merged = Array.from(new Set([...existing.values, ...newValues]));
+        // Replace definition only if new values were added
+        if (merged.length !== existing.values.length) {
+          removeAttributeDefinition(existing.key);
+          addAttributeDefinition({ key: existing.key, values: merged });
+        }
       }
     });
 
@@ -1871,8 +1880,17 @@ export function ProblemEditor() {
       });
     });
     Object.entries(attrValueMap).forEach(([key, valSet]) => {
-      if (!attributeDefinitions.find(def => def.key === key)) {
-        addAttributeDefinition({ key, values: Array.from(valSet) });
+      const existing = attributeDefinitions.find(def => def.key === key);
+      const newValues = Array.from(valSet);
+      if (!existing) {
+        addAttributeDefinition({ key, values: newValues });
+      } else {
+        const merged = Array.from(new Set([...existing.values, ...newValues]));
+        // Replace definition only if new values were added
+        if (merged.length !== existing.values.length) {
+          removeAttributeDefinition(existing.key);
+          addAttributeDefinition({ key: existing.key, values: merged });
+        }
       }
     });
 

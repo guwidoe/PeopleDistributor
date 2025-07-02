@@ -90,11 +90,25 @@ export function ResultsView() {
 
   // === Maximum values for normalization ===
   const peopleCount = problem?.people.length || 1;
-  const maxUniqueTotal = useMemo(() => (peopleCount * (peopleCount - 1)) / 2, [peopleCount]);
-  const maxAvgContacts = peopleCount - 1;
+  const numSessions = problem?.num_sessions || 0;
+  const maxUniqueTotalTheoretical = useMemo(() => (peopleCount * (peopleCount - 1)) / 2, [peopleCount]);
+  const maxAvgContactsTheoretical = peopleCount - 1;
 
-  const uniqueRatio = useMemo(() => solution.unique_contacts / (maxUniqueTotal || 1), [solution.unique_contacts, maxUniqueTotal]);
-  const avgRatio = useMemo(() => avgUniqueContacts / (maxAvgContacts || 1), [avgUniqueContacts, maxAvgContacts]);
+  // Alternative bound based on sessions & largest group capacity
+  const capacityBiggestGroup = useMemo(() => {
+    return problem?.groups && problem.groups.length > 0
+      ? Math.max(...problem.groups.map(g => g.size))
+      : 0;
+  }, [problem]);
+
+  const altMaxAvgContacts = numSessions * Math.max(0, capacityBiggestGroup - 1);
+  const altMaxUniqueTotal = (altMaxAvgContacts * peopleCount) / 2;
+
+  const effectiveMaxAvgContacts = Math.max(1, Math.min(maxAvgContactsTheoretical, altMaxAvgContacts || maxAvgContactsTheoretical));
+  const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
+
+  const uniqueRatio = useMemo(() => solution.unique_contacts / effectiveMaxUniqueTotal, [solution.unique_contacts, effectiveMaxUniqueTotal]);
+  const avgRatio = useMemo(() => avgUniqueContacts / effectiveMaxAvgContacts, [avgUniqueContacts, effectiveMaxAvgContacts]);
 
   // Constraint penalty normalization
   const finalConstraintPenalty = solution.weighted_constraint_penalty ?? solution.constraint_penalty;
@@ -393,8 +407,8 @@ export function ResultsView() {
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
-        {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${maxUniqueTotal}`, Users, uniqueColorClass)}
-        {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${maxAvgContacts}`, PieChart, avgColorClass)}
+        {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${effectiveMaxUniqueTotal}`, Users, uniqueColorClass)}
+        {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${effectiveMaxAvgContacts}`, PieChart, avgColorClass)}
         {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, getColorClass((solution.weighted_repetition_penalty ?? solution.repetition_penalty) / ((solverState.currentRepetitionPenalty ?? (solution.weighted_repetition_penalty ?? solution.repetition_penalty)) || 1), true))}
         {renderMetricCard("Constraint Penalty", finalConstraintPenalty.toFixed(1), AlertTriangle, constraintColorClass)}
       </div>
