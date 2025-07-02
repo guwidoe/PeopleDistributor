@@ -482,7 +482,7 @@ impl Solver for SimulatedAnnealing {
                 // Add minimum 50ms gap to prevent excessive callbacks
                 // NOTE: We don't call on last iteration here because we send a final callback after recalculation
                 if i == 0 || elapsed_since_last_callback >= 0.1 {
-                    let current_cost = current_state.calculate_cost();
+                    let current_cost = current_state.current_cost;
                     let progress = ProgressUpdate {
                         iteration: i + 1, // Report 1-based iteration numbers
                         max_iterations: self.max_iterations,
@@ -555,8 +555,8 @@ impl Solver for SimulatedAnnealing {
                             &target_people,
                         );
 
-                        let current_cost = current_state.calculate_cost();
-                        let _next_cost = current_cost + delta_cost;
+                        //let current_cost = current_state.current_cost;
+                        //let next_cost = current_cost + delta_cost;
 
                         // Accept or reject the clique swap
                         if delta_cost < 0.0
@@ -571,7 +571,7 @@ impl Solver for SimulatedAnnealing {
                             );
 
                             // Since apply_clique_swap does a full recalculation, we need to get the actual cost
-                            let actual_current_cost = current_state.calculate_cost();
+                            let actual_current_cost = current_state.current_cost;
 
                             if actual_current_cost < best_cost {
                                 best_cost = actual_current_cost;
@@ -611,7 +611,7 @@ impl Solver for SimulatedAnnealing {
                         // Calculate delta cost for transfer
                         let delta_cost = current_state
                             .calculate_transfer_cost_delta(day, person_idx, from_group, to_group);
-                        let current_cost = current_state.calculate_cost();
+                        let current_cost = current_state.current_cost;
                         let next_cost = current_cost + delta_cost;
 
                         // Accept or reject the transfer
@@ -619,6 +619,8 @@ impl Solver for SimulatedAnnealing {
                             || rng.random::<f64>() < (-delta_cost / temperature).exp()
                         {
                             current_state.apply_transfer(day, person_idx, from_group, to_group);
+
+                            current_state.current_cost = next_cost;
 
                             if next_cost < best_cost {
                                 best_cost = next_cost;
@@ -649,7 +651,7 @@ impl Solver for SimulatedAnnealing {
 
                 // --- Evaluate the swap ---
                 let delta_cost = current_state.calculate_swap_cost_delta(day, p1_idx, p2_idx);
-                let current_cost = current_state.calculate_cost();
+                let current_cost = current_state.current_cost;
                 let next_cost = current_cost + delta_cost;
 
                 if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
@@ -662,6 +664,7 @@ impl Solver for SimulatedAnnealing {
                     }
 
                     current_state.apply_swap(day, p1_idx, p2_idx);
+                    current_state.current_cost = next_cost;
 
                     if next_cost < best_cost {
                         best_cost = next_cost;

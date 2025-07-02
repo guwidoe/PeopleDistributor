@@ -192,6 +192,8 @@ pub struct State {
     pub clique_weights: Vec<f64>,
     /// Penalty weight for each forbidden pair violation
     pub forbidden_pair_weights: Vec<f64>,
+
+    pub current_cost: f64,
 }
 
 impl State {
@@ -427,6 +429,7 @@ impl State {
             w_repetition,
             clique_weights: Vec::new(),
             forbidden_pair_weights: Vec::new(),
+            current_cost: 0.0,
         };
 
         state._preprocess_and_validate_constraints(input)?;
@@ -545,9 +548,6 @@ impl State {
         }
 
         state._recalculate_locations_from_schedule();
-        state._recalculate_scores();
-
-        // Calculate initial scores
         state._recalculate_scores();
 
         Ok(state)
@@ -844,6 +844,8 @@ impl State {
 
         // Recalculate constraint penalties
         self._recalculate_constraint_penalty();
+
+        self.current_cost = self.calculate_cost();
     }
 
     /// Converts the current state to an API result format.
