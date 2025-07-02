@@ -18,7 +18,8 @@ import {
   Filter,
   X,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown
 } from 'lucide-react';
 import type { ProblemSummary } from '../types';
 
@@ -42,6 +43,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
     importProblem,
     saveProblem,
     problem: currentProblem,
+    setProblem,
   } = useAppStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,12 +55,27 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
   const [newProblemIsTemplate, setNewProblemIsTemplate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const newDropdownRef = useRef<HTMLDivElement>(null);
+  const [newDropdownOpen, setNewDropdownOpen] = useState(false);
+  const [newProblemMode, setNewProblemMode] = useState<'duplicate' | 'empty'>('duplicate');
 
   React.useEffect(() => {
     if (isOpen) {
       loadSavedProblems();
     }
   }, [isOpen, loadSavedProblems]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (newDropdownRef.current && !newDropdownRef.current.contains(event.target as Node)) {
+        setNewDropdownOpen(false);
+      }
+    };
+    if (newDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [newDropdownOpen]);
 
   const problemSummaries: ProblemSummary[] = Object.values(savedProblems).map(p => ({
     id: p.id,
@@ -89,36 +106,36 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
 
   const handleCreateProblem = () => {
     if (!newProblemName.trim()) return;
-    
-    if (!currentProblem) {
-      // Create a minimal problem structure
-      const minimalProblem = {
-        people: [],
-        groups: [],
-        num_sessions: 1,
-        constraints: [],
-        settings: {
-          solver_type: "SimulatedAnnealing",
-          stop_conditions: {
-            max_iterations: 10000,
-            time_limit_seconds: 30,
-            no_improvement_iterations: 5000,
-          },
-          solver_params: {
-            SimulatedAnnealing: {
-              initial_temperature: 1.0,
-              final_temperature: 0.01,
-              cooling_schedule: "geometric" as const,
-              reheat_after_no_improvement: 0,
-            },
+
+    const minimalProblem = {
+      people: [],
+      groups: [],
+      num_sessions: 1,
+      constraints: [],
+      settings: {
+        solver_type: "SimulatedAnnealing",
+        stop_conditions: {
+          max_iterations: 10000,
+          time_limit_seconds: 30,
+          no_improvement_iterations: 5000,
+        },
+        solver_params: {
+          SimulatedAnnealing: {
+            initial_temperature: 1.0,
+            final_temperature: 0.01,
+            cooling_schedule: "geometric" as const,
+            reheat_after_no_improvement: 0,
           },
         },
-      };
-      // This will create an empty problem
-      createNewProblem(newProblemName, newProblemIsTemplate);
-    } else {
-      createNewProblem(newProblemName, newProblemIsTemplate);
+      },
+    };
+
+    if (newProblemMode === 'empty') {
+      // set current problem to empty then save
+      setProblem(minimalProblem as any);
     }
+
+    createNewProblem(newProblemName, newProblemIsTemplate);
     
     setShowCreateDialog(false);
     setNewProblemName('');
@@ -215,13 +232,49 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                 <span>Save Current</span>
               </button>
             )}
-            <button
-              onClick={() => setShowCreateDialog(true)}
-              className="btn-primary flex items-center space-x-2"
-            >
-              <FolderPlus className="h-4 w-4" />
-              <span>New Problem</span>
-            </button>
+            <div className="relative" ref={newDropdownRef}>
+              <button
+                onClick={() => setNewDropdownOpen(!newDropdownOpen)}
+                className="btn-primary flex items-center space-x-2"
+              >
+                <FolderPlus className="h-4 w-4" />
+                <span>New Problem</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {newDropdownOpen && (
+                <div className="absolute right-0 mt-1 w-56 rounded-md shadow-lg z-10 border overflow-hidden"
+                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                  <button
+                    onClick={() => {
+                      setNewProblemMode('empty');
+                      setShowCreateDialog(true);
+                      setNewDropdownOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
+                    style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                    Blank Problem
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewProblemMode('duplicate');
+                      setShowCreateDialog(true);
+                      setNewDropdownOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+                    style={{ color: 'var(--text-primary)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Duplicate Current
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleImport}
               className="btn-secondary flex items-center space-x-2"

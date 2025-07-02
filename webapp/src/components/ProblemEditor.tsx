@@ -1582,27 +1582,6 @@ export function ProblemEditor() {
     }
   }, [bulkDropdownOpen]);
 
-  const parseCsv = (text: string): { headers: string[]; rows: Record<string, string>[] } => {
-    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
-    if (lines.length === 0) return { headers: [], rows: [] };
-    const headers = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map(line => {
-      const cells = line.split(',');
-      const row: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        row[h] = (cells[idx] || '').trim();
-      });
-      return row;
-    });
-    return { headers, rows };
-  };
-
-  const rowsToCsv = (headers: string[], rows: Record<string, string>[]) => {
-    const headerLine = headers.join(',');
-    const dataLines = rows.map(r => headers.map(h => r[h] ?? '').join(','));
-    return [headerLine, ...dataLines].join('\n');
-  };
-
   const openBulkFormFromCsv = (csvText: string) => {
     setBulkCsvInput(csvText);
     const { headers, rows } = parseCsv(csvText);
@@ -1791,6 +1770,235 @@ export function ProblemEditor() {
         </div>
       </div>
     );
+  };
+
+  const groupBulkDropdownRef = useRef<HTMLDivElement>(null);
+  const groupCsvFileInputRef = useRef<HTMLInputElement>(null);
+  const [groupBulkDropdownOpen, setGroupBulkDropdownOpen] = useState(false);
+  const [showGroupBulkForm, setShowGroupBulkForm] = useState(false);
+  const [groupBulkTextMode, setGroupBulkTextMode] = useState<'text' | 'grid'>('text');
+  const [groupBulkCsvInput, setGroupBulkCsvInput] = useState('');
+  const [groupBulkHeaders, setGroupBulkHeaders] = useState<string[]>([]);
+  const [groupBulkRows, setGroupBulkRows] = useState<Record<string, string>[]>([]);
+  const [groupGenCount, setGroupGenCount] = useState(3);
+  const [groupGenSize, setGroupGenSize] = useState(4);
+
+  // Close group bulk dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (groupBulkDropdownRef.current && !groupBulkDropdownRef.current.contains(event.target as Node)) {
+        setGroupBulkDropdownOpen(false);
+      }
+    };
+    if (groupBulkDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [groupBulkDropdownOpen]);
+
+  const openGroupBulkFormFromCsv = (csvText: string) => {
+    setGroupBulkCsvInput(csvText);
+    const { headers, rows } = parseCsv(csvText);
+    setGroupBulkHeaders(headers);
+    setGroupBulkRows(rows);
+    setGroupBulkTextMode('text');
+    setShowGroupBulkForm(true);
+  };
+
+  const handleGroupCsvFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      openGroupBulkFormFromCsv(text);
+    };
+    reader.readAsText(file);
+    // reset value so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleAddGroupBulkPeople = () => {
+    if (!groupBulkHeaders.includes('id')) {
+      addNotification({ type: 'error', title: 'Missing Column', message: 'CSV must include an "id" column.' });
+      return;
+    }
+
+    const newGroups: Group[] = groupBulkRows.map((row, idx) => {
+      const id = row['id'] ?? `Group_${Date.now()}_${idx}`;
+      const size = parseInt(row['size'] ?? '') || 4;
+      return { id, size };
+    });
+
+    // Collect new attribute definitions
+    const attrValueMap: Record<string, Set<string>> = {};
+    groupBulkHeaders.forEach(h => {
+      if (h === 'id') return;
+      attrValueMap[h] = new Set();
+    });
+    newGroups.forEach(g => {
+      Object.entries(g).forEach(([k, v]) => {
+        if (k !== 'id') attrValueMap[k]?.add(v);
+      });
+    });
+    Object.entries(attrValueMap).forEach(([key, valSet]) => {
+      if (!attributeDefinitions.find(def => def.key === key)) {
+        addAttributeDefinition({ key, values: Array.from(valSet) });
+      }
+    });
+
+    const updatedProblem: Problem = {
+      people: problem?.people || [],
+      groups: [...(problem?.groups || []), ...newGroups],
+      num_sessions: problem?.num_sessions || 3,
+      constraints: problem?.constraints || [],
+      settings: problem?.settings || getDefaultSolverSettings()
+    };
+    setProblem(updatedProblem);
+    setShowGroupBulkForm(false);
+    setGroupBulkCsvInput('');
+    setGroupBulkHeaders([]);
+    setGroupBulkRows([]);
+
+    addNotification({ type: 'success', title: 'Groups Added', message: `${newGroups.length} groups added.` });
+  };
+
+  const renderGroupBulkAddForm = () => {
+    return (
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto modal-content">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Bulk Add Groups</h3>
+            <button
+              onClick={() => setShowGroupBulkForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => {
+                if (groupBulkTextMode === 'grid') {
+                  setGroupBulkCsvInput(rowsToCsv(groupBulkHeaders, groupBulkRows));
+                }
+                setGroupBulkTextMode('text');
+              }}
+              className={`px-3 py-1 rounded text-sm ${groupBulkTextMode === 'text' ? 'font-bold' : ''}`}
+              style={{ color: 'var(--text-primary)', backgroundColor: groupBulkTextMode === 'text' ? 'var(--bg-tertiary)' : 'transparent' }}
+            >
+              CSV Text
+            </button>
+            <button
+              onClick={() => {
+                if (groupBulkTextMode === 'text') {
+                  const { headers, rows } = parseCsv(groupBulkCsvInput);
+                  setGroupBulkHeaders(headers);
+                  setGroupBulkRows(rows);
+                }
+                setGroupBulkTextMode('grid');
+              }}
+              className={`px-3 py-1 rounded text-sm ${groupBulkTextMode === 'grid' ? 'font-bold' : ''}`}
+              style={{ color: 'var(--text-primary)', backgroundColor: groupBulkTextMode === 'grid' ? 'var(--bg-tertiary)' : 'transparent' }}
+            >
+              Data Grid
+            </button>
+          </div>
+
+          {groupBulkTextMode === 'text' ? (
+            <textarea
+              value={groupBulkCsvInput}
+              onChange={(e) => setGroupBulkCsvInput(e.target.value)}
+              className="w-full h-64 p-2 border rounded"
+              placeholder="Paste CSV here. First row should contain column headers (e.g., id, size)"
+            ></textarea>
+          ) : (
+            <div className="overflow-x-auto max-h-64 mb-4">
+              {groupBulkHeaders.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No data parsed yet.</p>
+              ) : (
+                <table className="min-w-full divide-y" style={{ borderColor: 'var(--border-secondary)' }}>
+                  <thead style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <tr>
+                      {groupBulkHeaders.map(h => (
+                        <th key={h} className="px-2 py-1 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-secondary)' }}>
+                    {groupBulkRows.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        {groupBulkHeaders.map(h => (
+                          <td key={h} className="px-2 py-1">
+                            <input
+                              type="text"
+                              value={row[h] || ''}
+                              onChange={(e) => {
+                                const newRows = [...groupBulkRows];
+                                newRows[rowIdx][h] = e.target.value;
+                                setGroupBulkRows(newRows);
+                              }}
+                              className="w-full text-sm border rounded p-1"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4">
+            {groupBulkTextMode === 'text' && (
+              <button
+                onClick={() => {
+                  const { headers, rows } = parseCsv(groupBulkCsvInput);
+                  setGroupBulkHeaders(headers);
+                  setGroupBulkRows(rows);
+                  setGroupBulkTextMode('grid');
+                }}
+                className="btn-secondary"
+              >
+                Preview Grid
+              </button>
+            )}
+            <button
+              onClick={handleAddGroupBulkPeople}
+              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+            >
+              Add Groups
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // === Shared CSV helpers ===
+  const parseCsv = (text: string): { headers: string[]; rows: Record<string, string>[] } => {
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length === 0) return { headers: [], rows: [] };
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map(line => {
+      const cells = line.split(',');
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        row[h] = (cells[idx] || '').trim();
+      });
+      return row;
+    });
+    return { headers, rows };
+  };
+
+  const rowsToCsv = (headers: string[], rows: Record<string, string>[]) => {
+    const headerLine = headers.join(',');
+    const dataLines = rows.map(r => headers.map(h => r[h] ?? '').join(','));
+    return [headerLine, ...dataLines].join('\n');
   };
 
   return (
@@ -2155,16 +2363,65 @@ export function ProblemEditor() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Groups ({problem?.groups.length || 0})</h3>
-            <button
-              onClick={() => setShowGroupForm(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              <Plus className="w-4 h-4" />
-              Add Group
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Bulk Add Groups Dropdown */}
+              <div className="relative" ref={groupBulkDropdownRef}>
+                <button
+                  onClick={() => setGroupBulkDropdownOpen(!groupBulkDropdownOpen)}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  Bulk Add
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {groupBulkDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 rounded-md shadow-lg z-10 border overflow-hidden"
+                       style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                    <button
+                      onClick={() => {
+                        setGroupBulkDropdownOpen(false);
+                        groupCsvFileInputRef.current?.click();
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
+                      style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGroupBulkDropdownOpen(false);
+                        setGroupBulkCsvInput('');
+                        setGroupBulkHeaders([]);
+                        setGroupBulkRows([]);
+                        setGroupBulkTextMode('text');
+                        setShowGroupBulkForm(true);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+                      style={{ color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Table className="w-4 h-4" />
+                      Open Bulk Form
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Add Group Button */}
+              <button
+                onClick={() => setShowGroupForm(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+                style={{ backgroundColor: 'var(--color-accent)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <Plus className="w-4 h-4" />
+                Add Group
+              </button>
+            </div>
           </div>
 
           {problem?.groups.length ? (
@@ -2495,8 +2752,10 @@ export function ProblemEditor() {
         </div>
       )}
       {showBulkForm && renderBulkAddForm()}
+      {showGroupBulkForm && renderGroupBulkAddForm()}
 
       <input type="file" accept=".csv,text/csv" ref={csvFileInputRef} className="hidden" onChange={handleCsvFileSelected} />
+      <input type="file" accept=".csv,text/csv" ref={groupCsvFileInputRef} className="hidden" onChange={handleGroupCsvFileSelected} />
     </div>
   );
 } 
