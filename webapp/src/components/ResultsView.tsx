@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../store';
 import { 
   BarChart3, 
   Users, 
   Target, 
   AlertTriangle, 
-  Calendar, 
   Hash,
   Eye,
   EyeOff,
   Download,
-  RefreshCw
+  RefreshCw,
+  PieChart,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
+import { Constraint } from '../types';
 
 export function ResultsView() {
   const { problem, solution, solverState, addNotification } = useAppStore();
@@ -77,6 +80,136 @@ export function ResultsView() {
       totalPeople: sessionAssignments.length
     };
   });
+
+  // === Derived Metrics ===
+  const avgUniqueContacts = useMemo(() => {
+    if (!problem || !solution) return 0;
+    const peopleCount = problem.people.length || 1;
+    return (solution.unique_contacts * 2) / peopleCount;
+  }, [problem, solution]);
+
+  // === Constraint Compliance Evaluation ===
+  type ConstraintCompliance = { constraint: Constraint; adheres: boolean; violations: number };
+
+  const constraintResults: ConstraintCompliance[] = useMemo(() => {
+    if (!problem || !solution) return [];
+
+    // Build schedule map: session -> group -> people array
+    const schedule: Record<number, Record<string, string[]>> = {};
+    solution.assignments.forEach(a => {
+      if (!schedule[a.session_id]) schedule[a.session_id] = {};
+      if (!schedule[a.session_id][a.group_id]) schedule[a.session_id][a.group_id] = [];
+      schedule[a.session_id][a.group_id].push(a.person_id);
+    });
+
+    const personMap = new Map<string, any>(problem.people.map(p => [p.id, p]));
+
+    const results: ConstraintCompliance[] = problem.constraints.map((c): ConstraintCompliance => {
+      switch (c.type) {
+        case 'RepeatEncounter': {
+          const pairCounts = new Map<string, number>();
+          Object.values(schedule).forEach(groups => {
+            Object.values(groups).forEach(peopleIds => {
+              for (let i = 0; i < peopleIds.length; i++) {
+                for (let j = i + 1; j < peopleIds.length; j++) {
+                  const pairKey = [peopleIds[i], peopleIds[j]].sort().join('|');
+                  pairCounts.set(pairKey, (pairCounts.get(pairKey) || 0) + 1);
+                }
+              }
+            });
+          });
+          let violations = 0;
+          pairCounts.forEach(count => {
+            if (count - 1 > c.max_allowed_encounters) {
+              // encounters above max (count-1 repeats)
+              violations += count - 1 - c.max_allowed_encounters;
+            }
+          });
+          return { constraint: c, adheres: violations === 0, violations };
+        }
+        case 'AttributeBalance': {
+          let violations = 0;
+          for (let session = 0; session < problem.num_sessions; session++) {
+            const peopleIds = schedule[session]?.[c.group_id] || [];
+            const counts: Record<string, number> = {};
+            peopleIds.forEach(pid => {
+              const person = personMap.get(pid);
+              const val = person?.attributes?.[c.attribute_key] ?? '__UNKNOWN__';
+              counts[val] = (counts[val] || 0) + 1;
+            });
+            Object.entries(c.desired_values).forEach(([val, desired]) => {
+              if ((counts[val] || 0) !== desired) violations += Math.abs((counts[val] || 0) - desired);
+            });
+          }
+          return { constraint: c, adheres: violations === 0, violations };
+        }
+        case 'ImmovablePerson': {
+          let violations = 0;
+          c.sessions.forEach(session => {
+            const peopleIds = schedule[session]?.[c.group_id] || [];
+            if (!peopleIds.includes(c.person_id)) violations += 1;
+          });
+          return { constraint: c, adheres: violations === 0, violations };
+        }
+        case 'MustStayTogether': {
+          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          let violations = 0;
+          sessions.forEach(session => {
+            const groupIdSet = new Set<string>();
+            c.people.forEach(pid => {
+              let assignedGroup: string | undefined;
+              const groups = schedule[session];
+              if (groups) {
+                for (const [gid, ids] of Object.entries(groups)) {
+                  if (ids.includes(pid)) {
+                    assignedGroup = gid;
+                    break;
+                  }
+                }
+              }
+              if (assignedGroup) groupIdSet.add(assignedGroup);
+              else violations += 1; // person not assigned
+            });
+            if (groupIdSet.size > 1) violations += groupIdSet.size - 1;
+          });
+          return { constraint: c, adheres: violations === 0, violations };
+        }
+        case 'CannotBeTogether': {
+          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          let violations = 0;
+          sessions.forEach(session => {
+            const groups = schedule[session] || {};
+            Object.values(groups).forEach(ids => {
+              const overlap = ids.filter(id => c.people.includes(id));
+              if (overlap.length > 1) violations += overlap.length - 1;
+            });
+          });
+          return { constraint: c, adheres: violations === 0, violations };
+        }
+        default:
+          return { constraint: c as Constraint, adheres: true, violations: 0 };
+      }
+    });
+
+    return results;
+  }, [problem, solution]);
+
+  const formatConstraintLabel = (constraint: Constraint): string => {
+    switch (constraint.type) {
+      case 'RepeatEncounter':
+        return `Repeat Encounter (max ${constraint.max_allowed_encounters})`;
+      case 'AttributeBalance':
+        return `Attribute Balance – ${constraint.group_id} (${constraint.attribute_key})`;
+      case 'ImmovablePerson':
+        return `Immovable – ${constraint.person_id} in ${constraint.group_id}`;
+      case 'MustStayTogether':
+        return `Must Stay Together (${constraint.people.join(', ')})`;
+      case 'CannotBeTogether':
+        return `Cannot Be Together (${constraint.people.join(', ')})`;
+      default:
+        return 'Unknown Constraint';
+    }
+  };
 
   const renderMetricCard = (title: string, value: string | number, icon: React.ComponentType<any>, color: string) => (
     <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
@@ -224,9 +357,10 @@ export function ResultsView() {
       </div>
 
       {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, "text-green-600")}
         {renderMetricCard("Unique Contacts", solution.unique_contacts, Users, "var(--color-primary-600)")}
+        {renderMetricCard("Avg Contacts / Person", avgUniqueContacts.toFixed(1), PieChart, "text-blue-600")}
         {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, "text-orange-600")}
         {renderMetricCard("Constraint Penalty", (solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(1), AlertTriangle, "text-red-600")}
       </div>
@@ -287,6 +421,30 @@ export function ResultsView() {
           </div>
         </div>
       )}
+
+      {/* Constraint Compliance */}
+      <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+        <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text-primary)' }}>Constraint Compliance</h3>
+        <div className="space-y-2">
+          {constraintResults.length > 0 ? constraintResults.map((res, idx) => (
+            <div key={idx} className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {res.adheres ? (
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-red-600" />
+                )}
+                <span style={{ color: 'var(--text-primary)' }}>{formatConstraintLabel(res.constraint)}</span>
+              </div>
+              {!res.adheres && (
+                <span className="text-sm font-medium text-red-600">{res.violations} violation{res.violations !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          )) : (
+            <p className="text-sm italic" style={{ color: 'var(--text-tertiary)' }}>No constraints defined for this problem.</p>
+          )}
+        </div>
+      </div>
 
       {/* Schedule View */}
       <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
