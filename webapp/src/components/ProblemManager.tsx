@@ -522,9 +522,12 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-60">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96 modal-content">
+          <div className="rounded-lg shadow-xl p-6 w-96 modal-content">
             <div className="flex items-center space-x-3 mb-4">
-              <AlertTriangle className="h-6 w-6 text-red-500" />
+              <AlertTriangle 
+                className="h-6 w-6" 
+                style={{ color: 'var(--color-error-500)' }}
+              />
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Delete Problem</h3>
             </div>
             <p className="mb-6" style={{ color: 'var(--text-secondary)' }}>
@@ -540,7 +543,17 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
               </button>
               <button
                 onClick={confirmDelete}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                className="px-4 py-2 rounded-md transition-colors"
+                style={{ 
+                  backgroundColor: 'var(--color-error-600)',
+                  color: 'var(--color-error-contrast)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-error-700)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-error-600)';
+                }}
               >
                 Delete
               </button>
