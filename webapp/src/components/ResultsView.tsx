@@ -88,6 +88,28 @@ export function ResultsView() {
     return (solution.unique_contacts * 2) / peopleCount;
   }, [problem, solution]);
 
+  // === Maximum values for normalization ===
+  const peopleCount = problem?.people.length || 1;
+  const maxUniqueTotal = useMemo(() => (peopleCount * (peopleCount - 1)) / 2, [peopleCount]);
+  const maxAvgContacts = peopleCount - 1;
+
+  const uniqueRatio = useMemo(() => solution.unique_contacts / (maxUniqueTotal || 1), [solution.unique_contacts, maxUniqueTotal]);
+  const avgRatio = useMemo(() => avgUniqueContacts / (maxAvgContacts || 1), [avgUniqueContacts, maxAvgContacts]);
+
+  // Constraint penalty normalization
+  const finalConstraintPenalty = solution.weighted_constraint_penalty ?? solution.constraint_penalty;
+  const baselineConstraintPenalty = useMemo(() => {
+    const base = solverState.initialConstraintPenalty ?? solverState.currentConstraintPenalty ?? finalConstraintPenalty;
+    return base === 0 ? (finalConstraintPenalty > 0 ? finalConstraintPenalty : 1) : base;
+  }, [solverState.initialConstraintPenalty, solverState.currentConstraintPenalty, finalConstraintPenalty]);
+
+  const constraintRatio = Math.min(finalConstraintPenalty / baselineConstraintPenalty, 1);
+
+  // Color classes
+  const uniqueColorClass = getColorClass(uniqueRatio);
+  const avgColorClass = getColorClass(avgRatio);
+  const constraintColorClass = getColorClass(constraintRatio, true);
+
   // === Constraint Compliance Evaluation ===
   type ConstraintCompliance = { constraint: Constraint; adheres: boolean; violations: number };
 
@@ -120,9 +142,9 @@ export function ResultsView() {
           });
           let violations = 0;
           pairCounts.forEach(count => {
-            if (count - 1 > c.max_allowed_encounters) {
-              // encounters above max (count-1 repeats)
-              violations += count - 1 - c.max_allowed_encounters;
+            if (count > c.max_allowed_encounters) {
+              // Encounters exceed allowed total count
+              violations += count - c.max_allowed_encounters;
             }
           });
           return { constraint: c, adheres: violations === 0, violations };
@@ -326,6 +348,18 @@ export function ResultsView() {
     </div>
   );
 
+  // === Helper for dynamic metric colors ===
+  function getColorClass(ratio: number, invert: boolean = false): string {
+    // Clamp between 0 and 1
+    let r = Math.max(0, Math.min(1, ratio));
+    if (invert) r = 1 - r;
+    if (r >= 0.9) return 'text-green-600';
+    if (r >= 0.75) return 'text-lime-600';
+    if (r >= 0.5) return 'text-yellow-600';
+    if (r >= 0.25) return 'text-orange-600';
+    return 'text-red-600';
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -358,11 +392,11 @@ export function ResultsView() {
 
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, "text-green-600")}
-        {renderMetricCard("Unique Contacts", solution.unique_contacts, Users, "var(--color-primary-600)")}
-        {renderMetricCard("Avg Contacts / Person", avgUniqueContacts.toFixed(1), PieChart, "text-blue-600")}
-        {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, "text-orange-600")}
-        {renderMetricCard("Constraint Penalty", (solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(1), AlertTriangle, "text-red-600")}
+        {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
+        {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${maxUniqueTotal}`, Users, uniqueColorClass)}
+        {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${maxAvgContacts}`, PieChart, avgColorClass)}
+        {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, getColorClass((solution.weighted_repetition_penalty ?? solution.repetition_penalty) / ((solverState.currentRepetitionPenalty ?? (solution.weighted_repetition_penalty ?? solution.repetition_penalty)) || 1), true))}
+        {renderMetricCard("Constraint Penalty", finalConstraintPenalty.toFixed(1), AlertTriangle, constraintColorClass)}
       </div>
 
       {/* Detailed Breakdown */}

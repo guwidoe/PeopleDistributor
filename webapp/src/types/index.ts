@@ -147,6 +147,7 @@ export interface SolverState {
   currentRepetitionPenalty?: number;
   currentBalancePenalty?: number;
   currentConstraintPenalty?: number;
+  initialConstraintPenalty?: number;
   bestRepetitionPenalty?: number;
   bestBalancePenalty?: number;
   bestConstraintPenalty?: number;

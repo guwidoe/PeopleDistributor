@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
 
@@ -1559,6 +1559,240 @@ export function ProblemEditor() {
     );
   };
 
+  // Bulk add dropdown & modal states
+  const bulkDropdownRef = useRef<HTMLDivElement>(null);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
+  const [bulkDropdownOpen, setBulkDropdownOpen] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkTextMode, setBulkTextMode] = useState<'text' | 'grid'>('text');
+  const [bulkCsvInput, setBulkCsvInput] = useState('');
+  const [bulkHeaders, setBulkHeaders] = useState<string[]>([]);
+  const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
+
+  // Close bulk dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bulkDropdownRef.current && !bulkDropdownRef.current.contains(event.target as Node)) {
+        setBulkDropdownOpen(false);
+      }
+    };
+    if (bulkDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [bulkDropdownOpen]);
+
+  const parseCsv = (text: string): { headers: string[]; rows: Record<string, string>[] } => {
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length === 0) return { headers: [], rows: [] };
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map(line => {
+      const cells = line.split(',');
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        row[h] = (cells[idx] || '').trim();
+      });
+      return row;
+    });
+    return { headers, rows };
+  };
+
+  const rowsToCsv = (headers: string[], rows: Record<string, string>[]) => {
+    const headerLine = headers.join(',');
+    const dataLines = rows.map(r => headers.map(h => r[h] ?? '').join(','));
+    return [headerLine, ...dataLines].join('\n');
+  };
+
+  const openBulkFormFromCsv = (csvText: string) => {
+    setBulkCsvInput(csvText);
+    const { headers, rows } = parseCsv(csvText);
+    setBulkHeaders(headers);
+    setBulkRows(rows);
+    setBulkTextMode('text');
+    setShowBulkForm(true);
+  };
+
+  const handleCsvFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      openBulkFormFromCsv(text);
+    };
+    reader.readAsText(file);
+    // reset value so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleAddBulkPeople = () => {
+    if (!bulkHeaders.includes('name')) {
+      addNotification({ type: 'error', title: 'Missing Column', message: 'CSV must include a "name" column.' });
+      return;
+    }
+
+    const newPeople: Person[] = bulkRows.map((row, idx) => {
+      const personAttrs: Record<string, string> = {};
+      bulkHeaders.forEach(h => {
+        if (row[h]) personAttrs[h] = row[h];
+      });
+      if (!personAttrs.name) personAttrs.name = `Person ${Date.now()}_${idx}`;
+      return {
+        id: `person_${Date.now()}_${idx}`,
+        attributes: personAttrs,
+        sessions: undefined,
+      };
+    });
+
+    // Collect new attribute definitions
+    const attrValueMap: Record<string, Set<string>> = {};
+    bulkHeaders.forEach(h => {
+      if (h === 'name') return;
+      attrValueMap[h] = new Set();
+    });
+    newPeople.forEach(p => {
+      Object.entries(p.attributes).forEach(([k, v]) => {
+        if (k !== 'name') attrValueMap[k]?.add(v);
+      });
+    });
+    Object.entries(attrValueMap).forEach(([key, valSet]) => {
+      if (!attributeDefinitions.find(def => def.key === key)) {
+        addAttributeDefinition({ key, values: Array.from(valSet) });
+      }
+    });
+
+    const updatedProblem: Problem = {
+      people: [...(problem?.people || []), ...newPeople],
+      groups: problem?.groups || [],
+      num_sessions: problem?.num_sessions || 3,
+      constraints: problem?.constraints || [],
+      settings: problem?.settings || getDefaultSolverSettings()
+    };
+    setProblem(updatedProblem);
+    setShowBulkForm(false);
+    setBulkCsvInput('');
+    setBulkHeaders([]);
+    setBulkRows([]);
+
+    addNotification({ type: 'success', title: 'People Added', message: `${newPeople.length} people added.` });
+  };
+
+  const renderBulkAddForm = () => {
+    return (
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto modal-content">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Bulk Add People</h3>
+            <button
+              onClick={() => setShowBulkForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={() => {
+                if (bulkTextMode === 'grid') {
+                  setBulkCsvInput(rowsToCsv(bulkHeaders, bulkRows));
+                }
+                setBulkTextMode('text');
+              }}
+              className={`px-3 py-1 rounded text-sm ${bulkTextMode === 'text' ? 'font-bold' : ''}`}
+              style={{ color: 'var(--text-primary)', backgroundColor: bulkTextMode === 'text' ? 'var(--bg-tertiary)' : 'transparent' }}
+            >
+              CSV Text
+            </button>
+            <button
+              onClick={() => {
+                if (bulkTextMode === 'text') {
+                  const { headers, rows } = parseCsv(bulkCsvInput);
+                  setBulkHeaders(headers);
+                  setBulkRows(rows);
+                }
+                setBulkTextMode('grid');
+              }}
+              className={`px-3 py-1 rounded text-sm ${bulkTextMode === 'grid' ? 'font-bold' : ''}`}
+              style={{ color: 'var(--text-primary)', backgroundColor: bulkTextMode === 'grid' ? 'var(--bg-tertiary)' : 'transparent' }}
+            >
+              Data Grid
+            </button>
+          </div>
+
+          {bulkTextMode === 'text' ? (
+            <textarea
+              value={bulkCsvInput}
+              onChange={(e) => setBulkCsvInput(e.target.value)}
+              className="w-full h-64 p-2 border rounded"
+              placeholder="Paste CSV here. First row should contain column headers (e.g., name, attribute1, attribute2)"
+            ></textarea>
+          ) : (
+            <div className="overflow-x-auto max-h-64 mb-4">
+              {bulkHeaders.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No data parsed yet.</p>
+              ) : (
+                <table className="min-w-full divide-y" style={{ borderColor: 'var(--border-secondary)' }}>
+                  <thead style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <tr>
+                      {bulkHeaders.map(h => (
+                        <th key={h} className="px-2 py-1 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-secondary)' }}>
+                    {bulkRows.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        {bulkHeaders.map(h => (
+                          <td key={h} className="px-2 py-1">
+                            <input
+                              type="text"
+                              value={row[h] || ''}
+                              onChange={(e) => {
+                                const newRows = [...bulkRows];
+                                newRows[rowIdx][h] = e.target.value;
+                                setBulkRows(newRows);
+                              }}
+                              className="w-full text-sm border rounded p-1"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-4">
+            {bulkTextMode === 'text' && (
+              <button
+                onClick={() => {
+                  const { headers, rows } = parseCsv(bulkCsvInput);
+                  setBulkHeaders(headers);
+                  setBulkRows(rows);
+                  setBulkTextMode('grid');
+                }}
+                className="btn-secondary"
+              >
+                Preview Grid
+              </button>
+            )}
+            <button
+              onClick={handleAddBulkPeople}
+              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)' }}
+            >
+              Add People
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1833,17 +2067,79 @@ export function ProblemEditor() {
                         List
                       </button>
                     </div>
-                    {/* Add Person Button */}
-                    <button
-                      onClick={() => setShowPersonForm(true)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-                      style={{ backgroundColor: 'var(--color-accent)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Person
-                    </button>
+                    {/* Add Person Button Replacement */}
+                    <div className="flex items-center gap-2">
+                      {/* Bulk Add Dropdown */}
+                      <div className="relative" ref={bulkDropdownRef}>
+                        <button
+                          onClick={() => setBulkDropdownOpen(!bulkDropdownOpen)}
+                          className="btn-secondary flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Bulk Add
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {bulkDropdownOpen && (
+                          <div className="absolute right-0 mt-1 w-56 rounded-md shadow-lg z-10 border overflow-hidden"
+                               style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                            <button
+                              onClick={() => {
+                                setBulkDropdownOpen(false);
+                                csvFileInputRef.current?.click();
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
+                              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <Upload className="w-4 h-4" />
+                              Upload CSV
+                            </button>
+                            <button
+                              onClick={() => {
+                                setBulkDropdownOpen(false);
+                                addNotification({ type: 'info', title: 'Coming Soon', message: 'Excel import is not yet implemented.' });
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
+                              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <Upload className="w-4 h-4" />
+                              Upload Excel
+                            </button>
+                            <button
+                              onClick={() => {
+                                setBulkDropdownOpen(false);
+                                setBulkCsvInput('');
+                                setBulkHeaders([]);
+                                setBulkRows([]);
+                                setBulkTextMode('text');
+                                setShowBulkForm(true);
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+                              style={{ color: 'var(--text-primary)' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <Table className="w-4 h-4" />
+                              Open Bulk Form
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {/* Add Person Button */}
+                      <button
+                        onClick={() => setShowPersonForm(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
+                        style={{ backgroundColor: 'var(--color-accent)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Person
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2198,6 +2494,9 @@ export function ProblemEditor() {
           </div>
         </div>
       )}
+      {showBulkForm && renderBulkAddForm()}
+
+      <input type="file" accept=".csv,text/csv" ref={csvFileInputRef} className="hidden" onChange={handleCsvFileSelected} />
     </div>
   );
 } 

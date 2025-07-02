@@ -142,6 +142,8 @@ export function SolverPanel() {
         }
         
         setSolverState({
+          // Preserve initial constraint penalty for baseline coloring
+          ...(progress.iteration === 0 && { initialConstraintPenalty: progress.current_constraint_penalty }),
           currentIteration: progress.iteration,
           bestScore: progress.best_score,
           elapsedTime: progress.elapsed_seconds * 1000, // Convert to milliseconds
