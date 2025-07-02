@@ -319,6 +319,16 @@ export function ProblemEditor() {
       return;
     }
 
+    const idExists = problem?.groups.some(g => g.id === groupForm.id?.trim());
+    if (idExists) {
+      addNotification({
+        type: 'error',
+        title: 'Duplicate Group ID',
+        message: `Group ID "${groupForm.id.trim()}" already exists`,
+      });
+      return;
+    }
+
     const newGroup: Group = {
       id: groupForm.id,
       size: groupForm.size
@@ -1824,11 +1834,30 @@ export function ProblemEditor() {
       return;
     }
 
-    const newGroups: Group[] = groupBulkRows.map((row, idx) => {
-      const id = row['id'] ?? `Group_${Date.now()}_${idx}`;
-      const size = parseInt(row['size'] ?? '') || 4;
-      return { id, size };
+    // Validate and build groups, collecting duplicates
+    const existingIds = new Set((problem?.groups || []).map(g => g.id));
+    const newGroups: Group[] = [];
+    const duplicateIds: string[] = [];
+    groupBulkRows.forEach((row, idx) => {
+      const rawId = row['id'] ?? row['group'] ?? `Group_${Date.now()}_${idx}`;
+      const id = rawId.trim();
+      const sizeVal = (row['size'] ?? row['capacity'] ?? '').trim();
+      const size = parseInt(sizeVal) || 4;
+      if (existingIds.has(id) || newGroups.some(g => g.id === id)) {
+        duplicateIds.push(id);
+      } else {
+        newGroups.push({ id, size });
+      }
     });
+
+    if (duplicateIds.length > 0) {
+      addNotification({
+        type: 'error',
+        title: 'Duplicate Group IDs',
+        message: `The following group IDs already exist or are duplicated: ${duplicateIds.join(', ')}`,
+      });
+      return;
+    }
 
     // Collect new attribute definitions
     const attrValueMap: Record<string, Set<string>> = {};
