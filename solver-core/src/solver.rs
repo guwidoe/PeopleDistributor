@@ -114,6 +114,8 @@ pub struct State {
     pub group_id_to_idx: HashMap<String, usize>,
     /// Maps integer indices back to group ID strings for result formatting
     pub group_idx_to_id: Vec<String>,
+    /// Capacity (size limit) for each group, aligned with `group_idx_to_id`
+    pub group_capacities: Vec<usize>,
 
     // === ATTRIBUTE MAPPINGS ===
     // Efficient representation of person attributes for constraint evaluation
@@ -400,6 +402,14 @@ impl State {
         let schedule = vec![vec![vec![]; group_count]; input.problem.num_sessions as usize];
         let locations = vec![vec![(0, 0); people_count]; input.problem.num_sessions as usize];
 
+        // Store group capacities for quick lookup later (used by transfer probability, feasibility, etc.)
+        let group_capacities: Vec<usize> = input
+            .problem
+            .groups
+            .iter()
+            .map(|g| g.size as usize)
+            .collect();
+
         // Calculate baseline score to prevent negative scores from unique contacts metric
         // Maximum possible unique contacts = (n * (n-1)) / 2, multiplied by objective weight
         let max_possible_unique_contacts = if people_count >= 2 {
@@ -414,6 +424,7 @@ impl State {
             person_idx_to_id,
             group_id_to_idx,
             group_idx_to_id,
+            group_capacities,
             attr_key_to_idx,
             attr_val_to_idx,
             attr_idx_to_val,
@@ -2866,20 +2877,9 @@ impl State {
         let mut total_available_capacity = 0;
 
         for (group_idx, group_members) in self.schedule[day].iter().enumerate() {
-            let group_id = &self.group_idx_to_id[group_idx];
-            let max_capacity = self
-                .group_id_to_idx
-                .iter()
-                .find(|(id, _)| *id == group_id)
-                .map(|(_, &_idx)| {
-                    // Find the group definition from the original input
-                    // We need to store group capacities in State for this to work properly
-                    // For now, we'll use the current max size as a heuristic
-                    group_members.len().max(4) // Assume minimum capacity of 4
-                })
-                .unwrap_or(4);
-
+            let max_capacity = self.group_capacities[group_idx];
             let current_size = group_members.len();
+
             if current_size < max_capacity {
                 groups_with_capacity += 1;
                 total_available_capacity += max_capacity - current_size;
@@ -2887,13 +2887,12 @@ impl State {
         }
 
         if groups_with_capacity == 0 {
-            return 0.0; // No groups have capacity
+            return 0.0; // All groups are full
         }
 
-        // Scale probability based on available capacity
-        // More available capacity = higher probability of attempting transfers
-        let capacity_ratio = total_available_capacity as f64 / total_groups as f64;
-        (capacity_ratio * 0.3).min(0.3) // Max 30% probability
+        // Probability proportional to average spare capacity, capped at 30%
+        let capacity_ratio = total_available_capacity as f64 / (total_groups as f64);
+        (capacity_ratio * 0.3).min(0.3)
     }
 
     /// Check if a single-person transfer is feasible.
@@ -2943,15 +2942,8 @@ impl State {
             return false;
         }
 
-        // Target group must have capacity
-        // For now, we'll use a heuristic: groups shouldn't exceed their current max size + 1
-        let max_observed_size = self.schedule[day]
-            .iter()
-            .map(|group| group.len())
-            .max()
-            .unwrap_or(4);
-
-        if self.schedule[day][to_group].len() >= max_observed_size {
+        // Target group must have capacity based on predefined limit
+        if self.schedule[day][to_group].len() >= self.group_capacities[to_group] {
             return false;
         }
 
@@ -3977,6 +3969,29 @@ mod tests {
         let solution = result.unwrap();
         assert!(solution.schedule.len() > 0);
         assert!(solution.unique_contacts > 0);
+    }
+
+    #[test]
+    fn test_transfer_probability_when_extra_capacity() {
+        // Create a scenario where groups have more capacity than people currently assigned.
+        // The transfer probability calculation should recognize the available capacity
+        // and return a value greater than zero.
+        let input = create_test_input(
+            6,             // Total people
+            vec![(2, 10)], // Two groups, each with capacity 10 (far more than needed)
+            1,             // Single session is enough for this check
+        );
+
+        let state = State::new(&input).expect("Failed to create solver state");
+
+        // For day 0, since both groups have room left (each holds 3 people),
+        // the transfer probability should be positive.
+        let prob = state.calculate_transfer_probability(0);
+        assert!(
+            prob > 0.0,
+            "Expected positive transfer probability, got {}",
+            prob
+        );
     }
 }
 

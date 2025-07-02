@@ -6,6 +6,7 @@ use solver_core::{
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Deserialize)]
 enum TestMode {
@@ -64,6 +65,8 @@ struct ExpectedMetrics {
     session_specific_constraints_respected: bool,
     #[serde(default)]
     participation_patterns_respected: bool,
+    #[serde(default)]
+    min_transfers_accepted: Option<u64>,
 }
 
 #[test]
@@ -117,53 +120,72 @@ fn run_test_case(test_case: &TestCase, path: &Path) {
         println!("--- Running Test: {} ---", test_case.name);
     }
 
-    for i in 0..loop_count {
-        if loop_count > 1 {
-            // Print progress on the same line
-            print!("\r  Run {}/{}...", i + 1, loop_count);
-            io::stdout().flush().unwrap();
-        }
+    let last_progress: Arc<Mutex<Option<solver_core::models::ProgressUpdate>>> =
+        Arc::new(Mutex::new(None));
+    let progress_clone = last_progress.clone();
 
-        let result = run_solver(&test_case.input);
+    let progress_cb: solver_core::models::ProgressCallback =
+        Box::new(move |p: &solver_core::models::ProgressUpdate| {
+            *progress_clone.lock().unwrap() = Some(p.clone());
+            true // Continue solving
+        });
 
-        assert!(
-            result.is_ok(),
-            "Solver failed for test case {} ({:?}): {:?}",
-            test_case.name,
-            path,
-            result.err()
-        );
-        let result = result.unwrap();
+    let result = solver_core::run_solver_with_progress(&test_case.input, Some(&progress_cb));
 
-        if test_case.expected.must_stay_together_respected {
-            assert_cliques_respected(&test_case.input, &result);
-        }
+    assert!(
+        result.is_ok(),
+        "Solver failed for test case {} ({:?}): {:?}",
+        test_case.name,
+        path,
+        result.err()
+    );
+    let result = result.unwrap();
 
-        if test_case.expected.cannot_be_together_respected {
-            assert_forbidden_pairs_respected(&test_case.input, &result);
-        }
+    // Retrieve the final progress update (should be set by the solver)
+    let final_progress = last_progress
+        .lock()
+        .unwrap()
+        .clone()
+        .expect("Expected at least one progress callback to have been recorded");
 
-        if test_case.expected.immovable_person_respected {
-            assert_immovable_person_respected(&test_case.input, &result);
-        }
-
-        if test_case.expected.session_specific_constraints_respected {
-            assert_session_specific_constraints_respected(&test_case.input, &result);
-        }
-
-        if test_case.expected.participation_patterns_respected {
-            assert_participation_patterns_respected(&test_case.input, &result);
-        }
-
-        if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
-            assert!(
-                result.constraint_penalty as u32 <= max_penalty,
-                "Constraint penalty {} exceeds maximum of {}",
-                result.constraint_penalty,
-                max_penalty
-            );
-        }
+    if test_case.expected.must_stay_together_respected {
+        assert_cliques_respected(&test_case.input, &result);
     }
+
+    if test_case.expected.cannot_be_together_respected {
+        assert_forbidden_pairs_respected(&test_case.input, &result);
+    }
+
+    if test_case.expected.immovable_person_respected {
+        assert_immovable_person_respected(&test_case.input, &result);
+    }
+
+    if test_case.expected.session_specific_constraints_respected {
+        assert_session_specific_constraints_respected(&test_case.input, &result);
+    }
+
+    if test_case.expected.participation_patterns_respected {
+        assert_participation_patterns_respected(&test_case.input, &result);
+    }
+
+    if let Some(max_penalty) = test_case.expected.max_constraint_penalty {
+        assert!(
+            result.constraint_penalty as u32 <= max_penalty,
+            "Constraint penalty {} exceeds maximum of {}",
+            result.constraint_penalty,
+            max_penalty
+        );
+    }
+
+    if let Some(min_transfers) = test_case.expected.min_transfers_accepted {
+        assert!(
+            final_progress.transfers_accepted as u64 >= min_transfers,
+            "Expected at least {} accepted transfers, but solver reported {}",
+            min_transfers,
+            final_progress.transfers_accepted
+        );
+    }
+
     io::stdout().flush().unwrap();
     if loop_count > 1 {
         // Clear the line and print final status

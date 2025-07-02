@@ -20,7 +20,7 @@
 # --- Example for Filtering ---
 # To run only specific tests, change the mode and add patterns like this:
 #
-mode: "all"
-filter_patterns: []
-# mode: "filter"
-# filter_patterns: ["Benchmark - Very Large"]
+# mode: "all"
+# filter_patterns: []
+mode: "filter"
+filter_patterns: ["Transfer Test"]

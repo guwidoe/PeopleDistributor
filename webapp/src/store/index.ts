@@ -694,11 +694,25 @@ export const useAppStore = create<AppStore>()(
         })),
 
       removeAttributeDefinition: (key) =>
-        set((prev) => ({
-          attributeDefinitions: prev.attributeDefinitions.filter(
+        set((prev) => {
+          const updatedAttrDefs = prev.attributeDefinitions.filter(
             (def) => def.key !== key
-          ),
-        })),
+          );
+          let updatedProblem = prev.problem;
+          if (updatedProblem) {
+            updatedProblem = {
+              ...updatedProblem,
+              people: updatedProblem.people.map((p) => {
+                const { [key]: _removed, ...restAttrs } = p.attributes || {};
+                return { ...p, attributes: { ...restAttrs } } as Person;
+              }),
+            } as Problem;
+          }
+          return {
+            attributeDefinitions: updatedAttrDefs,
+            problem: updatedProblem,
+          };
+        }),
 
       generateDemoData: async () => {
         try {
