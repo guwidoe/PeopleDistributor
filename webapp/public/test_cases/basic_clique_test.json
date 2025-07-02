@@ -1,0 +1,58 @@
+{
+  "name": "Basic Clique Test",
+  "demo_metadata": {
+    "id": "basic-clique",
+    "display_name": "Study Group Example",
+    "description": "Simple constraint example with study partners",
+    "category": "Simple"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "sarah", "attributes": {"name": "Sarah Williams", "major": "biology"} },
+        { "id": "mike", "attributes": {"name": "Mike Chen", "major": "biology"} },
+        { "id": "emma", "attributes": {"name": "Emma Davis", "major": "chemistry"} },
+        { "id": "james", "attributes": {"name": "James Rodriguez", "major": "chemistry"} },
+        { "id": "lily", "attributes": {"name": "Lily Thompson", "major": "physics"} },
+        { "id": "alex", "attributes": {"name": "Alex Park", "major": "physics"} }
+      ],
+      "groups": [
+        { "id": "study-room-a", "size": 3 },
+        { "id": "study-room-b", "size": 3 }
+      ],
+      "num_sessions": 2
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+      {
+        "type": "MustStayTogether",
+        "people": ["sarah", "mike"]
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 100 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 1.0,
+        "final_temperature": 0.1,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "must_stay_together_respected": true,
+    "cannot_be_together_respected": true,
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
+} 

@@ -1,0 +1,104 @@
+{
+  "name": "Clique Swap Functionality Test",
+  "demo_metadata": {
+    "id": "clique-swap",
+    "display_name": "Department Mixer",
+    "description": "Large scale departmental networking with team constraints",
+    "category": "Advanced"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        {"id":"tech_lead_sarah","attributes":{"name":"Sarah Chen","department":"engineering","role":"tech_lead"}},
+        {"id":"senior_dev_mike","attributes":{"name":"Mike Johnson","department":"engineering","role":"senior_dev"}},
+        {"id":"architect_diana","attributes":{"name":"Diana Rodriguez","department":"engineering","role":"architect"}},
+        {"id":"sales_dir_james","attributes":{"name":"James Wilson","department":"sales","role":"director"}},
+        {"id":"account_mgr_lisa","attributes":{"name":"Lisa Davis","department":"sales","role":"account_manager"}},
+        {"id":"marketing_head_alex","attributes":{"name":"Alex Martinez","department":"marketing","role":"head"}},
+        {"id":"brand_mgr_emma","attributes":{"name":"Emma Thompson","department":"marketing","role":"brand_manager"}},
+        {"id":"hr_director_noah","attributes":{"name":"Noah Garcia","department":"hr","role":"director"}},
+        {"id":"recruiter_olivia","attributes":{"name":"Olivia Lee","department":"hr","role":"recruiter"}},
+        {"id":"cfo_lucas","attributes":{"name":"Lucas Anderson","department":"finance","role":"cfo"}},
+        {"id":"analyst_sophia","attributes":{"name":"Sophia Kim","department":"finance","role":"analyst"}},
+        {"id":"ops_manager_ethan","attributes":{"name":"Ethan Brown","department":"operations","role":"manager"}},
+        {"id":"logistics_maya","attributes":{"name":"Maya Patel","department":"operations","role":"logistics"}},
+        {"id":"legal_counsel_ryan","attributes":{"name":"Ryan Taylor","department":"legal","role":"counsel"}},
+        {"id":"paralegal_zoe","attributes":{"name":"Zoe Miller","department":"legal","role":"paralegal"}},
+        {"id":"admin_chief_liam","attributes":{"name":"Liam Jackson","department":"admin","role":"chief"}},
+        {"id":"office_mgr_ava","attributes":{"name":"Ava White","department":"admin","role":"office_manager"}},
+        {"id":"support_lead_owen","attributes":{"name":"Owen Harris","department":"support","role":"lead"}},
+        {"id":"tech_support_mia","attributes":{"name":"Mia Clark","department":"support","role":"technical"}},
+        {"id":"research_head_caleb","attributes":{"name":"Caleb Lewis","department":"research","role":"head"}},
+        {"id":"scientist_grace","attributes":{"name":"Grace Walker","department":"research","role":"scientist"}},
+        {"id":"design_lead_tyler","attributes":{"name":"Tyler Hall","department":"design","role":"lead"}},
+        {"id":"ux_designer_chloe","attributes":{"name":"Chloe Allen","department":"design","role":"ux_designer"}},
+        {"id":"qa_manager_felix","attributes":{"name":"Felix Young","department":"qa","role":"manager"}},
+        {"id":"tester_iris","attributes":{"name":"Iris King","department":"qa","role":"tester"}},
+        {"id":"devops_lead_henry","attributes":{"name":"Henry Wright","department":"devops","role":"lead"}},
+        {"id":"sre_luna","attributes":{"name":"Luna Lopez","department":"devops","role":"sre"}},
+        {"id":"pm_director_adam","attributes":{"name":"Adam Hernandez","department":"pm","role":"director"}},
+        {"id":"scrum_master_bella","attributes":{"name":"Bella Green","department":"pm","role":"scrum_master"}},
+        {"id":"data_lead_connor","attributes":{"name":"Connor Adams","department":"analytics","role":"lead"}},
+        {"id":"analyst_delia","attributes":{"name":"Delia Baker","department":"analytics","role":"analyst"}},
+        {"id":"security_chief_finn","attributes":{"name":"Finn Gonzalez","department":"security","role":"chief"}},
+        {"id":"sec_analyst_gwen","attributes":{"name":"Gwen Nelson","department":"security","role":"analyst"}},
+        {"id":"mobile_lead_ivan","attributes":{"name":"Ivan Carter","department":"mobile","role":"lead"}},
+        {"id":"ios_dev_jade","attributes":{"name":"Jade Mitchell","department":"mobile","role":"ios_developer"}}
+      ],
+      "groups": [
+        {"id": "conference-hall-a", "size": 18},
+        {"id": "conference-hall-b", "size": 17}
+      ],
+      "num_sessions": 3
+    },
+    "objectives": [
+      {
+        "type": "maximize_unique_contacts",
+        "weight": 1.0
+      }
+    ],
+    "constraints": [
+      {
+        "type": "RepeatEncounter",
+        "max_allowed_encounters": 1,
+        "penalty_function": "squared",
+        "penalty_weight": 10.0
+      },
+      {
+        "type": "MustStayTogether",
+        "people": ["tech_lead_sarah", "senior_dev_mike", "architect_diana"]
+      },
+      {
+        "type": "MustStayTogether",
+        "people": ["sales_dir_james", "account_mgr_lisa"]
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": {
+        "max_iterations": 10000
+      },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 1.0,
+        "final_temperature": 0.001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "must_stay_together_respected": true,
+    "cannot_be_together_respected": true,
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
+} 

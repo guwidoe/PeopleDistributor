@@ -1,0 +1,55 @@
+{
+  "name": "Benchmark - Unconstrained",
+  "demo_metadata": {
+    "id": "benchmark-unconstrained",
+    "display_name": "Social Mixer",
+    "description": "Networking event without constraints - pure mixing",
+    "category": "Benchmark"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "zoe", "attributes": {"name": "Zoe Anderson", "interest": "technology"} },
+        { "id": "ryan", "attributes": {"name": "Ryan Cooper", "interest": "sports"} },
+        { "id": "chloe", "attributes": {"name": "Chloe Wright", "interest": "arts"} },
+        { "id": "tyler", "attributes": {"name": "Tyler Mitchell", "interest": "music"} },
+        { "id": "grace", "attributes": {"name": "Grace Turner", "interest": "travel"} },
+        { "id": "lucas", "attributes": {"name": "Lucas Phillips", "interest": "food"} },
+        { "id": "mia", "attributes": {"name": "Mia Campbell", "interest": "books"} },
+        { "id": "owen", "attributes": {"name": "Owen Parker", "interest": "fitness"} },
+        { "id": "ava", "attributes": {"name": "Ava Edwards", "interest": "photography"} },
+        { "id": "caleb", "attributes": {"name": "Caleb Collins", "interest": "gaming"} }
+      ],
+      "groups": [
+        { "id": "lounge-area", "size": 5 },
+        { "id": "patio-section", "size": 5 }
+      ],
+      "num_sessions": 5
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 10000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 10.0,
+        "final_temperature": 0.001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
+} 

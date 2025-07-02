@@ -1,0 +1,78 @@
+{
+  "name": "Benchmark - Very Large",
+  "demo_metadata": {
+    "id": "benchmark-very-large",
+    "display_name": "Company Retreat",
+    "description": "Large company retreat with 30 employees - networking activities",
+    "category": "Benchmark"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        {"id":"alex_marketing","attributes":{"name":"Alex Johnson","department":"Marketing"}},
+        {"id":"beth_sales","attributes":{"name":"Beth Williams","department":"Sales"}},
+        {"id":"carlos_engineering","attributes":{"name":"Carlos Rodriguez","department":"Engineering"}},
+        {"id":"diana_hr","attributes":{"name":"Diana Chen","department":"HR"}},
+        {"id":"ethan_finance","attributes":{"name":"Ethan Davis","department":"Finance"}},
+        {"id":"fiona_design","attributes":{"name":"Fiona Miller","department":"Design"}},
+        {"id":"gabriel_operations","attributes":{"name":"Gabriel Wilson","department":"Operations"}},
+        {"id":"hannah_marketing","attributes":{"name":"Hannah Moore","department":"Marketing"}},
+        {"id":"isaac_engineering","attributes":{"name":"Isaac Taylor","department":"Engineering"}},
+        {"id":"julia_sales","attributes":{"name":"Julia Anderson","department":"Sales"}},
+        {"id":"kevin_hr","attributes":{"name":"Kevin Thomas","department":"HR"}},
+        {"id":"laura_finance","attributes":{"name":"Laura Jackson","department":"Finance"}},
+        {"id":"marcus_design","attributes":{"name":"Marcus White","department":"Design"}},
+        {"id":"nina_operations","attributes":{"name":"Nina Harris","department":"Operations"}},
+        {"id":"oscar_marketing","attributes":{"name":"Oscar Martin","department":"Marketing"}},
+        {"id":"petra_engineering","attributes":{"name":"Petra Garcia","department":"Engineering"}},
+        {"id":"quincy_sales","attributes":{"name":"Quincy Martinez","department":"Sales"}},
+        {"id":"rachel_hr","attributes":{"name":"Rachel Robinson","department":"HR"}},
+        {"id":"samuel_finance","attributes":{"name":"Samuel Clark","department":"Finance"}},
+        {"id":"tara_design","attributes":{"name":"Tara Rodriguez","department":"Design"}},
+        {"id":"ulrich_operations","attributes":{"name":"Ulrich Lewis","department":"Operations"}},
+        {"id":"victoria_marketing","attributes":{"name":"Victoria Lee","department":"Marketing"}},
+        {"id":"william_engineering","attributes":{"name":"William Walker","department":"Engineering"}},
+        {"id":"xara_sales","attributes":{"name":"Xara Hall","department":"Sales"}},
+        {"id":"yuki_hr","attributes":{"name":"Yuki Allen","department":"HR"}},
+        {"id":"zoe_finance","attributes":{"name":"Zoe Young","department":"Finance"}},
+        {"id":"adam_design","attributes":{"name":"Adam Hernandez","department":"Design"}},
+        {"id":"bella_operations","attributes":{"name":"Bella King","department":"Operations"}},
+        {"id":"connor_marketing","attributes":{"name":"Connor Wright","department":"Marketing"}},
+        {"id":"delia_engineering","attributes":{"name":"Delia Lopez","department":"Engineering"}}
+      ],
+      "groups": [
+        {"id":"activity-room-1","size":6}, 
+        {"id":"activity-room-2","size":6}, 
+        {"id":"activity-room-3","size":6},
+        {"id":"activity-room-4","size":6}, 
+        {"id":"activity-room-5","size":6}
+      ],
+      "num_sessions": 10
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 1000000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 1.0,
+        "final_temperature": 0.0001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "max_constraint_penalty": 0
+  },
+  "test_options": {}
+} 

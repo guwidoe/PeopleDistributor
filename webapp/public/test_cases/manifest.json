@@ -1,0 +1,14 @@
+{
+  "files": [
+    "ui_demo_data_test.json",
+    "basic_clique_test.json",
+    "benchmark_constrained.json",
+    "late_arrivals_early_departures_test.json",
+    "benchmark_very_large.json",
+    "benchmark_unconstrained.json",
+    "soft_constraints_test.json",
+    "hard_constraints_stress_test.json",
+    "clique_swap_functionality_test.json",
+    "session_specific_constraints_test.json"
+  ]
+} 

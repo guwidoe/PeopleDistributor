@@ -1,0 +1,81 @@
+{
+  "name": "Hard Constraints Stress Test",
+  "demo_metadata": {
+    "id": "constraint-stress",
+    "display_name": "Corporate Training Sessions",
+    "description": "Complex training with multiple constraints and requirements",
+    "category": "Advanced"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "anna", "attributes": {"name": "Anna Rodriguez", "role": "manager"} },
+        { "id": "brian", "attributes": {"name": "Brian Kim", "role": "analyst"} },
+        { "id": "claire", "attributes": {"name": "Claire Johnson", "role": "designer"} },
+        { "id": "derek", "attributes": {"name": "Derek Williams", "role": "developer"} },
+        { "id": "elena", "attributes": {"name": "Elena Chen", "role": "tester"} },
+        { "id": "felix", "attributes": {"name": "Felix Brown", "role": "architect"} },
+        { "id": "gina", "attributes": {"name": "Gina Davis", "role": "coordinator"} },
+        { "id": "henry", "attributes": {"name": "Henry Miller", "role": "specialist"} },
+        { "id": "iris", "attributes": {"name": "Iris Wilson", "role": "consultant"} },
+        { "id": "james", "attributes": {"name": "James Garcia", "role": "facilitator"} },
+        { "id": "kara", "attributes": {"name": "Kara Martinez", "role": "lead"} },
+        { "id": "leo", "attributes": {"name": "Leo Thompson", "role": "senior"} }
+      ],
+      "groups": [
+        { "id": "training-room-a", "size": 6 },
+        { "id": "training-room-b", "size": 6 }
+      ],
+      "num_sessions": 3
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+      { "type": "MustStayTogether", "people": ["anna", "brian"] },
+      { "type": "MustStayTogether", "people": ["claire", "derek"] },
+      { "type": "MustStayTogether", "people": ["elena", "felix"] },
+      { "type": "CannotBeTogether", "people": ["anna", "gina"] },
+      { "type": "CannotBeTogether", "people": ["claire", "henry"] },
+      { "type": "CannotBeTogether", "people": ["elena", "iris"] },
+      { "type": "CannotBeTogether", "people": ["gina", "henry"] },
+      {
+        "type": "ImmovablePerson",
+        "person_id": "james",
+        "group_id": "training-room-a",
+        "sessions": [0]
+      },
+      {
+        "type": "ImmovablePerson",
+        "person_id": "kara",
+        "group_id": "training-room-b",
+        "sessions": [1, 2]
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 10000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 1.0,
+        "final_temperature": 0.0001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "must_stay_together_respected": true,
+    "cannot_be_together_respected": true,
+    "immovable_person_respected": true,
+    "max_constraint_penalty": 0
+  },
+  "test_options": {
+    "loop_count": 20
+  }
+} 

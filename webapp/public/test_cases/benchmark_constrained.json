@@ -1,0 +1,71 @@
+{
+  "name": "Benchmark - Constrained",
+  "demo_metadata": {
+    "id": "benchmark-constrained",
+    "display_name": "Conference Workshop",
+    "description": "Workshop with gender balance and networking constraints",
+    "category": "Benchmark"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "robert", "attributes": { "name": "Robert Kim", "gender": "male", "role": "presenter" } },
+        { "id": "maria", "attributes": { "name": "Maria Gonzalez", "gender": "female", "role": "organizer" } },
+        { "id": "david", "attributes": { "name": "David Wilson", "gender": "male", "role": "attendee" } },
+        { "id": "jennifer", "attributes": { "name": "Jennifer Lee", "gender": "female", "role": "sponsor" } },
+        { "id": "thomas", "attributes": { "name": "Thomas Brown", "gender": "male", "role": "attendee" } },
+        { "id": "angela", "attributes": { "name": "Angela Davis", "gender": "female", "role": "presenter" } },
+        { "id": "mark", "attributes": { "name": "Mark Johnson", "gender": "male", "role": "attendee" } },
+        { "id": "lisa", "attributes": { "name": "Lisa Chen", "gender": "female", "role": "organizer" } },
+        { "id": "kevin", "attributes": { "name": "Kevin Taylor", "gender": "male", "role": "sponsor" } },
+        { "id": "amanda", "attributes": { "name": "Amanda Miller", "gender": "female", "role": "attendee" } }
+      ],
+      "groups": [
+        { "id": "workshop-room-1", "size": 5 },
+        { "id": "workshop-room-2", "size": 5 }
+      ],
+      "num_sessions": 5
+    },
+    "objectives": [{ "type": "maximize_unique_contacts", "weight": 1.0 }],
+    "constraints": [
+      {
+        "type": "MustStayTogether",
+        "people": ["robert", "maria"]
+      },
+      {
+        "type": "AttributeBalance",
+        "attribute_key": "gender",
+        "group_id": "ALL",
+        "desired_values": {
+          "male": 2,
+          "female": 3
+        },
+        "penalty_weight": 10.0
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 10000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 10.0,
+        "final_temperature": 0.001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "max_constraint_penalty": 0,
+    "immovable_person_respected": true
+  },
+  "test_options": {}
+} 

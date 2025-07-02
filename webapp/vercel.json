@@ -1,12 +1,18 @@
 {
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
-  "cleanUrls": false,
-  "trailingSlash": false,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/((?!test_cases|assets|.*\\.).*)$",
-      "destination": "/index.html"
+      "src": "/test_cases/(.*)",
+      "dest": "/test_cases/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|wasm|d\\.ts|json))$",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 } 

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Callback Consistency Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+        }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>WASM Callback Consistency Test</h1>
+    <button onclick="runTest()">Run Test</button>
+    <div id="results"></div>
+
+    <script src="solver_wasm.js"></script>
+    <script>
+        const testProblem = {
+            "problem": {
+                "people": [
+                    {"id": "alice", "attributes": {"gender": "female"}},
+                    {"id": "bob", "attributes": {"gender": "male"}},
+                    {"id": "charlie", "attributes": {"gender": "male"}},
+                    {"id": "diana", "attributes": {"gender": "female"}},
+                    {"id": "eve", "attributes": {"gender": "female"}},
+                    {"id": "frank", "attributes": {"gender": "male"}}
+                ],
+                "groups": [
+                    {"id": "group1", "size": 3},
+                    {"id": "group2", "size": 3}
+                ],
+                "num_sessions": 2
+            },
+            "objectives": [
+                {"type": "maximize_unique_contacts", "weight": 1.0}
+            ],
+            "constraints": [
+                {"type": "RepeatEncounter", "max_allowed_encounters": 1, "penalty_function": "squared", "penalty_weight": 100.0}
+            ],
+            "solver": {
+                "solver_type": "SimulatedAnnealing",
+                "stop_conditions": {
+                    "max_iterations": 2000,
+                    "time_limit_seconds": 10,
+                    "no_improvement_iterations": 1000
+                },
+                "solver_params": {
+                    "solver_type": "SimulatedAnnealing",
+                    "initial_temperature": 50.0,
+                    "final_temperature": 0.01,
+                    "cooling_schedule": "geometric"
+                },
+                "logging": {
+                    "log_frequency": 100,
+                    "log_duration_and_score": true,
+                    "log_final_score_breakdown": true
+                }
+            }
+        };
+
+        async function runTest() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Running test...</p>';
+            
+            try {
+                // Initialize WASM
+                await wasm_bindgen();
+                
+                // Run the callback consistency test
+                const analysisJson = wasm_bindgen.test_callback_consistency(JSON.stringify(testProblem));
+                const analysis = JSON.parse(analysisJson);
+                
+                let html = '<h2>Test Results</h2>';
+                
+                if (analysis.scores_match) {
+                    html += '<div class="test-result success">✅ <strong>SUCCESS:</strong> Final callback score matches result!</div>';
+                } else {
+                    html += '<div class="test-result error">❌ <strong>FAILURE:</strong> Final callback score does NOT match result!</div>';
+                }
+                
+                html += `<div class="test-result">
+                    <strong>Final Callback Score:</strong> ${analysis.final_callback_score}<br>
+                    <strong>Final Result Score:</strong> ${analysis.final_result_score}<br>
+                    <strong>Total Progress Updates:</strong> ${analysis.total_updates}
+                </div>`;
+                
+                if (analysis.score_jumps && analysis.score_jumps.length > 0) {
+                    html += '<div class="test-result error"><strong>⚠️ Score Jumps Detected:</strong></div>';
+                    html += '<pre>' + JSON.stringify(analysis.score_jumps, null, 2) + '</pre>';
+                } else {
+                    html += '<div class="test-result success">✅ No unexpected score jumps detected</div>';
+                }
+                
+                html += '<h3>Full Analysis</h3>';
+                html += '<pre>' + JSON.stringify(analysis, null, 2) + '</pre>';
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="test-result error">❌ <strong>ERROR:</strong> ${error.message}</div>`;
+                console.error('Test failed:', error);
+            }
+        }
+
+        // Test regular solve_with_progress as well
+        async function testRegularCallback() {
+            try {
+                await wasm_bindgen();
+                
+                let progressUpdates = [];
+                let finalResult = null;
+                
+                const result = await new Promise((resolve, reject) => {
+                    try {
+                        const resultJson = wasm_bindgen.solve_with_progress(
+                            JSON.stringify(testProblem),
+                            (progressJson) => {
+                                const progress = JSON.parse(progressJson);
+                                progressUpdates.push(progress);
+                                console.log(`Progress: Iteration ${progress.iteration}, Score: ${progress.current_score}, Best: ${progress.best_score}`);
+                                return true; // Continue
+                            }
+                        );
+                        resolve(JSON.parse(resultJson));
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+                
+                console.log('=== REGULAR CALLBACK TEST ===');
+                console.log('Final result score:', result.final_score);
+                if (progressUpdates.length > 0) {
+                    const lastUpdate = progressUpdates[progressUpdates.length - 1];
+                    console.log('Last callback score:', lastUpdate.current_score);
+                    console.log('Scores match:', Math.abs(lastUpdate.current_score - result.final_score) < 0.001);
+                }
+                
+            } catch (error) {
+                console.error('Regular callback test failed:', error);
+            }
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            setTimeout(runTest, 100);
+        });
+    </script>
+</body>
+</html> 

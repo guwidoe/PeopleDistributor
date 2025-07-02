@@ -1,0 +1,71 @@
+{
+  "name": "Soft Constraints Test",
+  "demo_metadata": {
+    "id": "soft-constraints",
+    "display_name": "Project Team Formation",
+    "description": "Team formation with varying constraint priorities",
+    "category": "Intermediate"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "olivia", "attributes": {"name": "Olivia Martinez", "skill": "frontend", "experience": "senior"} },
+        { "id": "noah", "attributes": {"name": "Noah Johnson", "skill": "frontend", "experience": "junior"} },
+        { "id": "sophia", "attributes": {"name": "Sophia Lee", "skill": "backend", "experience": "mid"} },
+        { "id": "liam", "attributes": {"name": "Liam Garcia", "skill": "backend", "experience": "senior"} },
+        { "id": "maya", "attributes": {"name": "Maya Patel", "skill": "design", "experience": "mid"} },
+        { "id": "ethan", "attributes": {"name": "Ethan Kim", "skill": "design", "experience": "junior"} }
+      ],
+      "groups": [
+        { "id": "project-alpha", "size": 3 },
+        { "id": "project-beta", "size": 3 }
+      ],
+      "num_sessions": 3
+    },
+    "objectives": [
+      {
+        "type": "maximize_unique_contacts",
+        "weight": 1.0
+      }
+    ],
+    "constraints": [
+      {
+        "type": "MustStayTogether",
+        "people": ["olivia", "noah"],
+        "penalty_weight": 1000.0
+      },
+      {
+        "type": "MustStayTogether", 
+        "people": ["sophia", "liam"],
+        "penalty_weight": 5.0
+      },
+      {
+        "type": "CannotBeTogether",
+        "people": ["maya", "ethan"],
+        "penalty_weight": 10.0
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": {
+        "max_iterations": 5000
+      },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 50.0,
+        "final_temperature": 0.1,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false,
+        "log_initial_state": false
+      }
+    }
+  },
+  "expected": {}
+} 

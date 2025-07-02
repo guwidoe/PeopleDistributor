@@ -1,0 +1,64 @@
+{
+  "name": "Session-Specific Constraints Test",
+  "demo_metadata": {
+    "id": "session-specific",
+    "display_name": "Training Session Constraints",
+    "description": "Different constraints apply to different training sessions",
+    "category": "Intermediate"
+  },
+  "input": {
+    "problem": {
+      "people": [
+        { "id": "mentor_alice", "attributes": {"name": "Alice Foster", "role": "mentor"} },
+        { "id": "trainee_bob", "attributes": {"name": "Bob Stevens", "role": "trainee"} },
+        { "id": "specialist_carol", "attributes": {"name": "Carol Wright", "role": "specialist"} },
+        { "id": "coordinator_dave", "attributes": {"name": "Dave Kim", "role": "coordinator"} },
+        { "id": "observer_emma", "attributes": {"name": "Emma Lopez", "role": "observer"} },
+        { "id": "assistant_frank", "attributes": {"name": "Frank Chen", "role": "assistant"} }
+      ],
+      "groups": [
+        { "id": "training-lab-1", "size": 3 },
+        { "id": "training-lab-2", "size": 3 }
+      ],
+      "num_sessions": 3
+    },
+    "objectives": [],
+    "constraints": [
+      {
+        "type": "MustStayTogether",
+        "people": ["mentor_alice", "trainee_bob"],
+        "penalty_weight": 1000.0,
+        "sessions": [0, 1]
+      },
+      {
+        "type": "CannotBeTogether", 
+        "people": ["specialist_carol", "coordinator_dave"],
+        "penalty_weight": 1000.0,
+        "sessions": [1, 2]
+      }
+    ],
+    "solver": {
+      "solver_type": "SimulatedAnnealing",
+      "stop_conditions": { "max_iterations": 1000 },
+      "solver_params": {
+        "solver_type": "SimulatedAnnealing",
+        "initial_temperature": 1.0,
+        "final_temperature": 0.001,
+        "cooling_schedule": "geometric"
+      },
+      "logging": {
+        "log_frequency": 0,
+        "log_initial_state": false,
+        "log_duration_and_score": false,
+        "display_final_schedule": false,
+        "log_initial_score_breakdown": false,
+        "log_final_score_breakdown": false,
+        "log_stop_condition": false
+      }
+    }
+  },
+  "expected": {
+    "session_specific_constraints_respected": true
+  },
+  "test_options": {}
+} 
