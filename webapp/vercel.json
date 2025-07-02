@@ -3,7 +3,15 @@
   "outputDirectory": "dist",
   "routes": [
     {
-      "src": "/[^.]+",
+      "src": "/test_cases/(.*)",
+      "dest": "/test_cases/$1"
+    },
+    {
+      "src": "/(.*\\..+)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*)",
       "dest": "/",
       "status": 200
     }
