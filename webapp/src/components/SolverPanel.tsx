@@ -405,7 +405,35 @@ export function SolverPanel() {
       {/* Settings Panel */}
       {showSettings && (
         <div className="card">
-          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-4">
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
+
+            {/* Automatic Configuration (header right) */}
+            <div className="flex items-end gap-2 p-3 rounded-lg" style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--background-secondary)' }}>
+              <div className="flex-grow">
+                <label htmlFor="desiredRuntime" className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Desired Runtime (s)
+                </label>
+                <input
+                  id="desiredRuntime"
+                  type="number"
+                  value={desiredRuntime}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntime(Number(e.target.value))}
+                  disabled={solverState.isRunning}
+                  className="input w-24 md:w-32"
+                />
+              </div>
+              <Tooltip text="Run a short trial to estimate optimal solver parameters for the specified runtime.">
+                <button
+                  onClick={handleAutoSetSettings}
+                  disabled={solverState.isRunning}
+                  className="btn-primary whitespace-nowrap"
+                >
+                  Auto-set
+                </button>
+              </Tooltip>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <div className="flex items-center space-x-2 mb-1">
@@ -563,33 +591,6 @@ export function SolverPanel() {
                 max="50000"
                 placeholder="0 = disabled"
               />
-            </div>
-          </div>
-          {/* Automatic Configuration (top right) */}
-          <div className="flex justify-end mb-4 mt-2">
-            <div className="flex items-end gap-2 w-full md:w-auto">
-              <div className="flex-grow">
-                <label htmlFor="desiredRuntime" className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                  Desired Runtime (s)
-                </label>
-                <input
-                  id="desiredRuntime"
-                  type="number"
-                  value={desiredRuntime}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntime(Number(e.target.value))}
-                  disabled={solverState.isRunning}
-                  className="input w-full"
-                />
-              </div>
-              <Tooltip text="Run a short trial to estimate optimal solver parameters for the specified runtime.">
-                <button
-                  onClick={handleAutoSetSettings}
-                  disabled={solverState.isRunning}
-                  className="btn-primary whitespace-nowrap"
-                >
-                  Auto-set
-                </button>
-              </Tooltip>
             </div>
           </div>
         </div>

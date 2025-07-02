@@ -357,11 +357,37 @@ export class SolverWorkerService {
     problem: Problem,
     desired_runtime_seconds: number
   ): Promise<SolverSettings> {
+    // ===== DEBUG LOGGING =====
+    // These logs help verify exactly what is sent to the WASM layer and what comes back.
+    try {
+      console.debug(
+        "[SolverWorker] get_recommended_settings → problem:",
+        JSON.stringify(problem, null, 2)
+      );
+      console.debug(
+        "[SolverWorker] get_recommended_settings → desired_runtime_seconds:",
+        desired_runtime_seconds
+      );
+    } catch (e) {
+      // Swallow JSON.stringify errors for circular structures – shouldn't happen here.
+    }
+
     const result = await this.callSolver(
       "get_recommended_settings",
       JSON.stringify(problem),
       desired_runtime_seconds
     );
+
+    // Log the raw JSON result for inspection before parsing.
+    try {
+      console.debug(
+        "[SolverWorker] get_recommended_settings ← raw result:",
+        result
+      );
+    } catch {
+      /* ignore */
+    }
+
     return JSON.parse(result as string);
   }
 }

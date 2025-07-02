@@ -65,6 +65,7 @@ use crate::models::{
     ApiInput, ProblemDefinition, ProgressCallback, ProgressUpdate, SimulatedAnnealingParams,
     SolverConfiguration, SolverParams, SolverResult, StopConditions,
 };
+use crate::models::{Constraint, Objective};
 use crate::solver::{SolverError, State};
 
 pub mod algorithms;
@@ -274,6 +275,8 @@ pub fn run_solver_with_progress(
 /// # Arguments
 ///
 /// * `problem` - The `ProblemDefinition` definition.
+/// * `objectives` - The objectives slice.
+/// * `constraints` - The constraints slice.
 /// * `desired_runtime_seconds` - The target runtime for the main solver execution.
 ///
 /// # Returns
@@ -281,6 +284,8 @@ pub fn run_solver_with_progress(
 /// A `Result` containing the recommended `models::SolverSettings` or a `SolverError`.
 pub fn calculate_recommended_settings(
     problem: &ProblemDefinition,
+    objectives: &[Objective],
+    constraints: &[Constraint],
     desired_runtime_seconds: u64,
 ) -> Result<SolverConfiguration, SolverError> {
     const TRIAL_ITERS: u64 = 10_000;
@@ -302,11 +307,19 @@ pub fn calculate_recommended_settings(
         logging: Default::default(),
     };
 
-    // build ApiInput for the trial
+    let trial_objectives: Vec<Objective> = if objectives.is_empty() {
+        vec![Objective {
+            r#type: "maximize_unique_contacts".into(),
+            weight: 1.0,
+        }]
+    } else {
+        objectives.to_vec()
+    };
+
     let trial_input = ApiInput {
         problem: problem.clone(),
-        objectives: vec![],
-        constraints: vec![],
+        objectives: trial_objectives,
+        constraints: constraints.to_vec(),
         solver: trial_cfg.clone(),
     };
 
@@ -346,13 +359,44 @@ pub fn calculate_recommended_settings(
         .clone()
         .ok_or_else(|| SolverError::ValidationError("Trial run produced no progress".into()))?;
 
-    // compute heuristics
-    let init_temp = if metrics.biggest_attempted_increase > 0.0 {
-        -metrics.biggest_attempted_increase / (0.5f64).ln()
+    // === Debugging output ===
+    eprintln!(
+        "[DEBUG] biggest_attempted_increase: {}",
+        metrics.biggest_attempted_increase
+    );
+    eprintln!(
+        "[DEBUG] biggest_accepted_increase:  {}",
+        metrics.biggest_accepted_increase
+    );
+
+    // Choose an initial temperature that would accept the largest observed
+    // uphill (cost-increasing) move roughly half the time.
+    //
+    // Acceptance probability  P = exp(−Δ / T)  ⇒  T = - Δ / ln(2)  when P = 0.5 .
+    //
+    // We consider both attempted *and* accepted increases because in some
+    // degenerate cases (e.g. extremely good initial schedule) there may be no
+    // accepted uphill moves even though some were attempted, and vice-versa.
+    // If no positive cost increases were seen, we fall back to a small default.
+    use std::f64::consts::LN_2;
+
+    let max_uphill_delta = metrics
+        .biggest_attempted_increase
+        .max(metrics.biggest_accepted_increase);
+
+    eprintln!("[DEBUG] max_uphill_delta chosen: {}", max_uphill_delta);
+
+    let init_temp = if max_uphill_delta > 0.0 {
+        max_uphill_delta / LN_2
     } else {
-        1.0
+        1.0 // conservative fallback when no uphill moves were observed
     };
+
+    eprintln!("[DEBUG] calculated init_temp: {}", init_temp);
+
     let final_temp = -1.0 / (0.05f64).ln();
+
+    eprintln!("[DEBUG] calculated final_temp: {}", final_temp);
 
     let t_per_iter = trial_secs / TRIAL_ITERS as f64;
     let target_secs = desired_runtime_seconds as f64 * 0.9;
@@ -361,6 +405,11 @@ pub fn calculate_recommended_settings(
     } else {
         2_000_000
     };
+
+    eprintln!(
+        "[DEBUG] trial_secs: {} t_per_iter: {} total_iters: {}",
+        trial_secs, t_per_iter, total_iters
+    );
 
     // build recommended config
     Ok(SolverConfiguration {

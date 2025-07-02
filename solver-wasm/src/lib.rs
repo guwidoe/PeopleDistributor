@@ -296,7 +296,18 @@ pub fn get_recommended_settings(
 ) -> Result<String, JsValue> {
     init_panic_hook();
 
-    let problem: ProblemDefinition = match serde_json::from_str(problem_json) {
+    #[derive(serde::Deserialize)]
+    struct ProblemWrapper {
+        people: Vec<solver_core::models::Person>,
+        groups: Vec<solver_core::models::Group>,
+        num_sessions: u32,
+        #[serde(default)]
+        constraints: Vec<solver_core::models::Constraint>,
+        #[serde(default)]
+        objectives: Vec<solver_core::models::Objective>,
+    }
+
+    let wrapper: ProblemWrapper = match serde_json::from_str(problem_json) {
         Ok(p) => p,
         Err(e) => {
             return Err(JsValue::from_str(&format!(
@@ -306,7 +317,18 @@ pub fn get_recommended_settings(
         }
     };
 
-    match solver_core::calculate_recommended_settings(&problem, desired_runtime_seconds) {
+    let problem_def = ProblemDefinition {
+        people: wrapper.people,
+        groups: wrapper.groups,
+        num_sessions: wrapper.num_sessions,
+    };
+
+    match solver_core::calculate_recommended_settings(
+        &problem_def,
+        &wrapper.objectives,
+        &wrapper.constraints,
+        desired_runtime_seconds,
+    ) {
         Ok(settings) => {
             let settings_json = serde_json::to_string(&settings)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize settings: {}", e)))?;
