@@ -21,20 +21,33 @@ async function discoverTestCaseFiles(): Promise<string[]> {
 
   // Try to fetch a manifest file first (if it exists)
   try {
+    console.log("Attempting to fetch manifest from: /test_cases/manifest.json");
     const manifestResponse = await fetch("/test_cases/manifest.json");
+    console.log("Manifest fetch response:", {
+      status: manifestResponse.status,
+      statusText: manifestResponse.statusText,
+      ok: manifestResponse.ok,
+      url: manifestResponse.url,
+      headers: Object.fromEntries(manifestResponse.headers.entries()),
+    });
+
     if (manifestResponse.ok) {
       const manifest = await manifestResponse.json();
       console.log("Found manifest file with test cases:", manifest.files);
       return manifest.files;
+    } else {
+      console.warn(
+        `Manifest fetch failed with status: ${manifestResponse.status} ${manifestResponse.statusText}`
+      );
     }
   } catch (error) {
-    // Manifest doesn't exist, fall back to empty list
-    console.log(
-      "No manifest file found, demo cases will need to be added manually"
-    );
-    return [];
+    console.error("Error fetching manifest:", error);
   }
 
+  // If manifest doesn't exist, return empty list
+  console.log(
+    "No manifest file found, demo cases will need to be added manually"
+  );
   return [];
 }
 
@@ -71,23 +84,38 @@ async function loadTestCaseFile(
   filename: string
 ): Promise<DemoCaseWithMetrics | null> {
   try {
+    console.log(`Attempting to load test case file: ${filename}`);
     const response = await fetch(`/test_cases/${filename}`);
+    console.log(`Response for ${filename}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      url: response.url,
+      headers: Object.fromEntries(response.headers.entries()),
+    });
+
     if (!response.ok) {
-      console.warn(`Failed to load test case file: ${filename}`);
+      console.warn(
+        `Failed to load test case file: ${filename} - ${response.status} ${response.statusText}`
+      );
       return null;
     }
 
     const testCase = await response.json();
+    console.log(
+      `Successfully loaded and parsed ${filename}, checking for demo metadata...`
+    );
 
     // Check if this test case has demo metadata
     if (!testCase.demo_metadata) {
+      console.log(`Skipping ${filename} - no demo metadata found`);
       return null; // Skip files without demo metadata
     }
 
     const metadata = testCase.demo_metadata;
     const problem = testCase.input.problem;
 
-    return {
+    const demoCase = {
       id: metadata.id,
       name: metadata.display_name,
       description: metadata.description,
@@ -97,6 +125,9 @@ async function loadTestCaseFile(
       groupCount: problem.groups?.length || 0,
       sessionCount: problem.num_sessions || 0,
     };
+
+    console.log(`Successfully created demo case for ${filename}:`, demoCase);
+    return demoCase;
   } catch (error) {
     console.error(`Error loading test case file ${filename}:`, error);
     return null;
