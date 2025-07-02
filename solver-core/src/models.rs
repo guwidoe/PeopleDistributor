@@ -52,6 +52,7 @@ use std::collections::HashMap;
 ///                 initial_temperature: 100.0,
 ///                 final_temperature: 0.1,
 ///                 cooling_schedule: "geometric".to_string(),
+///                 reheat_after_no_improvement: 0,
 ///             }
 ///         ),
 ///         logging: LoggingOptions::default(),
@@ -393,6 +394,7 @@ pub struct ImmovablePersonParams {
 ///             initial_temperature: 100.0,
 ///             final_temperature: 0.1,
 ///             cooling_schedule: "geometric".to_string(),
+///             reheat_after_no_improvement: 0,
 ///         }
 ///     ),
 ///     logging: LoggingOptions {
@@ -471,6 +473,7 @@ pub enum SolverParams {
 ///     initial_temperature: 100.0,   // Start with high exploration
 ///     final_temperature: 0.1,       // End with focused local search
 ///     cooling_schedule: "geometric".to_string(), // Exponential temperature decay
+///     reheat_after_no_improvement: 1000, // Reheat after 1000 iterations without improvement (0 = no reheat)
 /// };
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -481,6 +484,12 @@ pub struct SimulatedAnnealingParams {
     pub final_temperature: f64,
     /// Temperature reduction schedule: "geometric" for exponential decay, "linear" for linear decay
     pub cooling_schedule: String, // "geometric", "linear", etc
+    /// Optional reheat threshold: number of iterations without improvement before reheating
+    /// When reached, temperature is reset to initial_temperature and cooling schedule is recalculated
+    /// for remaining iterations. If 0 (default), no reheating occurs. If not specified, defaults to
+    /// the smaller of: max_iterations/10 or no_improvement_iterations/2 (if no_improvement_iterations is set).
+    #[serde(default)]
+    pub reheat_after_no_improvement: u64,
 }
 
 /// Configuration options for logging and output during optimization.
@@ -622,6 +631,7 @@ pub type ProgressCallback = Box<dyn Fn(&ProgressUpdate) -> bool + Send>;
 /// #                 initial_temperature: 10.0,
 /// #                 final_temperature: 0.1,
 /// #                 cooling_schedule: "geometric".to_string(),
+/// #                 reheat_after_no_improvement: 0,
 /// #             }
 /// #         ),
 /// #         logging: LoggingOptions::default(),
@@ -704,7 +714,7 @@ impl SolverResult {
     /// #     solver: SolverConfiguration {
     /// #         solver_type: "SimulatedAnnealing".to_string(),
     /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
-    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string(), reheat_after_no_improvement: 0 }),
     /// #         logging: LoggingOptions::default(),
     /// #     },
     /// # };

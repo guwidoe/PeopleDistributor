@@ -24,6 +24,7 @@ export function SolverPanel() {
         initial_temperature: 1.0,
         final_temperature: 0.01,
         cooling_schedule: "geometric",
+        reheat_after_no_improvement: 0, // 0 = disabled
       },
     },
     logging: {
@@ -376,6 +377,30 @@ export function SolverPanel() {
                 max="1.0"
               />
             </div>
+            <div>
+              <label className="label">Reheat After No Improvement</label>
+              <input
+                type="number"
+                className="input"
+                value={solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0}
+                onChange={(e) => updateSolverSettings({
+                  ...solverSettings,
+                  solver_params: {
+                    ...solverSettings.solver_params,
+                    SimulatedAnnealing: {
+                      ...solverSettings.solver_params.SimulatedAnnealing!,
+                      reheat_after_no_improvement: parseInt(e.target.value) || 0
+                    }
+                  }
+                })}
+                min="0"
+                max="50000"
+                placeholder="0 = disabled"
+              />
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Reset temperature to initial value after this many iterations without improvement (0 = disabled)
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -554,6 +579,7 @@ export function SolverPanel() {
               <li>• Starts with high temperature for exploration</li>
               <li>• Gradually cools to focus on local improvements</li>
               <li>• Can escape local optima</li>
+              <li>• Optional reheat feature restarts exploration when stuck</li>
               <li>• Well-suited for combinatorial problems</li>
             </ul>
           </div>
@@ -579,6 +605,15 @@ export function SolverPanel() {
               <div className="flex justify-between">
                 <span style={{ color: 'var(--text-secondary)' }}>No Improvement Limit:</span>
                 <span className="font-medium">{(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-secondary)' }}>Reheat After:</span>
+                <span className="font-medium">
+                  {(solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0) === 0 
+                    ? 'Disabled' 
+                    : (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toLocaleString()
+                  }
+                </span>
               </div>
             </div>
           </div>

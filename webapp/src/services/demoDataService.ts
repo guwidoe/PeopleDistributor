@@ -1,4 +1,4 @@
-import { Problem, SolverSettings } from "../types";
+import { Problem, SolverSettings, AttributeDefinition } from "../types";
 
 export interface DemoCase {
   id: string;
@@ -335,7 +335,7 @@ function createFallbackDemo(): Problem {
         type: "RepeatEncounter",
         max_allowed_encounters: 1,
         penalty_function: "squared",
-        penalty_weight: 100.0,
+        penalty_weight: 1.0,
       },
       // Keep Alice and Bob together (they're project partners)
       {
@@ -371,6 +371,7 @@ function createFallbackDemo(): Problem {
           initial_temperature: 1.0,
           final_temperature: 0.01,
           cooling_schedule: "geometric",
+          reheat_after_no_improvement: 0,
         },
       },
       logging: {
@@ -384,4 +385,73 @@ function createFallbackDemo(): Problem {
       },
     },
   };
+}
+
+// Extract all unique attributes and their values from a Problem
+export function extractAttributesFromProblem(
+  problem: Problem
+): AttributeDefinition[] {
+  const attributeMap = new Map<string, Set<string>>();
+
+  // Extract attributes from all people
+  problem.people.forEach((person) => {
+    Object.entries(person.attributes).forEach(([key, value]) => {
+      // Skip the 'name' attribute as it's not typically used for grouping/constraints
+      if (key === "name") return;
+
+      if (!attributeMap.has(key)) {
+        attributeMap.set(key, new Set());
+      }
+      attributeMap.get(key)!.add(String(value));
+    });
+  });
+
+  // Convert to AttributeDefinition array
+  const extractedAttributes: AttributeDefinition[] = [];
+  attributeMap.forEach((values, key) => {
+    extractedAttributes.push({
+      key,
+      values: Array.from(values).sort(),
+    });
+  });
+
+  return extractedAttributes;
+}
+
+// Merge extracted attributes with existing definitions
+export function mergeAttributeDefinitions(
+  existing: AttributeDefinition[],
+  extracted: AttributeDefinition[]
+): AttributeDefinition[] {
+  const merged = new Map<string, Set<string>>();
+
+  // Add all existing attributes
+  existing.forEach((def) => {
+    merged.set(def.key, new Set(def.values));
+  });
+
+  // Merge in extracted attributes
+  extracted.forEach((def) => {
+    if (merged.has(def.key)) {
+      // Add new values to existing attribute
+      def.values.forEach((value) => {
+        merged.get(def.key)!.add(value);
+      });
+    } else {
+      // Add new attribute
+      merged.set(def.key, new Set(def.values));
+    }
+  });
+
+  // Convert back to AttributeDefinition array
+  const result: AttributeDefinition[] = [];
+  merged.forEach((values, key) => {
+    result.push({
+      key,
+      values: Array.from(values).sort(),
+    });
+  });
+
+  // Sort by key name for consistent ordering
+  return result.sort((a, b) => a.key.localeCompare(b.key));
 }

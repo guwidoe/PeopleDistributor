@@ -186,6 +186,7 @@ class WasmService {
             initial_temperature: 1.0,
             final_temperature: 0.01,
             cooling_schedule: "geometric",
+            reheat_after_no_improvement: 0,
           },
         },
         logging: {
@@ -218,6 +219,7 @@ class WasmService {
             initial_temperature: 1.0,
             final_temperature: 0.01,
             cooling_schedule: "geometric",
+            reheat_after_no_improvement: 0,
           },
         },
         logging: {

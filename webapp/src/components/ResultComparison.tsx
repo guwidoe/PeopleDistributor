@@ -351,7 +351,7 @@ export function ResultComparison() {
                     ))}
                   </tr>
 
-                  <tr>
+                  <tr className="border-b" style={{ borderColor: 'var(--border-secondary)' }}>
                     <td className="p-4 font-medium" style={{ color: 'var(--text-primary)' }}>
                       <div className="flex items-center space-x-2">
                         <Settings className="w-4 h-4" />
@@ -362,6 +362,25 @@ export function ResultComparison() {
                       <td key={result.id} className="p-4">
                         <span style={{ color: 'var(--text-primary)' }}>
                           {result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 'N/A'}
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+
+                  <tr>
+                    <td className="p-4 font-medium" style={{ color: 'var(--text-primary)' }}>
+                      <div className="flex items-center space-x-2">
+                        <Settings className="w-4 h-4" />
+                        <span>Reheat After</span>
+                      </div>
+                    </td>
+                    {selectedResults.map((result) => (
+                      <td key={result.id} className="p-4">
+                        <span style={{ color: 'var(--text-primary)' }}>
+                          {(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0) === 0 
+                            ? 'Disabled' 
+                            : (result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toLocaleString()
+                          }
                         </span>
                       </td>
                     ))}

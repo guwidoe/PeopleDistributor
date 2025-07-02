@@ -109,6 +109,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
               initial_temperature: 1.0,
               final_temperature: 0.01,
               cooling_schedule: "geometric" as const,
+              reheat_after_no_improvement: 0,
             },
           },
         },

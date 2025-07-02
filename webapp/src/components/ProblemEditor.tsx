@@ -17,6 +17,7 @@ const getDefaultSolverSettings = (): SolverSettings => ({
       initial_temperature: 1.0,
       final_temperature: 0.01,
       cooling_schedule: "geometric",
+      reheat_after_no_improvement: 0,
     },
   },
   logging: {
@@ -154,7 +155,7 @@ export function ProblemEditor() {
     sessions?: number[];
   }>({
     type: 'RepeatEncounter',
-    penalty_weight: 100
+    penalty_weight: 1
   });
 
   const handleSaveProblem = () => {
@@ -476,7 +477,7 @@ export function ProblemEditor() {
             type: 'RepeatEncounter',
             max_allowed_encounters: constraintForm.max_allowed_encounters,
             penalty_function: constraintForm.penalty_function || 'squared',
-            penalty_weight: constraintForm.penalty_weight || 100
+            penalty_weight: constraintForm.penalty_weight || 1
           };
           break;
 
@@ -531,7 +532,7 @@ export function ProblemEditor() {
       };
 
       setProblem(updatedProblem);
-      setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 100 });
+      setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
       setShowConstraintForm(false);
       
       addNotification({
@@ -608,7 +609,7 @@ export function ProblemEditor() {
             type: 'RepeatEncounter',
             max_allowed_encounters: constraintForm.max_allowed_encounters,
             penalty_function: constraintForm.penalty_function || 'squared',
-            penalty_weight: constraintForm.penalty_weight || 100
+            penalty_weight: constraintForm.penalty_weight || 1
           };
           break;
 
@@ -667,7 +668,7 @@ export function ProblemEditor() {
 
       setProblem(updatedProblem);
       setEditingConstraint(null);
-      setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 100 });
+      setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
       setShowConstraintForm(false);
       
       addNotification({
@@ -1208,7 +1209,7 @@ export function ProblemEditor() {
               onClick={() => {
                 setShowConstraintForm(false);
                 setEditingConstraint(null);
-                setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 100 });
+                setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
               }}
               className="text-gray-400 hover:text-gray-600"
             >
@@ -1520,7 +1521,7 @@ export function ProblemEditor() {
                   value={constraintForm.penalty_weight || ''}
                   onChange={(e) => setConstraintForm(prev => ({ 
                     ...prev, 
-                    penalty_weight: parseFloat(e.target.value) || 100 
+                    penalty_weight: parseFloat(e.target.value) || 1 
                   }))}
                   className="input"
                 />
@@ -1546,7 +1547,7 @@ export function ProblemEditor() {
               onClick={() => {
                 setShowConstraintForm(false);
                 setEditingConstraint(null);
-                setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 100 });
+                setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
               }}
               className="btn-secondary px-4 py-2 rounded-md"
             >

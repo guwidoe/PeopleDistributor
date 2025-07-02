@@ -355,7 +355,7 @@ const LandingPage: React.FC = () => {
             Built to solve the Social Golfer Problem and similar combinatorial optimization challenges in event scheduling.
           </p>
           <p className="text-tertiary text-xs">
-            © 2024 Guido Witt-Dörring
+            © 2025 Guido Witt-Dörring
           </p>
         </div>
       </footer>

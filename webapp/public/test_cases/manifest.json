@@ -8,6 +8,7 @@
     "benchmark_unconstrained.json",
     "soft_constraints_test.json",
     "hard_constraints_stress_test.json",
+    "social_golfer_problem.json",
     "clique_swap_functionality_test.json",
     "session_specific_constraints_test.json"
   ]

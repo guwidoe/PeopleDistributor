@@ -565,6 +565,15 @@ export function ResultsHistory() {
                                 {result.solverSettings.solver_params.SimulatedAnnealing?.cooling_schedule}
                               </span>
                             </div>
+                            <div>
+                              <span style={{ color: 'var(--text-secondary)' }}>Reheat After:</span>
+                              <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
+                                {(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0) === 0 
+                                  ? 'Disabled' 
+                                  : (result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toLocaleString()
+                                }
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>

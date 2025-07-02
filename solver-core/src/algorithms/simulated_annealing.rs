@@ -156,6 +156,7 @@ fn get_elapsed_seconds_since_start(start_time: f64) -> u64 {
 ///             initial_temperature: 100.0,  // High exploration
 ///             final_temperature: 0.01,     // Low exploitation
 ///             cooling_schedule: "geometric".to_string(),
+///             reheat_after_no_improvement: 0,
 ///         }
 ///     ),
 ///     logging: LoggingOptions {
@@ -220,6 +221,8 @@ pub struct SimulatedAnnealing {
     pub time_limit_seconds: Option<u64>,
     /// Optional early stopping after this many iterations without improvement
     pub no_improvement_iterations: Option<u64>,
+    /// Optional reheat threshold: number of iterations without improvement before reheating (0 = disabled)
+    pub reheat_after_no_improvement: u64,
 }
 
 impl SimulatedAnnealing {
@@ -254,6 +257,7 @@ impl SimulatedAnnealing {
     ///             initial_temperature: 50.0,
     ///             final_temperature: 0.1,
     ///             cooling_schedule: "geometric".to_string(),
+    ///             reheat_after_no_improvement: 0,
     ///         }
     ///     ),
     ///     logging: LoggingOptions::default(),
@@ -265,12 +269,30 @@ impl SimulatedAnnealing {
     /// ```
     pub fn new(params: &SolverConfiguration) -> Self {
         let SolverParams::SimulatedAnnealing(sa_params) = &params.solver_params;
+        let max_iterations = params.stop_conditions.max_iterations.unwrap_or(100_000);
+        let no_improvement_iterations = params.stop_conditions.no_improvement_iterations;
+
+        // Calculate default reheat threshold if not explicitly provided (0 means no reheat)
+        let reheat_after_no_improvement = if sa_params.reheat_after_no_improvement == 0 {
+            // Auto-calculate default if not specified
+            let default_reheat = max_iterations / 10;
+            if let Some(no_improvement) = no_improvement_iterations {
+                let half_no_improvement = no_improvement / 2;
+                default_reheat.min(half_no_improvement)
+            } else {
+                default_reheat
+            }
+        } else {
+            sa_params.reheat_after_no_improvement
+        };
+
         Self {
-            max_iterations: params.stop_conditions.max_iterations.unwrap_or(100_000),
+            max_iterations,
             initial_temperature: sa_params.initial_temperature,
             final_temperature: sa_params.final_temperature,
             time_limit_seconds: params.stop_conditions.time_limit_seconds,
-            no_improvement_iterations: params.stop_conditions.no_improvement_iterations,
+            no_improvement_iterations,
+            reheat_after_no_improvement,
         }
     }
 }
@@ -371,7 +393,7 @@ impl Solver for SimulatedAnnealing {
     /// #     solver: SolverConfiguration {
     /// #         solver_type: "SimulatedAnnealing".to_string(),
     /// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
-    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string() }),
+    /// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string(), reheat_after_no_improvement: 0 }),
     /// #         logging: LoggingOptions::default(),
     /// #     },
     /// # };
@@ -464,11 +486,45 @@ impl Solver for SimulatedAnnealing {
             .map(|day| current_state.calculate_transfer_probability(day))
             .collect();
 
+        // Track reheating state
+        let mut reheat_count = 0;
+        let mut last_reheat_iteration = 0u64;
+
         for i in 0..self.max_iterations {
             final_iteration = i;
-            let temperature = self.initial_temperature
-                * (self.final_temperature / self.initial_temperature)
-                    .powf(i as f64 / self.max_iterations as f64);
+
+            // Check if we should reheat (only if reheat is enabled)
+            if self.reheat_after_no_improvement > 0 {
+                if no_improvement_counter >= self.reheat_after_no_improvement
+                    && no_improvement_counter > 0
+                {
+                    // Only reheat if we haven't reheated recently
+                    if i - last_reheat_iteration > self.reheat_after_no_improvement {
+                        reheat_count += 1;
+                        last_reheat_iteration = i;
+                        no_improvement_counter = 0; // Reset the no improvement counter
+
+                        if state.logging.log_stop_condition {
+                            println!(
+                                "Reheating #{} at iteration {}: no improvement for {} iterations",
+                                reheat_count, i, self.reheat_after_no_improvement
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Calculate temperature with potential reheat adjustment
+            let iterations_since_last_reheat = i - last_reheat_iteration;
+            let remaining_iterations = self.max_iterations - last_reheat_iteration;
+
+            let temperature = if remaining_iterations > 0 {
+                self.initial_temperature
+                    * (self.final_temperature / self.initial_temperature)
+                        .powf(iterations_since_last_reheat as f64 / remaining_iterations as f64)
+            } else {
+                self.final_temperature
+            };
 
             let mut improvement_found = false;
 
@@ -731,9 +787,16 @@ impl Solver for SimulatedAnnealing {
         // Send final progress update if callback is provided
         // IMPORTANT: This must happen AFTER _recalculate_scores() to ensure accurate scores
         if let Some(callback) = &progress_callback {
-            let final_temperature = self.initial_temperature
-                * (self.final_temperature / self.initial_temperature)
-                    .powf(final_iteration as f64 / self.max_iterations as f64);
+            let iterations_since_last_reheat = final_iteration - last_reheat_iteration;
+            let remaining_iterations = self.max_iterations - last_reheat_iteration;
+
+            let final_temperature = if remaining_iterations > 0 {
+                self.initial_temperature
+                    * (self.final_temperature / self.initial_temperature)
+                        .powf(iterations_since_last_reheat as f64 / remaining_iterations as f64)
+            } else {
+                self.final_temperature
+            };
 
             let final_progress = ProgressUpdate {
                 iteration: final_iteration + 1, // Report 1-based iteration numbers
