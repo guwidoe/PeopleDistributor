@@ -546,13 +546,14 @@ pub struct LoggingOptions {
     pub log_stop_condition: bool,
 }
 
-/// Progress update information sent during solver execution.
+/// Progress update sent during solver execution.
 ///
-/// This structure contains real-time information about the solver's progress
-/// that can be used to update progress bars, charts, and other UI elements
-/// while the optimization is running.
+/// Contains comprehensive metrics about the current state of optimization,
+/// including detailed move statistics, acceptance rates, and performance metrics.
+/// This information is valuable for algorithm tuning and providing rich user feedback.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProgressUpdate {
+    // === Basic Progress Information ===
     /// Current iteration number (0-based)
     pub iteration: u64,
     /// Total number of iterations planned
@@ -573,6 +574,80 @@ pub struct ProgressUpdate {
     pub elapsed_seconds: f64,
     /// Number of iterations without improvement
     pub no_improvement_count: u64,
+
+    // === Move Type Statistics ===
+    /// Number of clique swap moves attempted
+    pub clique_swaps_tried: u64,
+    /// Number of clique swap moves accepted
+    pub clique_swaps_accepted: u64,
+    /// Number of clique swap moves rejected
+    pub clique_swaps_rejected: u64,
+    /// Number of single person transfer moves attempted
+    pub transfers_tried: u64,
+    /// Number of single person transfer moves accepted
+    pub transfers_accepted: u64,
+    /// Number of single person transfer moves rejected
+    pub transfers_rejected: u64,
+    /// Number of regular person swap moves attempted
+    pub swaps_tried: u64,
+    /// Number of regular person swap moves accepted
+    pub swaps_accepted: u64,
+    /// Number of regular person swap moves rejected
+    pub swaps_rejected: u64,
+
+    // === Acceptance and Quality Metrics ===
+    /// Overall acceptance rate (accepted moves / total moves)
+    pub overall_acceptance_rate: f64,
+    /// Recent acceptance rate (last 100 moves)
+    pub recent_acceptance_rate: f64,
+    /// Average score change for attempted moves
+    pub avg_attempted_move_delta: f64,
+    /// Average score change for accepted moves
+    pub avg_accepted_move_delta: f64,
+    /// Biggest score increase that was accepted
+    pub biggest_accepted_increase: f64,
+    /// Biggest score increase that was attempted
+    pub biggest_attempted_increase: f64,
+
+    // === Current State Breakdown ===
+    /// Current repetition penalty (weighted)
+    pub current_repetition_penalty: f64,
+    /// Current attribute balance penalty
+    pub current_balance_penalty: f64,
+    /// Current constraint penalty (weighted)
+    pub current_constraint_penalty: f64,
+    /// Best repetition penalty achieved so far
+    pub best_repetition_penalty: f64,
+    /// Best attribute balance penalty achieved so far
+    pub best_balance_penalty: f64,
+    /// Best constraint penalty achieved so far
+    pub best_constraint_penalty: f64,
+
+    // === Algorithm State Information ===
+    /// Number of reheats performed so far
+    pub reheats_performed: u64,
+    /// Iterations since last reheat
+    pub iterations_since_last_reheat: u64,
+    /// Number of local optima escapes (accepted worse moves)
+    pub local_optima_escapes: u64,
+    /// Average time per iteration in milliseconds
+    pub avg_time_per_iteration_ms: f64,
+    /// Progress through cooling schedule (0.0 to 1.0)
+    pub cooling_progress: f64,
+
+    // === Move Type Success Rates ===
+    /// Success rate for clique swap moves (accepted/tried)
+    pub clique_swap_success_rate: f64,
+    /// Success rate for transfer moves (accepted/tried)
+    pub transfer_success_rate: f64,
+    /// Success rate for swap moves (accepted/tried)
+    pub swap_success_rate: f64,
+
+    // === Advanced Analytics ===
+    /// Score variance over recent window (indicates exploration level)
+    pub score_variance: f64,
+    /// Search efficiency (improvement per unit time)
+    pub search_efficiency: f64,
 }
 
 /// Callback function type for receiving progress updates during solver execution.
@@ -612,28 +687,12 @@ pub type ProgressCallback = Box<dyn Fn(&ProgressUpdate) -> bool + Send>;
 ///
 /// // ... create input configuration ...
 /// # let input = ApiInput {
-/// #     problem: ProblemDefinition {
-/// #         people: vec![],
-/// #         groups: vec![],
-/// #         num_sessions: 1,
-/// #     },
-/// #     objectives: vec![],
-/// #     constraints: vec![],
+/// #     problem: ProblemDefinition { people: vec![], groups: vec![], num_sessions: 1 },
+/// #     objectives: vec![], constraints: vec![],
 /// #     solver: SolverConfiguration {
 /// #         solver_type: "SimulatedAnnealing".to_string(),
-/// #         stop_conditions: StopConditions {
-/// #             max_iterations: Some(1000),
-/// #             time_limit_seconds: None,
-/// #             no_improvement_iterations: None,
-/// #         },
-/// #         solver_params: SolverParams::SimulatedAnnealing(
-/// #             SimulatedAnnealingParams {
-/// #                 initial_temperature: 10.0,
-/// #                 final_temperature: 0.1,
-/// #                 cooling_schedule: "geometric".to_string(),
-/// #                 reheat_after_no_improvement: 0,
-/// #             }
-/// #         ),
+/// #         stop_conditions: StopConditions { max_iterations: Some(1000), time_limit_seconds: None, no_improvement_iterations: None },
+/// #         solver_params: SolverParams::SimulatedAnnealing(SimulatedAnnealingParams { initial_temperature: 10.0, final_temperature: 0.1, cooling_schedule: "geometric".to_string(), reheat_after_no_improvement: 0 }),
 /// #         logging: LoggingOptions::default(),
 /// #     },
 /// # };

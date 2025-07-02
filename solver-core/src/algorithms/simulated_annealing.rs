@@ -91,6 +91,225 @@ fn get_elapsed_seconds_since_start(start_time: f64) -> u64 {
     ((now - start_time) / 1000.0) as u64 // Convert milliseconds to seconds
 }
 
+/// Comprehensive tracking structure for algorithm metrics.
+///
+/// Collects detailed statistics about move types, acceptance rates, score changes,
+/// and other metrics valuable for algorithm tuning and user feedback.
+#[derive(Debug, Clone)]
+struct AlgorithmMetrics {
+    // Move type counters
+    clique_swaps_tried: u64,
+    clique_swaps_accepted: u64,
+    transfers_tried: u64,
+    transfers_accepted: u64,
+    swaps_tried: u64,
+    swaps_accepted: u64,
+
+    // Score tracking for averages
+    attempted_deltas: Vec<f64>,
+    accepted_deltas: Vec<f64>,
+    biggest_accepted_increase: f64,
+    biggest_attempted_increase: f64,
+
+    // Recent acceptance tracking (circular buffer)
+    recent_acceptances: Vec<bool>,
+    recent_index: usize,
+
+    // Score history for variance calculation
+    recent_scores: Vec<f64>,
+    score_index: usize,
+
+    // Escape tracking
+    local_optima_escapes: u64,
+
+    // Best penalty breakdown tracking
+    best_repetition_penalty: f64,
+    best_balance_penalty: f64,
+    best_constraint_penalty: f64,
+
+    // Search efficiency tracking
+    initial_score: f64,
+}
+
+impl AlgorithmMetrics {
+    fn new(initial_score: f64) -> Self {
+        Self {
+            clique_swaps_tried: 0,
+            clique_swaps_accepted: 0,
+            transfers_tried: 0,
+            transfers_accepted: 0,
+            swaps_tried: 0,
+            swaps_accepted: 0,
+            attempted_deltas: Vec::new(),
+            accepted_deltas: Vec::new(),
+            biggest_accepted_increase: 0.0,
+            biggest_attempted_increase: 0.0,
+            recent_acceptances: vec![false; 100], // Last 100 moves
+            recent_index: 0,
+            recent_scores: vec![initial_score; 50], // Last 50 scores for variance
+            score_index: 0,
+            local_optima_escapes: 0,
+            best_repetition_penalty: f64::INFINITY,
+            best_balance_penalty: f64::INFINITY,
+            best_constraint_penalty: f64::INFINITY,
+            initial_score,
+        }
+    }
+
+    fn record_clique_swap(&mut self, delta: f64, accepted: bool) {
+        self.clique_swaps_tried += 1;
+        if accepted {
+            self.clique_swaps_accepted += 1;
+        }
+        self.record_move(delta, accepted);
+    }
+
+    fn record_transfer(&mut self, delta: f64, accepted: bool) {
+        self.transfers_tried += 1;
+        if accepted {
+            self.transfers_accepted += 1;
+        }
+        self.record_move(delta, accepted);
+    }
+
+    fn record_swap(&mut self, delta: f64, accepted: bool) {
+        self.swaps_tried += 1;
+        if accepted {
+            self.swaps_accepted += 1;
+        }
+        self.record_move(delta, accepted);
+    }
+
+    fn record_move(&mut self, delta: f64, accepted: bool) {
+        // Track all attempted moves
+        self.attempted_deltas.push(delta);
+        if delta > self.biggest_attempted_increase {
+            self.biggest_attempted_increase = delta;
+        }
+
+        // Track accepted moves
+        if accepted {
+            self.accepted_deltas.push(delta);
+            if delta > self.biggest_accepted_increase {
+                self.biggest_accepted_increase = delta;
+            }
+
+            // Track local optima escapes (accepted worse moves)
+            if delta > 0.0 {
+                self.local_optima_escapes += 1;
+            }
+        }
+
+        // Update recent acceptance tracking (circular buffer)
+        self.recent_acceptances[self.recent_index] = accepted;
+        self.recent_index = (self.recent_index + 1) % self.recent_acceptances.len();
+    }
+
+    fn update_score(&mut self, new_score: f64) {
+        // Update recent scores for variance calculation
+        self.recent_scores[self.score_index] = new_score;
+        self.score_index = (self.score_index + 1) % self.recent_scores.len();
+    }
+
+    fn update_best_penalties(
+        &mut self,
+        rep_penalty: f64,
+        balance_penalty: f64,
+        constraint_penalty: f64,
+    ) {
+        if rep_penalty < self.best_repetition_penalty {
+            self.best_repetition_penalty = rep_penalty;
+        }
+        if balance_penalty < self.best_balance_penalty {
+            self.best_balance_penalty = balance_penalty;
+        }
+        if constraint_penalty < self.best_constraint_penalty {
+            self.best_constraint_penalty = constraint_penalty;
+        }
+    }
+
+    fn calculate_metrics(
+        &self,
+        elapsed_seconds: f64,
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+        // Overall acceptance rate
+        let total_moves = self.clique_swaps_tried + self.transfers_tried + self.swaps_tried;
+        let total_accepted =
+            self.clique_swaps_accepted + self.transfers_accepted + self.swaps_accepted;
+        let overall_acceptance_rate = if total_moves > 0 {
+            total_accepted as f64 / total_moves as f64
+        } else {
+            0.0
+        };
+
+        // Recent acceptance rate
+        let recent_accepted = self.recent_acceptances.iter().filter(|&&x| x).count();
+        let recent_acceptance_rate = recent_accepted as f64 / self.recent_acceptances.len() as f64;
+
+        // Average deltas
+        let avg_attempted_delta = if !self.attempted_deltas.is_empty() {
+            self.attempted_deltas.iter().sum::<f64>() / self.attempted_deltas.len() as f64
+        } else {
+            0.0
+        };
+        let avg_accepted_delta = if !self.accepted_deltas.is_empty() {
+            self.accepted_deltas.iter().sum::<f64>() / self.accepted_deltas.len() as f64
+        } else {
+            0.0
+        };
+
+        // Success rates by move type
+        let clique_swap_success_rate = if self.clique_swaps_tried > 0 {
+            self.clique_swaps_accepted as f64 / self.clique_swaps_tried as f64
+        } else {
+            0.0
+        };
+        let transfer_success_rate = if self.transfers_tried > 0 {
+            self.transfers_accepted as f64 / self.transfers_tried as f64
+        } else {
+            0.0
+        };
+        let swap_success_rate = if self.swaps_tried > 0 {
+            self.swaps_accepted as f64 / self.swaps_tried as f64
+        } else {
+            0.0
+        };
+
+        // Score variance
+        let mean_score = self.recent_scores.iter().sum::<f64>() / self.recent_scores.len() as f64;
+        let score_variance = self
+            .recent_scores
+            .iter()
+            .map(|score| (score - mean_score).powi(2))
+            .sum::<f64>()
+            / self.recent_scores.len() as f64;
+
+        // Search efficiency (improvement per second)
+        let current_best_score = self
+            .recent_scores
+            .iter()
+            .fold(f64::INFINITY, |a, &b| a.min(b));
+        let score_improvement = self.initial_score - current_best_score;
+        let search_efficiency = if elapsed_seconds > 0.0 {
+            score_improvement / elapsed_seconds
+        } else {
+            0.0
+        };
+
+        (
+            overall_acceptance_rate,
+            recent_acceptance_rate,
+            avg_attempted_delta,
+            avg_accepted_delta,
+            clique_swap_success_rate,
+            transfer_success_rate,
+            swap_success_rate,
+            score_variance,
+            search_efficiency,
+        )
+    }
+}
+
 /// Simulated Annealing solver for the Social Group Scheduling Problem.
 ///
 /// This implementation combines classical simulated annealing with domain-specific
@@ -490,6 +709,11 @@ impl Solver for SimulatedAnnealing {
         let mut reheat_count = 0;
         let mut last_reheat_iteration = 0u64;
 
+        // Initialize algorithm metrics (convert start_time to f64 for cross-platform compatibility)
+        let initial_score = state.calculate_cost();
+
+        let mut metrics = AlgorithmMetrics::new(initial_score);
+
         for i in 0..self.max_iterations {
             final_iteration = i;
 
@@ -539,7 +763,39 @@ impl Solver for SimulatedAnnealing {
                 // NOTE: We don't call on last iteration here because we send a final callback after recalculation
                 if i == 0 || elapsed_since_last_callback >= 0.1 {
                     let current_cost = current_state.current_cost;
+                    let elapsed = get_elapsed_seconds(start_time);
+                    let iterations_since_last_reheat = i - last_reheat_iteration;
+
+                    // Calculate dynamic metrics
+                    let (
+                        overall_acceptance_rate,
+                        recent_acceptance_rate,
+                        avg_attempted_move_delta,
+                        avg_accepted_move_delta,
+                        clique_swap_success_rate,
+                        transfer_success_rate,
+                        swap_success_rate,
+                        score_variance,
+                        search_efficiency,
+                    ) = metrics.calculate_metrics(elapsed);
+
+                    // Calculate cooling progress
+                    let cooling_progress = if self.max_iterations > 0 {
+                        iterations_since_last_reheat as f64
+                            / (self.max_iterations - last_reheat_iteration) as f64
+                    } else {
+                        0.0
+                    };
+
+                    // Calculate average time per iteration
+                    let avg_time_per_iteration_ms = if i > 0 {
+                        (elapsed * 1000.0) / i as f64
+                    } else {
+                        0.0
+                    };
+
                     let progress = ProgressUpdate {
+                        // Basic progress information
                         iteration: i + 1, // Report 1-based iteration numbers
                         max_iterations: self.max_iterations,
                         temperature,
@@ -548,8 +804,53 @@ impl Solver for SimulatedAnnealing {
                         current_contacts: current_state.unique_contacts,
                         best_contacts: best_state.unique_contacts,
                         repetition_penalty: current_state.repetition_penalty,
-                        elapsed_seconds: get_elapsed_seconds(start_time),
+                        elapsed_seconds: elapsed,
                         no_improvement_count: no_improvement_counter,
+
+                        // Move type statistics
+                        clique_swaps_tried: metrics.clique_swaps_tried,
+                        clique_swaps_accepted: metrics.clique_swaps_accepted,
+                        clique_swaps_rejected: metrics.clique_swaps_tried
+                            - metrics.clique_swaps_accepted,
+                        transfers_tried: metrics.transfers_tried,
+                        transfers_accepted: metrics.transfers_accepted,
+                        transfers_rejected: metrics.transfers_tried - metrics.transfers_accepted,
+                        swaps_tried: metrics.swaps_tried,
+                        swaps_accepted: metrics.swaps_accepted,
+                        swaps_rejected: metrics.swaps_tried - metrics.swaps_accepted,
+
+                        // Acceptance and quality metrics
+                        overall_acceptance_rate,
+                        recent_acceptance_rate,
+                        avg_attempted_move_delta,
+                        avg_accepted_move_delta,
+                        biggest_accepted_increase: metrics.biggest_accepted_increase,
+                        biggest_attempted_increase: metrics.biggest_attempted_increase,
+
+                        // Current state breakdown
+                        current_repetition_penalty: current_state.repetition_penalty as f64
+                            * current_state.w_repetition,
+                        current_balance_penalty: current_state.attribute_balance_penalty as f64,
+                        current_constraint_penalty: current_state.weighted_constraint_penalty,
+                        best_repetition_penalty: metrics.best_repetition_penalty,
+                        best_balance_penalty: metrics.best_balance_penalty,
+                        best_constraint_penalty: metrics.best_constraint_penalty,
+
+                        // Algorithm state information
+                        reheats_performed: reheat_count,
+                        iterations_since_last_reheat,
+                        local_optima_escapes: metrics.local_optima_escapes,
+                        avg_time_per_iteration_ms,
+                        cooling_progress,
+
+                        // Move type success rates
+                        clique_swap_success_rate,
+                        transfer_success_rate,
+                        swap_success_rate,
+
+                        // Advanced analytics
+                        score_variance,
+                        search_efficiency,
                     };
 
                     // If callback returns false, stop early
@@ -615,9 +916,10 @@ impl Solver for SimulatedAnnealing {
                         //let next_cost = current_cost + delta_cost;
 
                         // Accept or reject the clique swap
-                        if delta_cost < 0.0
-                            || rng.random::<f64>() < (-delta_cost / temperature).exp()
-                        {
+                        let move_accepted = delta_cost < 0.0
+                            || rng.random::<f64>() < (-delta_cost / temperature).exp();
+
+                        if move_accepted {
                             current_state.apply_clique_swap(
                                 day,
                                 clique_idx,
@@ -636,6 +938,9 @@ impl Solver for SimulatedAnnealing {
                                 improvement_found = true;
                             }
                         }
+
+                        // Record the move attempt
+                        metrics.record_clique_swap(delta_cost, move_accepted);
                     }
                 }
             } else if move_selector < clique_swap_probability + transfer_probability {
@@ -671,9 +976,10 @@ impl Solver for SimulatedAnnealing {
                         let next_cost = current_cost + delta_cost;
 
                         // Accept or reject the transfer
-                        if delta_cost < 0.0
-                            || rng.random::<f64>() < (-delta_cost / temperature).exp()
-                        {
+                        let move_accepted = delta_cost < 0.0
+                            || rng.random::<f64>() < (-delta_cost / temperature).exp();
+
+                        if move_accepted {
                             current_state.apply_transfer(day, person_idx, from_group, to_group);
 
                             current_state.current_cost = next_cost;
@@ -685,6 +991,9 @@ impl Solver for SimulatedAnnealing {
                                 improvement_found = true;
                             }
                         }
+
+                        // Record the move attempt
+                        metrics.record_transfer(delta_cost, move_accepted);
                     }
                 }
             } else {
@@ -710,7 +1019,10 @@ impl Solver for SimulatedAnnealing {
                 let current_cost = current_state.current_cost;
                 let next_cost = current_cost + delta_cost;
 
-                if delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp() {
+                let move_accepted =
+                    delta_cost < 0.0 || rng.random::<f64>() < (-delta_cost / temperature).exp();
+
+                if move_accepted {
                     // Debug: For zero temperature, we should only accept improving moves
                     if temperature == 0.0 && delta_cost >= 0.0 {
                         println!("WARNING: Hill climbing violation!");
@@ -729,6 +1041,9 @@ impl Solver for SimulatedAnnealing {
                         improvement_found = true;
                     }
                 }
+
+                // Record the move attempt
+                metrics.record_swap(delta_cost, move_accepted);
             }
 
             // --- Logging ---
@@ -769,6 +1084,14 @@ impl Solver for SimulatedAnnealing {
                     break;
                 }
             }
+
+            // Update algorithm metrics (delta tracking handled in individual move blocks)
+            metrics.update_score(current_state.current_cost);
+            metrics.update_best_penalties(
+                current_state.repetition_penalty as f64 * current_state.w_repetition,
+                current_state.attribute_balance_penalty,
+                current_state.weighted_constraint_penalty,
+            );
         }
 
         // Validate that our incremental tracking matches full recalculation
@@ -798,7 +1121,34 @@ impl Solver for SimulatedAnnealing {
                 self.final_temperature
             };
 
+            let elapsed = get_elapsed_seconds(start_time);
+            let (
+                overall_acceptance_rate,
+                recent_acceptance_rate,
+                avg_attempted_move_delta,
+                avg_accepted_move_delta,
+                clique_swap_success_rate,
+                transfer_success_rate,
+                swap_success_rate,
+                score_variance,
+                search_efficiency,
+            ) = metrics.calculate_metrics(elapsed);
+
+            let cooling_progress = if self.max_iterations > 0 {
+                iterations_since_last_reheat as f64
+                    / (self.max_iterations - last_reheat_iteration) as f64
+            } else {
+                1.0 // Completed
+            };
+
+            let avg_time_per_iteration_ms = if final_iteration > 0 {
+                (elapsed * 1000.0) / final_iteration as f64
+            } else {
+                0.0
+            };
+
             let final_progress = ProgressUpdate {
+                // Basic progress information
                 iteration: final_iteration + 1, // Report 1-based iteration numbers
                 max_iterations: self.max_iterations,
                 temperature: final_temperature,
@@ -807,8 +1157,52 @@ impl Solver for SimulatedAnnealing {
                 current_contacts: best_state.unique_contacts, // These are now recalculated
                 best_contacts: best_state.unique_contacts, // These are now recalculated
                 repetition_penalty: best_state.repetition_penalty, // This is now recalculated
-                elapsed_seconds: get_elapsed_seconds(start_time),
+                elapsed_seconds: elapsed,
                 no_improvement_count: no_improvement_counter,
+
+                // Move type statistics
+                clique_swaps_tried: metrics.clique_swaps_tried,
+                clique_swaps_accepted: metrics.clique_swaps_accepted,
+                clique_swaps_rejected: metrics.clique_swaps_tried - metrics.clique_swaps_accepted,
+                transfers_tried: metrics.transfers_tried,
+                transfers_accepted: metrics.transfers_accepted,
+                transfers_rejected: metrics.transfers_tried - metrics.transfers_accepted,
+                swaps_tried: metrics.swaps_tried,
+                swaps_accepted: metrics.swaps_accepted,
+                swaps_rejected: metrics.swaps_tried - metrics.swaps_accepted,
+
+                // Acceptance and quality metrics
+                overall_acceptance_rate,
+                recent_acceptance_rate,
+                avg_attempted_move_delta,
+                avg_accepted_move_delta,
+                biggest_accepted_increase: metrics.biggest_accepted_increase,
+                biggest_attempted_increase: metrics.biggest_attempted_increase,
+
+                // Current state breakdown
+                current_repetition_penalty: best_state.repetition_penalty as f64
+                    * best_state.w_repetition,
+                current_balance_penalty: best_state.attribute_balance_penalty,
+                current_constraint_penalty: best_state.weighted_constraint_penalty,
+                best_repetition_penalty: metrics.best_repetition_penalty,
+                best_balance_penalty: metrics.best_balance_penalty,
+                best_constraint_penalty: metrics.best_constraint_penalty,
+
+                // Algorithm state information
+                reheats_performed: reheat_count,
+                iterations_since_last_reheat,
+                local_optima_escapes: metrics.local_optima_escapes,
+                avg_time_per_iteration_ms,
+                cooling_progress,
+
+                // Move type success rates
+                clique_swap_success_rate,
+                transfer_success_rate,
+                swap_success_rate,
+
+                // Advanced analytics
+                score_variance,
+                search_efficiency,
             };
 
             // Call the callback one final time (ignore return value since we're done)
@@ -835,6 +1229,10 @@ impl Solver for SimulatedAnnealing {
         if state.logging.display_final_schedule {
             println!("{}", result.display());
         }
+
+        // Calculate algorithm metrics for potential logging (metrics are available in progress callbacks)
+        let _metrics_result = metrics.calculate_metrics(elapsed);
+        // Algorithm metrics are now available through the progress callback system
 
         Ok(result)
     }

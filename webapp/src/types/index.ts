@@ -119,6 +119,52 @@ export interface SolverState {
   elapsedTime: number;
   noImprovementCount: number;
   error?: string;
+
+  // === Live Algorithm Metrics ===
+  // Temperature and progress
+  temperature?: number;
+  coolingProgress?: number;
+
+  // Move type statistics
+  cliqueSwapsTried?: number;
+  cliqueSwapsAccepted?: number;
+  transfersTried?: number;
+  transfersAccepted?: number;
+  swapsTried?: number;
+  swapsAccepted?: number;
+
+  // Acceptance rates
+  overallAcceptanceRate?: number;
+  recentAcceptanceRate?: number;
+
+  // Move quality metrics
+  avgAttemptedMoveDelta?: number;
+  avgAcceptedMoveDelta?: number;
+  biggestAcceptedIncrease?: number;
+  biggestAttemptedIncrease?: number;
+
+  // Score breakdown
+  currentRepetitionPenalty?: number;
+  currentBalancePenalty?: number;
+  currentConstraintPenalty?: number;
+  bestRepetitionPenalty?: number;
+  bestBalancePenalty?: number;
+  bestConstraintPenalty?: number;
+
+  // Algorithm behavior
+  reheatsPerformed?: number;
+  iterationsSinceLastReheat?: number;
+  localOptimaEscapes?: number;
+  avgTimePerIterationMs?: number;
+
+  // Success rates by move type
+  cliqueSwapSuccessRate?: number;
+  transferSuccessRate?: number;
+  swapSuccessRate?: number;
+
+  // Advanced analytics
+  scoreVariance?: number;
+  searchEfficiency?: number;
 }
 
 // Problem Management types

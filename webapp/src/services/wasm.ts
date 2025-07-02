@@ -10,6 +10,7 @@ import type {
 
 // Progress update interface matching the Rust ProgressUpdate struct
 export interface ProgressUpdate {
+  // === Basic Progress Information ===
   iteration: number;
   max_iterations: number;
   temperature: number;
@@ -20,6 +21,49 @@ export interface ProgressUpdate {
   repetition_penalty: number;
   elapsed_seconds: number;
   no_improvement_count: number;
+
+  // === Move Type Statistics ===
+  clique_swaps_tried: number;
+  clique_swaps_accepted: number;
+  clique_swaps_rejected: number;
+  transfers_tried: number;
+  transfers_accepted: number;
+  transfers_rejected: number;
+  swaps_tried: number;
+  swaps_accepted: number;
+  swaps_rejected: number;
+
+  // === Acceptance and Quality Metrics ===
+  overall_acceptance_rate: number;
+  recent_acceptance_rate: number;
+  avg_attempted_move_delta: number;
+  avg_accepted_move_delta: number;
+  biggest_accepted_increase: number;
+  biggest_attempted_increase: number;
+
+  // === Current State Breakdown ===
+  current_repetition_penalty: number;
+  current_balance_penalty: number;
+  current_constraint_penalty: number;
+  best_repetition_penalty: number;
+  best_balance_penalty: number;
+  best_constraint_penalty: number;
+
+  // === Algorithm State Information ===
+  reheats_performed: number;
+  iterations_since_last_reheat: number;
+  local_optima_escapes: number;
+  avg_time_per_iteration_ms: number;
+  cooling_progress: number;
+
+  // === Move Type Success Rates ===
+  clique_swap_success_rate: number;
+  transfer_success_rate: number;
+  swap_success_rate: number;
+
+  // === Advanced Analytics ===
+  score_variance: number;
+  search_efficiency: number;
 }
 
 // Progress callback type

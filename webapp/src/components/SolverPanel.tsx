@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../store';
-import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity } from 'lucide-react';
+import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import type { SolverSettings, SolverState } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
+import { Tooltip } from './Tooltip';
 
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, currentProblemId, updateProblem } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(true);
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
 
@@ -111,6 +113,51 @@ export function SolverPanel() {
           bestScore: progress.best_score,
           elapsedTime: progress.elapsed_seconds * 1000, // Convert to milliseconds
           noImprovementCount: progress.no_improvement_count,
+          
+          // === Live Algorithm Metrics ===
+          temperature: progress.temperature,
+          coolingProgress: progress.cooling_progress,
+          
+          // Move type statistics
+          cliqueSwapsTried: progress.clique_swaps_tried,
+          cliqueSwapsAccepted: progress.clique_swaps_accepted,
+          transfersTried: progress.transfers_tried,
+          transfersAccepted: progress.transfers_accepted,
+          swapsTried: progress.swaps_tried,
+          swapsAccepted: progress.swaps_accepted,
+          
+          // Acceptance rates
+          overallAcceptanceRate: progress.overall_acceptance_rate,
+          recentAcceptanceRate: progress.recent_acceptance_rate,
+          
+          // Move quality metrics
+          avgAttemptedMoveDelta: progress.avg_attempted_move_delta,
+          avgAcceptedMoveDelta: progress.avg_accepted_move_delta,
+          biggestAcceptedIncrease: progress.biggest_accepted_increase,
+          biggestAttemptedIncrease: progress.biggest_attempted_increase,
+          
+          // Score breakdown
+          currentRepetitionPenalty: progress.current_repetition_penalty,
+          currentBalancePenalty: progress.current_balance_penalty,
+          currentConstraintPenalty: progress.current_constraint_penalty,
+          bestRepetitionPenalty: progress.best_repetition_penalty,
+          bestBalancePenalty: progress.best_balance_penalty,
+          bestConstraintPenalty: progress.best_constraint_penalty,
+          
+          // Algorithm behavior
+          reheatsPerformed: progress.reheats_performed,
+          iterationsSinceLastReheat: progress.iterations_since_last_reheat,
+          localOptimaEscapes: progress.local_optima_escapes,
+          avgTimePerIterationMs: progress.avg_time_per_iteration_ms,
+          
+          // Success rates by move type
+          cliqueSwapSuccessRate: progress.clique_swap_success_rate,
+          transferSuccessRate: progress.transfer_success_rate,
+          swapSuccessRate: progress.swap_success_rate,
+          
+          // Advanced analytics
+          scoreVariance: progress.score_variance,
+          searchEfficiency: progress.search_efficiency,
         });
         
         // Log significant score improvements
@@ -278,10 +325,17 @@ export function SolverPanel() {
       {/* Settings Panel */}
       {showSettings && (
         <div className="card">
-                      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="label">Max Iterations</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Max Iterations
+                </label>
+                <Tooltip text="The maximum number of iterations the solver will run.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -298,7 +352,14 @@ export function SolverPanel() {
               />
             </div>
             <div>
-              <label className="label">Time Limit (seconds)</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="timeLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Time Limit (seconds)
+                </label>
+                <Tooltip text="The maximum time the solver will run in seconds.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -315,7 +376,14 @@ export function SolverPanel() {
               />
             </div>
             <div>
-              <label className="label">No Improvement Limit</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="noImprovementLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  No Improvement Limit
+                </label>
+                <Tooltip text="Stop after this many iterations without improvement.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -331,12 +399,16 @@ export function SolverPanel() {
                 max="50000"
                 placeholder="Iterations without improvement before stopping"
               />
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Stop after this many iterations without improvement
-              </p>
             </div>
             <div>
-              <label className="label">Initial Temperature</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="initialTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Initial Temperature
+                </label>
+                <Tooltip text="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -357,7 +429,14 @@ export function SolverPanel() {
               />
             </div>
             <div>
-              <label className="label">Final Temperature</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="finalTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Final Temperature
+                </label>
+                <Tooltip text="The temperature at which the algorithm will stop.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -378,7 +457,14 @@ export function SolverPanel() {
               />
             </div>
             <div>
-              <label className="label">Reheat After No Improvement</label>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="reheatAfterNoImprovement" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Reheat After No Improvement
+                </label>
+                <Tooltip text="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
               <input
                 type="number"
                 className="input"
@@ -397,9 +483,6 @@ export function SolverPanel() {
                 max="50000"
                 placeholder="0 = disabled"
               />
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Reset temperature to initial value after this many iterations without improvement (0 = disabled)
-              </p>
             </div>
           </div>
         </div>
@@ -476,7 +559,7 @@ export function SolverPanel() {
           </div>
         </div>
 
-        {/* Metrics Grid */}
+        {/* Basic Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="text-center p-4 bg-primary-50 rounded-lg">
             <Activity className="h-8 w-8 text-primary-600 mx-auto mb-2" />
@@ -499,6 +582,273 @@ export function SolverPanel() {
             </div>
             <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
+        </div>
+
+        {/* Live Algorithm Metrics */}
+        <div className="mb-6">
+          <div
+            className="flex items-center justify-between cursor-pointer mb-3"
+            onClick={() => setShowMetrics(!showMetrics)}
+          >
+            <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>
+              {solverState.isRunning
+                ? "Live Algorithm Metrics"
+                : solverState.isComplete
+                ? "Final Algorithm Metrics"
+                : "Algorithm Metrics"}
+            </h4>
+            {showMetrics ? (
+              <ChevronDown className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
+            ) : (
+              <ChevronRight className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
+            )}
+          </div>
+          
+          {showMetrics && (
+            <>
+              {/* Temperature and Progress */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Temperature</span>
+                    <Tooltip text="Current temperature of the simulated annealing algorithm.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-blue)' }}>
+                    {solverState.temperature?.toFixed(4) || '0.0000'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Cooling Progress</span>
+                    <Tooltip text="Percentage of the way through the cooling schedule.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-purple)' }}>
+                    {((solverState.coolingProgress || 0) * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Acceptance Rate</span>
+                    <Tooltip text="Overall percentage of proposed moves that have been accepted.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-green)' }}>
+                    {((solverState.overallAcceptanceRate || 0) * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Recent Acceptance</span>
+                    <Tooltip text="Percentage of proposed moves accepted over the last 1000 iterations.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-orange)' }}>
+                    {((solverState.recentAcceptanceRate || 0) * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Move Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-indigo)' }}>
+                    <span>Clique Swaps</span>
+                    <Tooltip text="Swapping two entire groups of people who are incompatible with their current groups but compatible with each other's.">
+                      <Info className="h-4 w-4" />
+                    </Tooltip>
+                  </h5>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Tried:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.cliqueSwapsTried?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Accepted:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.cliqueSwapsAccepted?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Success Rate:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{((solverState.cliqueSwapSuccessRate || 0) * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-teal)' }}>
+                    <span>Transfers</span>
+                    <Tooltip text="Moving a single person from one group to another.">
+                      <Info className="h-4 w-4" />
+                    </Tooltip>
+                  </h5>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Tried:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.transfersTried?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Accepted:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.transfersAccepted?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Success Rate:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{((solverState.transferSuccessRate || 0) * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-cyan)' }}>
+                    <span>Regular Swaps</span>
+                    <Tooltip text="Swapping two people from different groups.">
+                      <Info className="h-4 w-4" />
+                    </Tooltip>
+                  </h5>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Tried:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.swapsTried?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Accepted:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{solverState.swapsAccepted?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--text-secondary)' }}>Success Rate:</span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{((solverState.swapSuccessRate || 0) * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Algorithm Behavior */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Local Optima Escapes</span>
+                    <Tooltip text="Number of times the algorithm accepted a move that resulted in a worse score to escape a local optimum.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-red)' }}>
+                    {solverState.localOptimaEscapes?.toLocaleString() || '0'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Reheats Performed</span>
+                    <Tooltip text="Number of times the temperature was reset to its initial value.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-yellow)' }}>
+                    {solverState.reheatsPerformed || '0'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Avg Time/Iteration</span>
+                    <Tooltip text="Average time taken to complete one iteration in milliseconds.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-pink)' }}>
+                    {(solverState.avgTimePerIterationMs || 0).toFixed(2)}ms
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Search Efficiency</span>
+                    <Tooltip text="A measure of how effectively the search is exploring the solution space.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-emerald)' }}>
+                    {(solverState.searchEfficiency || 0).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Score Quality Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Avg Attempted Delta</span>
+                    <Tooltip text="Average change in score for all proposed moves.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-lime)' }}>
+                    {(solverState.avgAttemptedMoveDelta || 0).toFixed(3)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Avg Accepted Delta</span>
+                    <Tooltip text="Average change in score for all accepted moves.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-amber)' }}>
+                    {(solverState.avgAcceptedMoveDelta || 0).toFixed(3)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Score Variance</span>
+                    <Tooltip text="Statistical variance of the score over time.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-accent-rose)' }}>
+                    {(solverState.scoreVariance || 0).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Penalty Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                  <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Current Repetition Penalty</span>
+                    <Tooltip text="Penalty applied for people who have been in groups together previously.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {solverState.currentRepetitionPenalty?.toFixed(2) || '0'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Current Balance Penalty</span>
+                    <Tooltip text="Penalty applied for imbalance in group sizes or attribute distribution.">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {solverState.currentBalancePenalty?.toFixed(2) || '0'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
+                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>Current Constraint Penalty</span>
+                    <Tooltip text="Penalty applied for violating hard constraints (e.g., people who must or must not be together).">
+                      <Info className="h-3 w-3" />
+                    </Tooltip>
+                  </div>
+                  <div className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {solverState.currentConstraintPenalty?.toFixed(2) || '0'}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Control Buttons */}
@@ -568,10 +918,10 @@ export function SolverPanel() {
 
       {/* Algorithm Info */}
       <div className="card">
-                    <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Algorithm Information</h3>
+        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Algorithm Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-                          <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Simulated Annealing</h4>
+            <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Simulated Annealing</h4>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               A probabilistic optimization algorithm that mimics the annealing process in metallurgy.
             </p>
@@ -584,7 +934,7 @@ export function SolverPanel() {
             </ul>
           </div>
           <div>
-                          <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Current Parameters</h4>
+            <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Current Parameters</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span style={{ color: 'var(--text-secondary)' }}>Initial Temperature:</span>
