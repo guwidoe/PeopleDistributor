@@ -22,6 +22,7 @@ export interface AttributeBalanceParams {
   attribute_key: string;
   desired_values: Record<string, number>; // e.g., {"male": 2, "female": 2}
   penalty_weight: number;
+  sessions?: number[]; // Optional: if undefined, applies to all sessions
 }
 
 export interface ImmovablePersonParams {

@@ -165,7 +165,8 @@ export function ResultsView() {
         }
         case 'AttributeBalance': {
           let violations = 0;
-          for (let session = 0; session < problem.num_sessions; session++) {
+          const sessionsToCheck = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          sessionsToCheck.forEach(session => {
             const peopleIds = schedule[session]?.[c.group_id] || [];
             const counts: Record<string, number> = {};
             peopleIds.forEach(pid => {
@@ -176,7 +177,7 @@ export function ResultsView() {
             Object.entries(c.desired_values).forEach(([val, desired]) => {
               if ((counts[val] || 0) !== desired) violations += Math.abs((counts[val] || 0) - desired);
             });
-          }
+          });
           return { constraint: c, adheres: violations === 0, violations };
         }
         case 'ImmovablePerson': {
