@@ -496,7 +496,7 @@ export function SolverPanel() {
                   className="input w-24 md:w-32"
                 />
               </div>
-              <Tooltip text="Run a short trial to estimate optimal solver parameters for the specified runtime.">
+              <Tooltip content={<span>Run a short trial to estimate optimal solver parameters for the specified runtime.</span>}>
                 <button
                   onClick={handleAutoSetSettings}
                   disabled={solverState.isRunning}
@@ -513,7 +513,7 @@ export function SolverPanel() {
                 <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Max Iterations
                 </label>
-                <Tooltip text="The maximum number of iterations the solver will run.">
+                <Tooltip content="The maximum number of iterations the solver will run.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -537,7 +537,7 @@ export function SolverPanel() {
                 <label htmlFor="timeLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Time Limit (seconds)
                 </label>
-                <Tooltip text="The maximum time the solver will run in seconds.">
+                <Tooltip content="The maximum time the solver will run in seconds.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -561,7 +561,7 @@ export function SolverPanel() {
                 <label htmlFor="noImprovementLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   No Improvement Limit
                 </label>
-                <Tooltip text="Stop after this many iterations without improvement.">
+                <Tooltip content="Stop after this many iterations without improvement.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -586,7 +586,7 @@ export function SolverPanel() {
                 <label htmlFor="initialTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Initial Temperature
                 </label>
-                <Tooltip text="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
+                <Tooltip content="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -614,7 +614,7 @@ export function SolverPanel() {
                 <label htmlFor="finalTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Final Temperature
                 </label>
-                <Tooltip text="The temperature at which the algorithm will stop.">
+                <Tooltip content="The temperature at which the algorithm will stop.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -642,7 +642,7 @@ export function SolverPanel() {
                 <label htmlFor="reheatAfterNoImprovement" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Reheat After No Improvement
                 </label>
-                <Tooltip text="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
+                <Tooltip content="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
@@ -768,7 +768,7 @@ export function SolverPanel() {
             </div>
             <div className="text-sm flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
               Best Cost Score
-              <Tooltip text="Cost Score = (Max possible contacts − current contacts) + weighted constraint penalties. Lower values indicate better solutions. The solver is trying to minimize this score.">
+              <Tooltip content={<span>Cost Score = (Weighted max possible contacts − weighted current contacts) + weighted constraint penalties. The solver is trying to minimize this score. <b>Lower is better.</b></span>}>
                 <Info className="h-3 w-3" />
               </Tooltip>
             </div>
@@ -851,7 +851,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Temperature</span>
-                    <Tooltip text="Current temperature of the simulated annealing algorithm.">
+                    <Tooltip content="Current temperature of the simulated annealing algorithm.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -862,7 +862,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Cooling Progress</span>
-                    <Tooltip text="Percentage of the way through the cooling schedule.">
+                    <Tooltip content="Percentage of the way through the cooling schedule.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -873,7 +873,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Acceptance Rate</span>
-                    <Tooltip text="Overall percentage of proposed moves that have been accepted.">
+                    <Tooltip content="Overall percentage of proposed moves that have been accepted.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -884,7 +884,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Recent Acceptance</span>
-                    <Tooltip text="Percentage of proposed moves accepted over the last 1000 iterations.">
+                    <Tooltip content="Percentage of proposed moves accepted over the last 1000 iterations.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -899,7 +899,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-indigo)' }}>
                     <span>Clique Swaps</span>
-                    <Tooltip text="Swapping two entire groups of people who are incompatible with their current groups but compatible with each other's.">
+                    <Tooltip content="Swapping two entire groups of people who are incompatible with their current groups but compatible with each other's.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -922,7 +922,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-teal)' }}>
                     <span>Transfers</span>
-                    <Tooltip text="Moving a single person from one group to another.">
+                    <Tooltip content="Moving a single person from one group to another.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -945,7 +945,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-cyan)' }}>
                     <span>Regular Swaps</span>
-                    <Tooltip text="Swapping two people from different groups.">
+                    <Tooltip content="Swapping two people from different groups.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -971,7 +971,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Local Optima Escapes</span>
-                    <Tooltip text="Number of times the algorithm accepted a move that resulted in a worse score to escape a local optimum.">
+                    <Tooltip content="Number of times the algorithm accepted a move that resulted in a worse score to escape a local optimum.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -982,7 +982,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Reheats Performed</span>
-                    <Tooltip text="Number of times the temperature was reset to its initial value.">
+                    <Tooltip content="Number of times the temperature was reset to its initial value.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -993,7 +993,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Time/Iteration</span>
-                    <Tooltip text="Average time taken to complete one iteration in milliseconds.">
+                    <Tooltip content="Average time taken to complete one iteration in milliseconds.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1004,7 +1004,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Search Efficiency</span>
-                    <Tooltip text="A measure of how effectively the search is exploring the solution space.">
+                    <Tooltip content="A measure of how effectively the search is exploring the solution space.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1019,7 +1019,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Attempted Delta</span>
-                    <Tooltip text="Average change in score for all proposed moves.">
+                    <Tooltip content="Average change in score for all proposed moves.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1030,7 +1030,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Accepted Delta</span>
-                    <Tooltip text="Average change in score for all accepted moves.">
+                    <Tooltip content="Average change in score for all accepted moves.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1041,7 +1041,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Max Attempted Delta</span>
-                    <Tooltip text="Largest score increase from an attempted move.">
+                    <Tooltip content="Largest score increase from an attempted move.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1052,7 +1052,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Max Accepted Delta</span>
-                    <Tooltip text="Largest score increase from an accepted move (local optima escape).">
+                    <Tooltip content="Largest score increase from an accepted move (local optima escape).">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1063,7 +1063,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Score Variance</span>
-                    <Tooltip text="Statistical variance of the score over time.">
+                    <Tooltip content="Statistical variance of the score over time.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1078,7 +1078,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Repetition Penalty</span>
-                    <Tooltip text="Penalty applied for people who have been in groups together previously.">
+                    <Tooltip content="Penalty applied for people who have been in groups together previously.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1089,7 +1089,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Balance Penalty</span>
-                    <Tooltip text="Penalty applied for imbalance in group sizes or attribute distribution.">
+                    <Tooltip content="Penalty applied for imbalance in group sizes or attribute distribution.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1100,7 +1100,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Constraint Penalty</span>
-                    <Tooltip text="Penalty applied for violating hard constraints (e.g., people who must or must not be together).">
+                    <Tooltip content="Penalty applied for violating hard constraints (e.g., people who must or must not be together).">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>

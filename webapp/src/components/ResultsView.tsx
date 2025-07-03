@@ -396,7 +396,7 @@ export function ResultsView() {
           </h2>
           <p className="mt-1 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
             Cost Score: {solution.final_score.toFixed(2)}
-            <Tooltip text="Cost Score = Unique contacts minus penalties. Lower is better.">
+            <Tooltip content={<span>Cost Score = Unique contacts minus penalties. <b>Lower is better.</b></span>}>
               <Info className="w-4 h-4" />
             </Tooltip>
             • 
