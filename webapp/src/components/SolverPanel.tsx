@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAppStore } from '../store';
-import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info, BarChart3 } from 'lucide-react';
 import type { SolverSettings, SolverState } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
@@ -823,11 +823,17 @@ export function SolverPanel() {
         </div>
 
         {/* Live Algorithm Metrics */}
-        <div className="mb-6">
-          <div
-            className="flex items-center justify-between cursor-pointer mb-3"
+        <div className="mb-2">
+          <button
+            className="flex items-center gap-3 cursor-pointer mb-3 text-left"
             onClick={toggleMetrics}
           >
+            {showMetrics ? (
+              <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+            ) : (
+              <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+            )}
+            <BarChart3 className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
             <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>
               {solverState.isRunning
                 ? "Live Algorithm Metrics"
@@ -835,12 +841,7 @@ export function SolverPanel() {
                 ? "Final Algorithm Metrics"
                 : "Algorithm Metrics"}
             </h4>
-            {showMetrics ? (
-              <ChevronDown className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
-            ) : (
-              <ChevronRight className="h-5 w-5" style={{ color: 'var(--text-secondary)' }} />
-            )}
-          </div>
+          </button>
           
           {showMetrics && (
             <>
