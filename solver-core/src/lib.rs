@@ -790,6 +790,7 @@ mod callback_tests {
                         values
                     },
                     penalty_weight: 50.0,
+                    sessions: None,
                 }),
                 Constraint::CannotBeTogether {
                     people: vec!["person_0".to_string(), "person_1".to_string()],

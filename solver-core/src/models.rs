@@ -223,6 +223,7 @@ pub struct Objective {
 ///         values
 ///     },
 ///     penalty_weight: 50.0,
+///     sessions: None,
 /// });
 ///
 /// // Keep two people together (only in sessions 0 and 1)
@@ -330,6 +331,7 @@ pub struct RepeatEncounterParams {
 ///         values
 ///     },
 ///     penalty_weight: 50.0,
+///     sessions: None,
 /// };
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -342,6 +344,9 @@ pub struct AttributeBalanceParams {
     pub desired_values: HashMap<String, u32>,
     /// Weight of the penalty applied for balance violations
     pub penalty_weight: f64,
+    /// Optional list of session indices in which this constraint is active. If `None`, the constraint applies to all sessions.
+    #[serde(default)]
+    pub sessions: Option<Vec<u32>>,
 }
 
 /// Parameters for the ImmovablePerson constraint.

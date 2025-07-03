@@ -1290,6 +1290,19 @@ impl State {
         0.0
     }
 
+    /// Helper: returns true if an attribute balance constraint is active for the given session.
+    #[inline]
+    fn attribute_balance_constraint_applies(
+        &self,
+        ac: &AttributeBalanceParams,
+        session_idx: usize,
+    ) -> bool {
+        match &ac.sessions {
+            Some(sessions) => sessions.contains(&(session_idx as u32)),
+            None => true,
+        }
+    }
+
     /// Calculates the change in the total cost function if a swap were to be performed.
     ///
     /// This is the core method for evaluating potential moves during optimization.
@@ -1532,6 +1545,10 @@ impl State {
         for ac in &self.attribute_balance_constraints {
             let g1_id = &self.group_idx_to_id[g1_idx];
             let g2_id = &self.group_idx_to_id[g2_idx];
+
+            if !self.attribute_balance_constraint_applies(ac, day) {
+                continue;
+            }
 
             if ac.group_id == "ALL" {
                 // For "ALL" constraints, we need to calculate the penalty for all groups on this day
@@ -1996,6 +2013,10 @@ impl State {
             // Get group IDs for filtering
             let g1_id = &self.group_idx_to_id[g1_idx];
             let g2_id = &self.group_idx_to_id[g2_idx];
+
+            if !self.attribute_balance_constraint_applies(ac, day) {
+                continue;
+            }
 
             if ac.group_id == "ALL" {
                 // For "ALL" constraints, we need to recalculate the penalty for all groups on this day
@@ -3042,6 +3063,10 @@ impl State {
             let from_group_id = &self.group_idx_to_id[from_group];
             let to_group_id = &self.group_idx_to_id[to_group];
 
+            if !self.attribute_balance_constraint_applies(ac, day) {
+                continue;
+            }
+
             if ac.group_id == "ALL" {
                 // For "ALL" constraints, calculate penalty for all groups
                 let old_penalty_total = {
@@ -3270,6 +3295,10 @@ impl State {
         for ac in &self.attribute_balance_constraints.clone() {
             let from_group_id = &self.group_idx_to_id[from_group];
             let to_group_id = &self.group_idx_to_id[to_group];
+
+            if !self.attribute_balance_constraint_applies(ac, day) {
+                continue;
+            }
 
             if ac.group_id == "ALL" {
                 // For "ALL" constraints, recalculate completely
@@ -4323,12 +4352,14 @@ mod attribute_balance_tests {
                     attribute_key: "gender".to_string(),
                     desired_values: [("male".to_string(), 2), ("female".to_string(), 1)].into(),
                     penalty_weight: 100.0,
+                    sessions: Some(vec![0, 1]),
                 }),
                 Constraint::AttributeBalance(AttributeBalanceParams {
                     group_id: "team2".to_string(),
                     attribute_key: "gender".to_string(),
                     desired_values: [("male".to_string(), 1), ("female".to_string(), 2)].into(),
                     penalty_weight: 100.0,
+                    sessions: Some(vec![0, 1]),
                 }),
             ],
             solver: SolverConfiguration {
