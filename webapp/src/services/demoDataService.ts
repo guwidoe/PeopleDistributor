@@ -70,8 +70,17 @@ function convertTestCaseToProblem(testCase: any): Problem {
     logging: input.solver.logging,
   };
 
+  // Ensure every person has a "name" attribute (treat names as attributes)
+  const peopleWithNames = input.problem.people.map((p: any) => {
+    const attrs = { ...(p.attributes || {}) };
+    if (!attrs.name) {
+      attrs.name = p.id; // Fallback to id if name is missing
+    }
+    return { ...p, attributes: attrs };
+  });
+
   return {
-    people: input.problem.people,
+    people: peopleWithNames,
     groups: input.problem.groups,
     num_sessions: input.problem.num_sessions,
     constraints: input.constraints || [],

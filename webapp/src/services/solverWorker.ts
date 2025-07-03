@@ -106,6 +106,33 @@ export class SolverWorkerService {
           } else {
             console.error("Worker error:", data);
           }
+          if (data.problemJson) {
+            console.debug(
+              "[Worker] Solver input JSON that caused the error:",
+              data.problemJson
+            );
+          }
+          break;
+
+        case "LOG":
+          {
+            const { level, args } = data;
+            if (Array.isArray(args)) {
+              switch (level) {
+                case "warn":
+                  console.warn("[Worker]", ...args);
+                  break;
+                case "error":
+                  console.error("[Worker]", ...args);
+                  break;
+                case "debug":
+                  console.debug("[Worker]", ...args);
+                  break;
+                default:
+                  console.log("[Worker]", ...args);
+              }
+            }
+          }
           break;
 
         case "RPC_SUCCESS":
@@ -119,6 +146,23 @@ export class SolverWorkerService {
           if (pending) {
             pending.reject(new Error(data.error));
             this.pendingMessages.delete(id);
+          }
+          break;
+
+        case "PROBLEM_JSON":
+          {
+            const { problemJson } = data;
+            try {
+              // Store globally for quick copy/paste in devtools
+              (window as any).lastSolverProblemJson = problemJson;
+              // Emit a browser event so other parts of the UI / devtools can listen
+              window.dispatchEvent(
+                new CustomEvent("solver-problem-json", { detail: problemJson })
+              );
+            } catch {
+              /* no-op */
+            }
+            console.debug("[Worker] Problem JSON received:", problemJson);
           }
           break;
 
@@ -160,9 +204,17 @@ export class SolverWorkerService {
       await this.initialize();
     }
 
+    // Build the JSON once so we can log it on errors
     const problemJson = JSON.stringify(
       this.convertProblemToRustFormat(problem)
     );
+
+    // For debugging purposes, log the payload we are about to send to the worker
+    console.debug(
+      "[SolverWorkerService] Problem JSON sent to worker:",
+      problemJson
+    );
+
     const resultJson = await this.sendMessage("SOLVE", {
       problemJson,
       useProgress: false,
@@ -181,6 +233,11 @@ export class SolverWorkerService {
 
     const problemJson = JSON.stringify(
       this.convertProblemToRustFormat(problem)
+    );
+
+    console.debug(
+      "[SolverWorkerService] Problem JSON sent to worker (with progress):",
+      problemJson
     );
 
     // The promise now resolves with an object { result, lastProgress }
@@ -240,8 +297,24 @@ export class SolverWorkerService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
-        // For serde tagged enum, we need the tag field plus the inner fields flattened
-        (solverSettings.solver_params as any) = {
+        const params = solverSettings.solver_params.SimulatedAnnealing as any;
+        const sanitizeNumber = (v: any, d: number) =>
+          typeof v === "number" && !isNaN(v) ? v : d;
+        params.initial_temperature = sanitizeNumber(
+          params.initial_temperature,
+          1.0
+        );
+        params.final_temperature = sanitizeNumber(
+          params.final_temperature,
+          0.01
+        );
+        params.reheat_after_no_improvement = sanitizeNumber(
+          params.reheat_after_no_improvement,
+          0
+        );
+
+        // Flatten for serde tagged enum
+        (solverSettings as any).solver_params = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
         };
@@ -260,6 +333,29 @@ export class SolverWorkerService {
             },
           ];
 
+    // Clean constraints: ensure penalty_weight is a number when required to satisfy Rust deserialization
+    const cleanedConstraints = (problem.constraints || []).map((c: any) => {
+      if (
+        (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 1000 };
+      }
+      if (
+        c.type === "AttributeBalance" &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 50 };
+      }
+      if (
+        c.type === "RepeatEncounter" &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 1 };
+      }
+      return c;
+    });
+
     return {
       problem: {
         people: problem.people,
@@ -267,7 +363,7 @@ export class SolverWorkerService {
         num_sessions: problem.num_sessions,
       },
       objectives,
-      constraints: problem.constraints,
+      constraints: cleanedConstraints,
       solver: solverSettings,
     };
   }

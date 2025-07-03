@@ -118,16 +118,18 @@ class WasmService {
       );
     }
 
+    let problemJson: string | undefined;
     try {
-      const problemJson = JSON.stringify(
-        this.convertProblemToRustFormat(problem)
-      );
+      problemJson = JSON.stringify(this.convertProblemToRustFormat(problem));
       console.log("Solver input JSON:", problemJson);
       const resultJson = this.module.solve(problemJson);
       const rustResult = JSON.parse(resultJson);
       return this.convertRustResultToSolution(rustResult);
     } catch (error) {
       console.error("WASM solve error:", error);
+      if (problemJson) {
+        console.debug("Solver input JSON that caused the error:", problemJson);
+      }
       throw new Error(
         `Failed to solve problem: ${
           error instanceof Error ? error.stack || error.message : String(error)
@@ -148,10 +150,9 @@ class WasmService {
       throw new Error("WASM module not initialized");
     }
 
+    let problemJson: string | undefined;
     try {
-      const problemJson = JSON.stringify(
-        this.convertProblemToRustFormat(problem)
-      );
+      problemJson = JSON.stringify(this.convertProblemToRustFormat(problem));
 
       let lastProgress: ProgressUpdate | undefined;
 
@@ -177,6 +178,9 @@ class WasmService {
       return this.convertRustResultToSolution(rustResult, lastProgress);
     } catch (error) {
       console.error("WASM solveWithProgress error:", error);
+      if (problemJson) {
+        console.debug("Solver input JSON that caused the error:", problemJson);
+      }
       throw new Error(
         `Failed to solve problem: ${
           error instanceof Error ? error.stack || error.message : String(error)
@@ -307,12 +311,52 @@ class WasmService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
+        const params = solverSettings.solver_params.SimulatedAnnealing as any;
+        // Provide defaults when fields are null / undefined / NaN
+        const sanitizeNumber = (v: any, d: number) =>
+          typeof v === "number" && !isNaN(v) ? v : d;
+        params.initial_temperature = sanitizeNumber(
+          params.initial_temperature,
+          1.0
+        );
+        params.final_temperature = sanitizeNumber(
+          params.final_temperature,
+          0.01
+        );
+        params.reheat_after_no_improvement = sanitizeNumber(
+          params.reheat_after_no_improvement,
+          0
+        );
+
         (solverSettings.solver_params as any) = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
         };
       }
     }
+
+    // Clean constraints: remove undefined/null penalty_weight to satisfy Rust deserialization
+    const cleanedConstraints = (problem.constraints || []).map((c: any) => {
+      if (
+        (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 1000 };
+      }
+      if (
+        c.type === "AttributeBalance" &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 50 };
+      }
+      if (
+        c.type === "RepeatEncounter" &&
+        (c.penalty_weight === undefined || c.penalty_weight === null)
+      ) {
+        return { ...c, penalty_weight: 1 };
+      }
+      return c;
+    });
 
     return {
       problem: {
@@ -326,7 +370,7 @@ class WasmService {
           weight: 1.0,
         },
       ],
-      constraints: problem.constraints,
+      constraints: cleanedConstraints,
       solver: solverSettings,
     };
   }
