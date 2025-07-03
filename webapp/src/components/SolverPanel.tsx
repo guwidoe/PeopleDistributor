@@ -9,10 +9,34 @@ import { Tooltip } from './Tooltip';
 export function SolverPanel() {
   const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, currentProblemId, updateProblem } = useAppStore();
   const [showSettings, setShowSettings] = useState(false);
-  const [showMetrics, setShowMetrics] = useState(true);
+  // Metrics pane expanded state, persisted in localStorage for better UX
+  const [showMetrics, setShowMetrics] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('solverMetricsExpanded') === 'true';
+    } catch {
+      return false; // collapsed by default
+    }
+  });
+
+  const toggleMetrics = () => {
+    setShowMetrics((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('solverMetricsExpanded', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
-  const [desiredRuntime, setDesiredRuntime] = useState<number>(3);
+  // Runtime input used for the quick-start (automatic) button
+  const [desiredRuntimeMain, setDesiredRuntimeMain] = useState<number>(3);
+  // Runtime input used inside the settings panel for the Auto-set feature
+  const [desiredRuntimeSettings, setDesiredRuntimeSettings] = useState<number>(3);
+
+  // Holds the settings that were actually used for the currently running / last run
+  const [runSettings, setRunSettings] = useState<SolverSettings | null>(null);
 
   // Get solver settings from the current problem, with fallback to defaults
   const getDefaultSolverSettings = (): SolverSettings => ({
@@ -83,7 +107,9 @@ export function SolverPanel() {
     return `${ns.toFixed(2)} ns`;
   };
 
-  const handleStartSolver = async () => {
+  // Starts the solver. If `useRecommended` is true we first fetch automatic settings
+  // using `get_recommended_settings` for the specified `desiredRuntime` seconds.
+  const handleStartSolver = async (useRecommended: boolean = true) => {
     if (!problem) {
       addNotification({
         type: 'error',
@@ -123,10 +149,46 @@ export function SolverPanel() {
         message: 'Optimization algorithm started',
       });
 
-      // Create the problem with the current solver settings
+      // Decide which solver settings should be used for this run
+      let selectedSettings: SolverSettings = solverSettings;
+
+      if (useRecommended) {
+        try {
+          // 1️⃣ Fetch recommended settings from the WASM backend
+          const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain);
+
+          // 2️⃣ Convert the flattened `solver_params` coming from Rust into the nested UI shape
+          const sp: any = (rawSettings as any).solver_params;
+          if (sp && !("SimulatedAnnealing" in sp) && sp.solver_type === "SimulatedAnnealing") {
+            const { initial_temperature, final_temperature, cooling_schedule, reheat_after_no_improvement } = sp as any;
+            selectedSettings = {
+              ...rawSettings,
+              solver_params: {
+                SimulatedAnnealing: {
+                  initial_temperature,
+                  final_temperature,
+                  cooling_schedule,
+                  reheat_after_no_improvement,
+                },
+              },
+            } as SolverSettings;
+          } else {
+            selectedSettings = rawSettings as SolverSettings;
+          }
+
+          // Use these recommended settings only for this run – do NOT persist them to the UI.
+        } catch (err) {
+          console.error("[SolverPanel] Failed to fetch recommended settings – falling back to existing settings", err);
+        }
+      }
+
+      // Record these settings as the active run settings so progress bars use correct limits
+      setRunSettings(selectedSettings);
+
+      // Create the problem with the chosen solver settings
       const problemWithSettings = {
         ...problem,
-        settings: solverSettings,
+        settings: selectedSettings,
       };
 
       // Progress callback to update the UI in real-time
@@ -265,7 +327,7 @@ export function SolverPanel() {
 
       // Automatically save result if there's a current problem
       if (currentProblemId) {
-        addResult(solution, solverSettings);
+        addResult(solution, selectedSettings);
       }
 
     } catch (error) {
@@ -322,26 +384,35 @@ export function SolverPanel() {
     });
   };
 
+  // Prefer settings of the active run; fall back to the editable solver settings
+  const displaySettings = runSettings || solverSettings;
+
   const getProgressPercentage = () => {
-    if (!solverSettings.stop_conditions.max_iterations) return 0;
-    return Math.min((solverState.currentIteration / solverSettings.stop_conditions.max_iterations) * 100, 100);
+    if (!displaySettings.stop_conditions.max_iterations) return 0;
+    return Math.min(
+      (solverState.currentIteration / displaySettings.stop_conditions.max_iterations) * 100,
+      100
+    );
   };
 
   const getTimeProgressPercentage = () => {
-    if (!solverSettings.stop_conditions.time_limit_seconds) return 0;
-    const timeLimit = solverSettings.stop_conditions.time_limit_seconds;
+    if (!displaySettings.stop_conditions.time_limit_seconds) return 0;
+    const timeLimit = displaySettings.stop_conditions.time_limit_seconds;
     return Math.min((solverState.elapsedTime / 1000 / timeLimit) * 100, 100);
   };
 
   const getNoImprovementProgressPercentage = () => {
-    if (!solverSettings.stop_conditions.no_improvement_iterations) return 0;
-    return Math.min((solverState.noImprovementCount / solverSettings.stop_conditions.no_improvement_iterations) * 100, 100);
+    if (!displaySettings.stop_conditions.no_improvement_iterations) return 0;
+    return Math.min(
+      (solverState.noImprovementCount / displaySettings.stop_conditions.no_improvement_iterations) * 100,
+      100
+    );
   };
 
   const handleAutoSetSettings = async () => {
     if (!problem) return;
     try {
-      const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntime);
+      const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeSettings);
 
       // Transform solver_params to UI structure if returned in flattened form
       let uiSettings: SolverSettings = recommendedSettings as any;
@@ -400,7 +471,7 @@ export function SolverPanel() {
           className="btn-secondary flex items-center space-x-2"
         >
           <Settings className="h-4 w-4" />
-          <span>Settings</span>
+          <span>Solve with Custom Settings</span>
         </button>
       </div>
 
@@ -419,8 +490,8 @@ export function SolverPanel() {
                 <input
                   id="desiredRuntime"
                   type="number"
-                  value={desiredRuntime}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntime(Number(e.target.value))}
+                  value={desiredRuntimeSettings}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeSettings(Number(e.target.value))}
                   disabled={solverState.isRunning}
                   className="input w-24 md:w-32"
                 />
@@ -595,6 +666,18 @@ export function SolverPanel() {
               />
             </div>
           </div>
+
+          {/* --- Custom Settings Start Button (inside settings panel) --- */}
+          <div className="mt-6">
+            <button
+              onClick={() => handleStartSolver(false)}
+              disabled={solverState.isRunning}
+              className="btn-success w-full flex items-center justify-center space-x-2"
+            >
+              <Play className="h-4 w-4" />
+              <span>Start Solver with Custom Settings</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -617,7 +700,7 @@ export function SolverPanel() {
           <div>
             <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>Iteration Progress</span>
-              <span>{solverState.currentIteration.toLocaleString()} / {(solverSettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
+              <span>{solverState.currentIteration.toLocaleString()} / {(displaySettings.stop_conditions.max_iterations || 0).toLocaleString()}</span>
             </div>
             <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
@@ -635,7 +718,7 @@ export function SolverPanel() {
           <div>
             <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>Time Progress</span>
-              <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {solverSettings.stop_conditions.time_limit_seconds || 0}s</span>
+              <span>{(solverState.elapsedTime / 1000).toFixed(1)}s / {displaySettings.stop_conditions.time_limit_seconds || 0}s</span>
             </div>
             <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
@@ -653,7 +736,7 @@ export function SolverPanel() {
           <div>
             <div className="flex justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>No Improvement Progress</span>
-              <span>{solverState.noImprovementCount.toLocaleString()} / {(solverSettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
+              <span>{solverState.noImprovementCount.toLocaleString()} / {(displaySettings.stop_conditions.no_improvement_iterations || 0).toLocaleString()}</span>
             </div>
             <div className="w-full" style={{ backgroundColor: 'var(--border-secondary)' }}>
               <div
@@ -695,10 +778,24 @@ export function SolverPanel() {
         </div>
 
         {/* Control Buttons */}
-        <div className="flex space-x-3 mb-6">
+        <div className="flex items-center space-x-3 mb-6">
+          {/* Runtime (s) */}
+          <div className="flex flex-col items-start">
+            <label className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+              Desired Runtime (s)
+            </label>
+            <input
+              type="number"
+              value={desiredRuntimeMain}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeMain(Number(e.target.value))}
+              disabled={solverState.isRunning}
+              className="input w-28"
+              min="1"
+            />
+          </div>
           {!solverState.isRunning ? (
             <button
-              onClick={handleStartSolver}
+              onClick={() => handleStartSolver(true)}
               className="btn-success flex-1 flex items-center justify-center space-x-2"
               disabled={!problem || !problem.people?.length || !problem.groups?.length}
             >
@@ -729,7 +826,7 @@ export function SolverPanel() {
         <div className="mb-6">
           <div
             className="flex items-center justify-between cursor-pointer mb-3"
-            onClick={() => setShowMetrics(!showMetrics)}
+            onClick={toggleMetrics}
           >
             <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>
               {solverState.isRunning
