@@ -263,11 +263,50 @@ export const useAppStore = create<AppStore>()(
 
       // Problem Management actions
       loadSavedProblems: () => {
-        const savedProblems = problemStorage.getAllProblems();
-        const currentProblemId = problemStorage.getCurrentProblemId();
+        let savedProblems = problemStorage.getAllProblems();
+
+        // If no problems exist yet, create a blank one automatically
+        if (Object.keys(savedProblems).length === 0) {
+          const defaultSettings = {
+            solver_type: "SimulatedAnnealing",
+            stop_conditions: {
+              max_iterations: 10000,
+              time_limit_seconds: 30,
+              no_improvement_iterations: 5000,
+            },
+            solver_params: {
+              SimulatedAnnealing: {
+                initial_temperature: 1.0,
+                final_temperature: 0.01,
+                cooling_schedule: "geometric",
+                reheat_after_no_improvement: 0,
+              },
+            },
+          } as SolverSettings;
+
+          const emptyProblem: Problem = {
+            people: [],
+            groups: [],
+            num_sessions: 3,
+            constraints: [],
+            settings: defaultSettings,
+          };
+
+          const newSaved = problemStorage.createProblem(
+            "Untitled Problem",
+            emptyProblem
+          );
+          problemStorage.setCurrentProblemId(newSaved.id);
+          savedProblems = problemStorage.getAllProblems();
+        }
+
+        const currentProblemId =
+          problemStorage.getCurrentProblemId() || Object.keys(savedProblems)[0];
+        if (currentProblemId) {
+          problemStorage.setCurrentProblemId(currentProblemId);
+        }
         set({ savedProblems, currentProblemId });
 
-        // Load current problem if it exists
         if (currentProblemId && savedProblems[currentProblemId]) {
           set({ problem: savedProblems[currentProblemId].problem });
         }

@@ -12,9 +12,11 @@ import {
   RefreshCw,
   PieChart,
   CheckCircle,
-  XCircle
+  XCircle,
+  Info
 } from 'lucide-react';
 import { Constraint } from '../types';
+import { Tooltip } from './Tooltip';
 
 export function ResultsView() {
   const { problem, solution, solverState, addNotification, currentProblemId, savedProblems } = useAppStore();
@@ -389,13 +391,17 @@ export function ResultsView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             Optimization Results{resultName ? ` - ${resultName}` : ''}
           </h2>
-          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Final score: {solution.final_score.toFixed(2)} • 
+          <p className="mt-1 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+            Cost Score: {solution.final_score.toFixed(2)}
+            <Tooltip text="Cost Score = Unique contacts minus penalties. Lower is better.">
+              <Info className="w-4 h-4" />
+            </Tooltip>
+            • 
             {solution.iteration_count.toLocaleString()} iterations • 
-            {(solution.elapsed_time_ms / 1000).toFixed(2)}s
+            {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic">(lower cost is better)</span>
           </p>
         </div>
         <div className="flex gap-2">
@@ -418,7 +424,7 @@ export function ResultsView() {
 
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {renderMetricCard("Final Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
+        {renderMetricCard("Cost Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
         {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${effectiveMaxUniqueTotal}`, Users, uniqueColorClass)}
         {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${effectiveMaxAvgContacts}`, PieChart, avgColorClass)}
         {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, getColorClass((solution.weighted_repetition_penalty ?? solution.repetition_penalty) / ((solverState.currentRepetitionPenalty ?? (solution.weighted_repetition_penalty ?? solution.repetition_penalty)) || 1), true))}

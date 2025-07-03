@@ -84,6 +84,7 @@ export function ProblemEditor() {
     attributeDefinitions,
     addAttributeDefinition,
     removeAttributeDefinition,
+    setShowProblemManager,
     currentProblemId,
     saveProblem,
     updateCurrentProblem,
@@ -222,49 +223,20 @@ export function ProblemEditor() {
   const [showConstraintInfo, setShowConstraintInfo] = useState<boolean>(false);
 
   const handleSaveProblem = () => {
-    if (!problem) {
-      addNotification({
-        type: 'error',
-        title: 'No Problem',
-        message: 'Please configure a problem first',
-      });
-      return;
-    }
+    if (!problem) return;
 
-    localStorage.setItem('peopleDistributor-problem', JSON.stringify(problem));
-    addNotification({
-      type: 'success',
-      title: 'Saved',
-      message: 'Problem configuration saved successfully',
-    });
+    if (currentProblemId) {
+      updateCurrentProblem(currentProblemId, problem);
+      addNotification({ type: 'success', title: 'Saved', message: 'Problem saved.' });
+    } else {
+      const defaultName = 'Untitled Problem';
+      saveProblem(defaultName);
+    }
   };
 
   const handleLoadProblem = () => {
-    const saved = localStorage.getItem('peopleDistributor-problem');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setProblem(parsed);
-        setSessionsCount(parsed.num_sessions || 3);
-        addNotification({
-          type: 'success',
-          title: 'Loaded',
-          message: 'Problem configuration loaded successfully',
-        });
-      } catch (error) {
-        addNotification({
-          type: 'error',
-          title: 'Load Failed',
-          message: 'Failed to load saved problem configuration',
-        });
-      }
-    } else {
-      addNotification({
-        type: 'warning',
-        title: 'No Saved Data',
-        message: 'No saved problem configuration found',
-      });
-    }
+    // Simply open the Problem Manager modal
+    setShowProblemManager(true);
   };
 
   const handleSessionsCountChange = (count: number) => {
