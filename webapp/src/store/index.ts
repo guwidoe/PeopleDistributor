@@ -25,6 +25,31 @@ export type {
   AttributeDefinition,
 } from "../types";
 
+// === Attribute Definition Persistence ===
+const ATTRIBUTE_DEFS_KEY = "people-distributor-attribute-definitions";
+
+const DEFAULT_ATTRIBUTE_DEFINITIONS: AttributeDefinition[] = [
+  { key: "gender", values: ["male", "female"] },
+  {
+    key: "department",
+    values: ["engineering", "marketing", "sales", "hr", "finance"],
+  },
+  { key: "seniority", values: ["junior", "mid", "senior", "lead"] },
+  { key: "location", values: ["office", "remote", "hybrid"] },
+];
+
+function loadAttributeDefinitions(): AttributeDefinition[] {
+  try {
+    const stored = localStorage.getItem(ATTRIBUTE_DEFS_KEY);
+    if (stored) {
+      return JSON.parse(stored) as AttributeDefinition[];
+    }
+  } catch (error) {
+    console.error("Failed to load attribute definitions from storage:", error);
+  }
+  return DEFAULT_ATTRIBUTE_DEFINITIONS;
+}
+
 interface AppStore extends AppState {
   // Problem management
   setProblem: (problem: Problem) => void;
@@ -114,15 +139,7 @@ const initialState: AppState = {
     showProblemManager: false,
     showResultComparison: false,
   },
-  attributeDefinitions: [
-    { key: "gender", values: ["male", "female"] },
-    {
-      key: "department",
-      values: ["engineering", "marketing", "sales", "hr", "finance"],
-    },
-    { key: "seniority", values: ["junior", "mid", "senior", "lead"] },
-    { key: "location", values: ["office", "remote", "hybrid"] },
-  ],
+  attributeDefinitions: loadAttributeDefinitions(),
   demoDropdownOpen: false,
 };
 
@@ -596,7 +613,10 @@ export const useAppStore = create<AppStore>()(
 
       exportProblem: (id) => {
         try {
-          const exportedData = problemStorage.exportProblem(id);
+          const exportedData = {
+            ...problemStorage.exportProblem(id),
+            attributeDefinitions: get().attributeDefinitions,
+          };
           const problemName = get().savedProblems[id]?.name || "problem";
 
           // Create and download file
@@ -637,6 +657,19 @@ export const useAppStore = create<AppStore>()(
           try {
             const content = e.target?.result as string;
             const exportedData = JSON.parse(content);
+
+            // Restore attribute definitions if present
+            if (exportedData.attributeDefinitions) {
+              try {
+                localStorage.setItem(
+                  ATTRIBUTE_DEFS_KEY,
+                  JSON.stringify(exportedData.attributeDefinitions)
+                );
+              } catch (error) {
+                console.error("Failed to save attribute definitions:", error);
+              }
+              set({ attributeDefinitions: exportedData.attributeDefinitions });
+            }
 
             const importedProblem = problemStorage.importProblem(exportedData);
 
@@ -685,19 +718,42 @@ export const useAppStore = create<AppStore>()(
       },
 
       // New actions for attribute management
-      setAttributeDefinitions: (definitions) =>
-        set({ attributeDefinitions: definitions }),
+      setAttributeDefinitions: (definitions) => {
+        try {
+          localStorage.setItem(ATTRIBUTE_DEFS_KEY, JSON.stringify(definitions));
+        } catch (error) {
+          console.error("Failed to save attribute definitions:", error);
+        }
+        set({ attributeDefinitions: definitions });
+      },
 
       addAttributeDefinition: (definition) =>
-        set((prev) => ({
-          attributeDefinitions: [...prev.attributeDefinitions, definition],
-        })),
+        set((prev) => {
+          const newDefs = [...prev.attributeDefinitions, definition];
+          try {
+            localStorage.setItem(ATTRIBUTE_DEFS_KEY, JSON.stringify(newDefs));
+          } catch (error) {
+            console.error("Failed to save attribute definitions:", error);
+          }
+          return { attributeDefinitions: newDefs };
+        }),
 
       removeAttributeDefinition: (key) =>
         set((prev) => {
           const updatedAttrDefs = prev.attributeDefinitions.filter(
             (def) => def.key !== key
           );
+
+          // Persist
+          try {
+            localStorage.setItem(
+              ATTRIBUTE_DEFS_KEY,
+              JSON.stringify(updatedAttrDefs)
+            );
+          } catch (error) {
+            console.error("Failed to save attribute definitions:", error);
+          }
+
           let updatedProblem = prev.problem;
           if (updatedProblem) {
             updatedProblem = {

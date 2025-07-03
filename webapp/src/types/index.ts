@@ -253,6 +253,7 @@ export interface AttributeDefinition {
 export interface ExportedProblem {
   version: string; // For future compatibility
   problem: SavedProblem;
+  attributeDefinitions?: AttributeDefinition[];
   exportedAt: number;
 }
 

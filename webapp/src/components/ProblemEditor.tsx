@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
@@ -1030,9 +1030,20 @@ export function ProblemEditor() {
 
             {/* Attributes */}
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Attributes
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Attributes
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAttributeForm(true)}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)' }}
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </button>
+              </div>
               <div className="space-y-2">
                 {attributeDefinitions.map(def => (
                   <div key={def.key}>
@@ -2048,6 +2059,88 @@ export function ProblemEditor() {
     return [headerLine, ...dataLines].join('\n');
   };
 
+  // ================= Attribute Balance Dashboard =================
+  interface AttributeBalanceConstraint {
+    type: 'AttributeBalance';
+    group_id: string;
+    attribute_key: string;
+    desired_values: Record<string, number>;
+    penalty_weight: number;
+  }
+
+  const AttributeBalanceDashboard: React.FC<{ constraints: AttributeBalanceConstraint[] }> = ({ constraints }) => {
+    if (constraints.length === 0 || !problem) return null;
+
+    // Aggregate allocation counts & weights
+    const metrics = constraints.reduce((acc, c) => {
+      const key = c.attribute_key;
+      if (!acc[key]) {
+        acc[key] = {
+          valueCounts: {} as Record<string, number>,
+          weightCounts: {} as Record<number, number>,
+        };
+      }
+      // Desired value allocations
+      Object.entries(c.desired_values).forEach(([val, cnt]) => {
+        acc[key].valueCounts[val] = (acc[key].valueCounts[val] || 0) + cnt;
+      });
+      // Weight distribution
+      const w = c.penalty_weight || 0;
+      acc[key].weightCounts[w] = (acc[key].weightCounts[w] || 0) + 1;
+      return acc;
+    }, {} as Record<string, { valueCounts: Record<string, number>; weightCounts: Record<number, number> }>);
+
+    // Available counts from people
+    const available: Record<string, Record<string, number>> = {};
+    problem.people.forEach((p) => {
+      Object.entries(p.attributes).forEach(([k, v]) => {
+        if (!available[k]) available[k] = {};
+        const val = String(v);
+        available[k][val] = (available[k][val] || 0) + 1;
+      });
+    });
+
+    return (
+      <div className="rounded-md border p-4 space-y-4" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+        {Object.entries(metrics).map(([attr, data]) => {
+          const availForAttr = available[attr] || {};
+          const totalAllocated = Object.values(data.valueCounts).reduce((a, b) => a + b, 0);
+          const totalAvailable = Object.values(availForAttr).reduce((a, b) => a + b, 0);
+
+          return (
+            <div key={attr} className="space-y-1">
+              <h5 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>
+                {attr}: {totalAllocated} / {totalAvailable || '—'} total
+              </h5>
+
+              {Object.entries(data.valueCounts).map(([val, cnt]) => {
+                const avail = availForAttr[val] || 0;
+                const pct = avail ? Math.min(100, Math.round((cnt / avail) * 100)) : 0;
+                return (
+                  <div key={val} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    <span className="capitalize w-20">{val}</span>
+                    <span className="whitespace-nowrap">{cnt} / {avail}</span>
+                    <div className="flex-1 h-2 rounded bg-gray-700" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                      <div className="h-full rounded" style={{ backgroundColor: 'var(--color-accent)', width: `${pct}%` }}></div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Weight distribution summary */}
+              <div className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                {Object.entries(data.weightCounts)
+                  .sort((a, b) => Number(a[0]) - Number(b[0]))
+                  .map(([w, c]) => `${c}× weight ${w}`)
+                  .join(', ')}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -2581,6 +2674,11 @@ export function ProblemEditor() {
                         {items.length}
                       </span>
                     </h4>
+                    
+                    {/* Dashboard for Attribute Balance */}
+                    {type === 'AttributeBalance' && (
+                      <AttributeBalanceDashboard constraints={items.map(i => i.constraint as any)} />
+                    )}
                     
                     <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
                       {items.map(({ constraint, index }) => (
