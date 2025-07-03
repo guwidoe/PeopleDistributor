@@ -6,7 +6,7 @@ A sophisticated Rust-based solution for optimally distributing people into group
 
 **Group Mixer** is a user-friendly web application built on top of the PeopleDistributor engine. Perfect for conferences, workshops, team building, and any event where you need to create optimal group assignments.
 
-🚀 **[Try Group Mixer Now](https://your-deployment-url.vercel.app)** - No installation required, runs entirely in your browser!
+🚀 **[Try Group Mixer Now](groupmixer.app)** - No installation required, runs entirely in your browser!
 
 ## Overview
 
@@ -113,7 +113,7 @@ WebAssembly compilation of the core solver for:
 
 The easiest way to get started is with the web application:
 
-1. **Visit the deployed app** at [Group Mixer](https://your-deployment-url.vercel.app)
+1. **Visit the deployed app** at [Group Mixer](https://groupmixer.app)
 2. **Try a demo case** from the dropdown to see the tool in action
 3. **Create your own problem** by defining people, groups, and constraints
 4. **Run the solver** and view optimized results

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Constraint } from '../types';
 import { Tooltip } from './Tooltip';
+import PersonCard from './PersonCard';
 
 export function ResultsView() {
   const { problem, solution, solverState, addNotification, currentProblemId, savedProblems } = useAppStore();
@@ -242,18 +243,60 @@ export function ResultsView() {
     return results;
   }, [problem, solution]);
 
-  const formatConstraintLabel = (constraint: Constraint): string => {
+  const getPersonById = (id: string) => problem?.people.find(p => p.id === id);
+
+  const formatConstraintLabel = (constraint: Constraint): React.ReactNode => {
     switch (constraint.type) {
       case 'RepeatEncounter':
         return `Repeat Encounter (max ${constraint.max_allowed_encounters})`;
       case 'AttributeBalance':
-        return `Attribute Balance – ${constraint.group_id} (${constraint.attribute_key})`;
-      case 'ImmovablePerson':
-        return `Immovable – ${constraint.person_id} in ${constraint.group_id}`;
-      case 'MustStayTogether':
-        return `Must Stay Together (${constraint.people.join(', ')})`;
-      case 'CannotBeTogether':
-        return `Cannot Be Together (${constraint.people.join(', ')})`;
+        return (
+          <>
+            Attribute Balance – <span className="font-medium">{constraint.group_id}</span> ({constraint.attribute_key})
+          </>
+        );
+      case 'ImmovablePerson': {
+        const person = getPersonById(constraint.person_id);
+        return (
+          <>
+            Immovable – {person ? <PersonCard person={person} /> : constraint.person_id} in <span className="font-medium">{constraint.group_id}</span>
+          </>
+        );
+      }
+      case 'MustStayTogether': {
+        return (
+          <>
+            Must Stay Together (
+            {constraint.people.map((pid, idx) => {
+              const person = getPersonById(pid);
+              return (
+                <React.Fragment key={pid}>
+                  {idx > 0 && ''}
+                  {person ? <PersonCard person={person} /> : pid}
+                </React.Fragment>
+              );
+            })}
+            )
+          </>
+        );
+      }
+      case 'CannotBeTogether': {
+        return (
+          <>
+            Cannot Be Together (
+            {constraint.people.map((pid, idx) => {
+              const person = getPersonById(pid);
+              return (
+                <React.Fragment key={pid}>
+                  {idx > 0 && ''}
+                  {person ? <PersonCard person={person} /> : pid}
+                </React.Fragment>
+              );
+            })}
+            )
+          </>
+        );
+      }
       default:
         return 'Unknown Constraint';
     }
@@ -273,14 +316,7 @@ export function ResultsView() {
 
   const renderPersonBadge = (person: any) => {
     if (!person) return null;
-    const displayName = person.attributes?.name || person.id;
-    
-    return (
-      <div key={person.id} className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>
-        <Users className="w-3 h-3" />
-        {displayName}
-      </div>
-    );
+    return <PersonCard key={person.id} person={person} />;
   };
 
   const renderScheduleGrid = () => (
@@ -500,7 +536,7 @@ export function ResultsView() {
                 ) : (
                   <XCircle className="w-4 h-4 text-red-600" />
                 )}
-                <span style={{ color: 'var(--text-primary)' }}>{formatConstraintLabel(res.constraint)}</span>
+                {formatConstraintLabel(res.constraint)}
               </div>
               {!res.adheres && (
                 <span className="text-sm font-medium text-red-600">{res.violations} violation{res.violations !== 1 ? 's' : ''}</span>

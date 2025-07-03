@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
+import PersonCard from './PersonCard';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
   solver_type: "SimulatedAnnealing",
@@ -264,7 +265,7 @@ export function ProblemEditor() {
     }
 
     const newPerson: Person = {
-      id: `person_${Date.now()}`,
+      id: generateUniquePersonId(),
       attributes: { ...personForm.attributes },
       sessions: personForm.sessions.length > 0 ? personForm.sessions : undefined
     };
@@ -1707,14 +1708,14 @@ export function ProblemEditor() {
       return;
     }
 
-    const newPeople: Person[] = bulkRows.map((row, idx) => {
+    const newPeople: Person[] = bulkRows.map((row) => {
       const personAttrs: Record<string, string> = {};
       bulkHeaders.forEach(h => {
         if (row[h]) personAttrs[h] = row[h];
       });
-      if (!personAttrs.name) personAttrs.name = `Person ${Date.now()}_${idx}`;
+      if (!personAttrs.name) personAttrs.name = `Person ${Date.now()}`;
       return {
-        id: `person_${Date.now()}_${idx}`,
+        id: generateUniquePersonId(),
         attributes: personAttrs,
         sessions: undefined,
       };
@@ -2276,6 +2277,15 @@ export function ProblemEditor() {
         })}
       </div>
     );
+  };
+
+  // === Helper: Generate a unique person ID across all existing people ===
+  const generateUniquePersonId = (): string => {
+    let newId: string;
+    do {
+      newId = `person_${Math.random().toString(36).slice(2, 10)}`;
+    } while (problem?.people?.some(p => p.id === newId));
+    return newId;
   };
 
   return (
@@ -2924,7 +2934,17 @@ export function ProblemEditor() {
                                   
                                   {constraint.type === 'ImmovablePerson' && (
                                     <>
-                                      <div>Person: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span></div>
+                                      <div>
+                                        Person:{' '}
+                                        {(problem?.people) ? (
+                                          (() => {
+                                            const p = problem.people.find(per => per.id === constraint.person_id);
+                                            return p ? <PersonCard person={p} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span>;
+                                          })()
+                                        ) : (
+                                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span>
+                                        )}
+                                      </div>
                                       <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
                                       <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
                                     </>
@@ -2932,7 +2952,18 @@ export function ProblemEditor() {
                                   
                                   {(constraint.type === 'MustStayTogether' || constraint.type === 'CannotBeTogether') && (
                                     <>
-                                      <div className="break-words">People: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.people.join(', ')}</span></div>
+                                      <div className="break-words flex flex-wrap items-center gap-1">
+                                        <span>People:</span>
+                                        {constraint.people.map((pid, idx) => {
+                                          const per = problem?.people.find(p => p.id === pid);
+                                          return (
+                                            <React.Fragment key={pid}>
+                                              {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
+                                              {idx < constraint.people.length - 1 && <span></span>}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                      </div>
                                       {constraint.sessions && constraint.sessions.length > 0 ? (
                                         <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
                                       ) : (
