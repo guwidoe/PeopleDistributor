@@ -764,15 +764,13 @@ export function SolverPanel() {
           <div className="text-center p-4 bg-success-50 rounded-lg">
             <TrendingUp className="h-8 w-8 text-success-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-success-600">
-              <span className="text-sm flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
-                Best Cost Score
-                <Tooltip text="Cost Score = Unique contacts minus penalties. Lower is better.">
-                  <Info className="h-3 w-3" />
-                </Tooltip>
-              </span>
-              <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                {solverState.bestScore.toFixed(2)}
-              </span>
+              {solverState.bestScore.toFixed(2)}
+            </div>
+            <div className="text-sm flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+              Best Cost Score
+              <Tooltip text="Cost Score = (Max possible contacts − current contacts) + weighted constraint penalties. Lower values indicate better solutions. The solver is trying to minimize this score.">
+                <Info className="h-3 w-3" />
+              </Tooltip>
             </div>
           </div>
           <div className="text-center p-4 bg-warning-50 rounded-lg">
