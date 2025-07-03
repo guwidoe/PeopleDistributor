@@ -21,18 +21,18 @@ export function Navigation() {
       description: 'Run the optimization algorithm',
     },
     {
-      id: 'results',
-      path: '/app/results',
-      label: 'Results',
-      icon: BarChart3,
-      description: 'View and analyze solutions',
-    },
-    {
       id: 'manage',
       path: '/app/history',
-      label: 'History',
+      label: 'Results',
       icon: History,
-      description: 'View results history and comparisons',
+      description: 'View and manage all saved results',
+    },
+    {
+      id: 'results',
+      path: '/app/results',
+      label: 'Result Details',
+      icon: BarChart3,
+      description: 'Inspect a single result in depth',
     },
   ];
 

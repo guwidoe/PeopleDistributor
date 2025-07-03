@@ -17,9 +17,18 @@ import {
 import { Constraint } from '../types';
 
 export function ResultsView() {
-  const { problem, solution, solverState, addNotification } = useAppStore();
+  const { problem, solution, solverState, addNotification, currentProblemId, savedProblems } = useAppStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showDetails, setShowDetails] = useState(false);
+
+  // Derive the name of the currently displayed result (if any)
+  const resultName = useMemo(() => {
+    if (!currentProblemId || !solution) return undefined;
+    const problem = savedProblems[currentProblemId];
+    if (!problem) return undefined;
+    const match = problem.results.find(r => r.solution === solution);
+    return match?.name;
+  }, [currentProblemId, savedProblems, solution]);
 
   if (!solution) {
     return (
@@ -380,7 +389,9 @@ export function ResultsView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Optimization Results</h2>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Optimization Results{resultName ? ` - ${resultName}` : ''}
+          </h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Final score: {solution.final_score.toFixed(2)} • 
             {solution.iteration_count.toLocaleString()} iterations • 

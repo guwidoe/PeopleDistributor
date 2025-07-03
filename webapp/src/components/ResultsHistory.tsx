@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   Clock, 
@@ -34,7 +35,9 @@ export function ResultsHistory() {
     deleteResult,
     setShowResultComparison,
     solution: currentSolution,
+    setSolution,
   } = useAppStore();
+  const navigate = useNavigate();
 
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,6 +77,12 @@ export function ResultsHistory() {
       ? selectedResultIds.filter(id => id !== resultId)
       : [...selectedResultIds, resultId];
     selectResultsForComparison(newSelection);
+  };
+
+  // Set the clicked result as the one displayed in Result Details
+  const handleSelectForDetails = (result: ProblemResult) => {
+    setSolution(result.solution);
+    navigate('/app/results');
   };
 
   const handleRename = (result: ProblemResult) => {
@@ -377,14 +386,24 @@ export function ResultsHistory() {
               return (
                 <div
                   key={result.id}
-                  className={`card transition-all ${
+                  className={`card cursor-pointer transition-all ${
                     isSelected ? 'ring-2' : ''
                   } ${isBest ? 'badge-best' : ''}`}
                   style={{
                     ...(isSelected && { 
                       borderColor: 'var(--color-accent)',
                       boxShadow: `0 0 0 2px var(--color-accent)`
+                    }),
+                    ...(isCurrent && {
+                      borderColor: 'var(--color-accent)',
+                      boxShadow: `0 0 0 2px var(--color-accent)`
                     })
+                  }}
+                  onClick={(e) => {
+                    // Ignore clicks originating from interactive elements
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button, a, input, textarea, svg')) return;
+                    handleSelectForDetails(result);
                   }}
                 >
                   {/* Result Header */}

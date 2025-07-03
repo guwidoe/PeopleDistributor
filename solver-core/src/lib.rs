@@ -394,7 +394,9 @@ pub fn calculate_recommended_settings(
 
     eprintln!("[DEBUG] calculated init_temp: {}", init_temp);
 
-    let final_temp = -1.0 / (0.05f64).ln();
+    // Final temperature is the temperature at which a step which
+    // increases the cost function by 1 is accepted with probability of 2%.
+    let final_temp = -1.0 / (0.02f64).ln();
 
     eprintln!("[DEBUG] calculated final_temp: {}", final_temp);
 
