@@ -31,6 +31,47 @@ const getDefaultSolverSettings = (): SolverSettings => ({
   },
 });
 
+// === Child component: Objective Weight Editor ===
+interface ObjectiveWeightEditorProps {
+  currentWeight: number;
+  onCommit: (weight: number) => void;
+}
+
+const ObjectiveWeightEditor: React.FC<ObjectiveWeightEditorProps> = ({ currentWeight, onCommit }) => {
+  const [weightInput, setWeightInput] = React.useState<string>(String(currentWeight));
+
+  // Keep local field in sync when external weight changes (e.g., when problem loads)
+  React.useEffect(() => {
+    setWeightInput(String(currentWeight));
+  }, [currentWeight]);
+
+  const handleBlur = () => {
+    const parsed = parseFloat(weightInput);
+    const newWeight = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    onCommit(newWeight);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+        Weight for "Maximize Unique Contacts"
+      </label>
+      <input
+        type="number"
+        min="0"
+        step="0.1"
+        value={weightInput}
+        onChange={(e) => setWeightInput(e.target.value)}
+        onBlur={handleBlur}
+        className="input w-32"
+      />
+      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+        Set to 0 to deactivate this objective. Higher values increase its importance relative to constraint penalties.
+      </p>
+    </div>
+  );
+};
+
 export function ProblemEditor() {
   const { 
     problem, 
@@ -45,7 +86,8 @@ export function ProblemEditor() {
     removeAttributeDefinition,
     currentProblemId,
     saveProblem,
-    updateCurrentProblem
+    updateCurrentProblem,
+    updateProblem
   } = useAppStore();
   
   const { section } = useParams<{ section: string }>();
@@ -83,6 +125,23 @@ export function ProblemEditor() {
 
   const [newAttribute, setNewAttribute] = useState({ key: '', values: [''] });
   const [sessionsCount, setSessionsCount] = useState(problem?.num_sessions || 3);
+
+  // === Objectives Helpers ===
+  const getCurrentObjectiveWeight = () => {
+    if (problem?.objectives && problem.objectives.length > 0) {
+      return problem.objectives[0].weight;
+    }
+    return 1; // Default implicit objective
+  };
+
+  const objectiveCount = (() => {
+    if (problem?.objectives && problem.objectives.length > 0) {
+      // Count only objectives with weight > 0
+      return problem.objectives.filter((o) => o.weight > 0).length;
+    }
+    // Implicit default objective (weight 1)
+    return 1;
+  })();
 
   // Demo dropdown ref for click outside handling
   const demoDropdownRef = useRef<HTMLDivElement>(null);
@@ -2353,6 +2412,7 @@ export function ProblemEditor() {
             { id: 'people', label: 'People', icon: Users, count: problem?.people.length },
             { id: 'groups', label: 'Groups', icon: Hash, count: problem?.groups.length },
             { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions },
+            { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
             { id: 'constraints', label: 'Constraints', icon: Settings, count: problem?.constraints.length },
           ].map(({ id, label, icon: Icon, count }) => (
               <NavLink
@@ -2714,6 +2774,35 @@ export function ProblemEditor() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeSection === 'objectives' && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Objectives</h3>
+
+          <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+              Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
+              weights to create a custom scoring function. Currently the solver supports the
+              <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
+            </p>
+          </div>
+
+          {/* Unique Contacts Objective Editor */}
+          <ObjectiveWeightEditor
+            currentWeight={getCurrentObjectiveWeight()}
+            onCommit={(newWeight) => {
+              if (!problem) return;
+              const newObjectives = [
+                {
+                  type: 'maximize_unique_contacts',
+                  weight: newWeight,
+                },
+              ];
+              updateProblem({ objectives: newObjectives });
+            }}
+          />
         </div>
       )}
 

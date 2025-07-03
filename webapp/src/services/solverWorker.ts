@@ -248,18 +248,25 @@ export class SolverWorkerService {
       }
     }
 
+    // Prepare objectives list – if none provided, fall back to a sensible default so that
+    // existing problems created before objectives were introduced continue to work.
+    const objectives =
+      problem.objectives && problem.objectives.length > 0
+        ? problem.objectives
+        : [
+            {
+              type: "maximize_unique_contacts",
+              weight: 1.0,
+            },
+          ];
+
     return {
       problem: {
         people: problem.people,
         groups: problem.groups,
         num_sessions: problem.num_sessions,
       },
-      objectives: [
-        {
-          type: "maximize_unique_contacts",
-          weight: 1.0,
-        },
-      ],
+      objectives,
       constraints: problem.constraints,
       solver: solverSettings,
     };

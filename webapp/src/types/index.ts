@@ -49,10 +49,20 @@ export type Constraint =
       sessions?: number[]; // Optional: if undefined, applies to all sessions
     };
 
+export interface Objective {
+  type: string; // e.g., "maximize_unique_contacts"
+  weight: number; // Relative importance of the objective
+}
+
 export interface Problem {
   people: Person[];
   groups: Group[];
   num_sessions: number; // Renamed from sessions_count to match solver-core
+  /**
+   * Optimization objectives to be maximized by the solver. If omitted or empty, the frontend will automatically inject a default
+   * "maximize_unique_contacts" objective with weight 1.0 when sending the problem to the solver.
+   */
+  objectives?: Objective[];
   constraints: Constraint[];
   settings: SolverSettings;
 }

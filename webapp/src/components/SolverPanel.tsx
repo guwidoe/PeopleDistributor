@@ -835,11 +835,7 @@ export function SolverPanel() {
             )}
             <BarChart3 className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
             <h4 className="font-medium" style={{ color: 'var(--text-primary)' }}>
-              {solverState.isRunning
-                ? "Live Algorithm Metrics"
-                : solverState.isComplete
-                ? "Final Algorithm Metrics"
-                : "Algorithm Metrics"}
+              Detailed Algorithm Metrics
             </h4>
           </button>
           
