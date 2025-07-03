@@ -157,12 +157,15 @@ self.onmessage = async function(e) {
     }
   } catch (error) {
     console.error('Worker error:', error);
+    // Ensure we always send a meaningful error string back to the main thread
+    const errorString = error && error.message ? error.message : String(error);
+
     self.postMessage({ 
       type: 'ERROR', 
       id, 
       data: { 
-        error: error.message,
-        stack: error.stack 
+        error: errorString,
+        stack: error && error.stack ? error.stack : undefined 
       } 
     });
   }
@@ -170,10 +173,13 @@ self.onmessage = async function(e) {
 
 // Handle worker errors
 self.onerror = function(error) {
+  // Same fallback logic as above for global errors
+  const errMsg = error && error.message ? error.message : String(error);
+
   self.postMessage({ 
     type: 'ERROR', 
     data: { 
-      error: error.message,
+      error: errMsg,
       filename: error.filename,
       lineno: error.lineno 
     } 

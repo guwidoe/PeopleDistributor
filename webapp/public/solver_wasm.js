@@ -455,6 +455,10 @@ let wasm_bindgen;
             const ret = new Error();
             return addHeapObject(ret);
         };
+        imports.wbg.__wbg_new_c68d7209be747379 = function(arg0, arg1) {
+            const ret = new Error(getStringFromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        };
         imports.wbg.__wbg_now_807e54c39636c349 = function() {
             const ret = Date.now();
             return ret;

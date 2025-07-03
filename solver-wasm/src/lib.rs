@@ -43,14 +43,22 @@ pub fn init_panic_hook() {
 pub fn solve(problem_json: &str) -> Result<String, JsValue> {
     init_panic_hook();
 
-    let api_input: ApiInput = serde_json::from_str(problem_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+    let api_input: ApiInput = serde_json::from_str(problem_json).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to parse problem: {}",
+            e
+        )))
+    })?;
 
     let result = solver_core::run_solver(&api_input)
-        .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?;
+        .map_err(|e| JsValue::from(js_sys::Error::new(&format!("Solver error: {}", e))))?;
 
-    let result_json = serde_json::to_string(&result)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))?;
+    let result_json = serde_json::to_string(&result).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to serialize result: {}",
+            e
+        )))
+    })?;
 
     Ok(result_json)
 }
@@ -62,8 +70,12 @@ pub fn solve_with_progress(
 ) -> Result<String, JsValue> {
     init_panic_hook();
 
-    let api_input: ApiInput = serde_json::from_str(problem_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+    let api_input: ApiInput = serde_json::from_str(problem_json).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to parse problem: {}",
+            e
+        )))
+    })?;
 
     let result = if let Some(js_callback) = progress_callback {
         // Create a Rust callback that calls the JavaScript callback
@@ -99,14 +111,18 @@ pub fn solve_with_progress(
             unsafe { std::mem::transmute(rust_callback) };
 
         solver_core::run_solver_with_progress(&api_input, Some(&rust_callback))
-            .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?
+            .map_err(|e| JsValue::from(js_sys::Error::new(&format!("Solver error: {}", e))))?
     } else {
         solver_core::run_solver(&api_input)
-            .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?
+            .map_err(|e| JsValue::from(js_sys::Error::new(&format!("Solver error: {}", e))))?
     };
 
-    let result_json = serde_json::to_string(&result)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {}", e)))?;
+    let result_json = serde_json::to_string(&result).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to serialize result: {}",
+            e
+        )))
+    })?;
 
     Ok(result_json)
 }
@@ -115,8 +131,12 @@ pub fn solve_with_progress(
 pub fn validate_problem(problem_json: &str) -> Result<String, JsValue> {
     init_panic_hook();
 
-    let api_input: ApiInput = serde_json::from_str(problem_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+    let api_input: ApiInput = serde_json::from_str(problem_json).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to parse problem: {}",
+            e
+        )))
+    })?;
 
     // Basic validation
     let mut errors = Vec::new();
@@ -158,8 +178,12 @@ pub fn validate_problem(problem_json: &str) -> Result<String, JsValue> {
     }
 
     let result = ValidationResult { valid, errors };
-    let result_json = serde_json::to_string(&result)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize validation result: {}", e)))?;
+    let result_json = serde_json::to_string(&result).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to serialize validation result: {}",
+            e
+        )))
+    })?;
 
     Ok(result_json)
 }
@@ -197,8 +221,12 @@ pub fn get_default_settings() -> Result<String, JsValue> {
         },
     };
 
-    let settings_json = serde_json::to_string(&settings)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize settings: {}", e)))?;
+    let settings_json = serde_json::to_string(&settings).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to serialize settings: {}",
+            e
+        )))
+    })?;
 
     Ok(settings_json)
 }
@@ -207,8 +235,12 @@ pub fn get_default_settings() -> Result<String, JsValue> {
 pub fn test_callback_consistency(problem_json: &str) -> Result<String, JsValue> {
     init_panic_hook();
 
-    let api_input: ApiInput = serde_json::from_str(problem_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to parse problem: {}", e)))?;
+    let api_input: ApiInput = serde_json::from_str(problem_json).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to parse problem: {}",
+            e
+        )))
+    })?;
 
     // Capture all progress updates using Arc<Mutex<>> for thread safety
     use std::sync::{Arc, Mutex};
@@ -228,7 +260,7 @@ pub fn test_callback_consistency(problem_json: &str) -> Result<String, JsValue> 
         unsafe { std::mem::transmute(rust_callback) };
 
     let result = solver_core::run_solver_with_progress(&api_input, Some(&rust_callback))
-        .map_err(|e| JsValue::from_str(&format!("Solver error: {}", e)))?;
+        .map_err(|e| JsValue::from(js_sys::Error::new(&format!("Solver error: {}", e))))?;
 
     let final_result_score = result.final_score;
     let captured_updates = captured_updates.lock().unwrap();
@@ -283,8 +315,12 @@ pub fn test_callback_consistency(problem_json: &str) -> Result<String, JsValue> 
         );
     }
 
-    let analysis_json = serde_json::to_string(&analysis)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize analysis: {}", e)))?;
+    let analysis_json = serde_json::to_string(&analysis).map_err(|e| {
+        JsValue::from(js_sys::Error::new(&format!(
+            "Failed to serialize analysis: {}",
+            e
+        )))
+    })?;
 
     Ok(analysis_json)
 }
@@ -310,10 +346,10 @@ pub fn get_recommended_settings(
     let wrapper: ProblemWrapper = match serde_json::from_str(problem_json) {
         Ok(p) => p,
         Err(e) => {
-            return Err(JsValue::from_str(&format!(
+            return Err(JsValue::from(js_sys::Error::new(&format!(
                 "Failed to parse problem JSON: {}",
                 e
-            )))
+            ))))
         }
     };
 
@@ -330,13 +366,17 @@ pub fn get_recommended_settings(
         desired_runtime_seconds,
     ) {
         Ok(settings) => {
-            let settings_json = serde_json::to_string(&settings)
-                .map_err(|e| JsValue::from_str(&format!("Failed to serialize settings: {}", e)))?;
+            let settings_json = serde_json::to_string(&settings).map_err(|e| {
+                JsValue::from(js_sys::Error::new(&format!(
+                    "Failed to serialize settings: {}",
+                    e
+                )))
+            })?;
             Ok(settings_json)
         }
-        Err(e) => Err(JsValue::from_str(&format!(
+        Err(e) => Err(JsValue::from(js_sys::Error::new(&format!(
             "Failed to calculate settings: {}",
             e
-        ))),
+        )))),
     }
 }
