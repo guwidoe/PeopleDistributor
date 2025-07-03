@@ -21,7 +21,8 @@ import {
   Users,
   Layers,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Eye
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
 
@@ -46,6 +47,7 @@ export function ResultsHistory() {
 
   const currentProblem = currentProblemId ? savedProblems[currentProblemId] : null;
   const results = currentProblem?.results || [];
+  const allResultIds = results.map(r => r.id);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -79,8 +81,16 @@ export function ResultsHistory() {
     selectResultsForComparison(newSelection);
   };
 
-  // Set the clicked result as the one displayed in Result Details
-  const handleSelectForDetails = (result: ProblemResult) => {
+  const handleSelectAll = () => {
+    if (selectedResultIds.length === allResultIds.length) {
+      selectResultsForComparison([]);
+    } else {
+      selectResultsForComparison(allResultIds);
+    }
+  };
+
+  // Open details tab for this result
+  const handleOpenDetails = (result: ProblemResult) => {
     setSolution(result.solution);
     navigate('/app/results');
   };
@@ -253,6 +263,17 @@ export function ResultsHistory() {
 
   const bestResult = getBestResult();
 
+  // === Helper: dynamic color class (copied from ResultsView) ===
+  function getColorClass(ratio: number, invert: boolean = false): string {
+    let r = Math.max(0, Math.min(1, ratio));
+    if (invert) r = 1 - r;
+    if (r >= 0.9) return 'text-green-600';
+    if (r >= 0.75) return 'text-lime-600';
+    if (r >= 0.5) return 'text-yellow-600';
+    if (r >= 0.25) return 'text-orange-600';
+    return 'text-red-600';
+  }
+
   if (!currentProblem) {
     return (
       <div className="text-center py-12">
@@ -267,7 +288,7 @@ export function ResultsHistory() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header & Bulk Actions */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Results History</h2>
@@ -276,6 +297,14 @@ export function ResultsHistory() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {results.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="btn-secondary text-sm"
+            >
+              {selectedResultIds.length === allResultIds.length ? 'Clear Selection' : 'Select All'}
+            </button>
+          )}
           {selectedResultIds.length > 0 && (
             <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <span>{selectedResultIds.length} selected</span>
@@ -383,27 +412,43 @@ export function ResultsHistory() {
                 currentSolution.final_score === result.solution.final_score &&
                 currentSolution.iteration_count === result.solution.iteration_count;
 
+              // === Derived colors (mirror Result Details panel) ===
+              const peopleCount = currentProblem.problem.people.length || 1;
+              const maxUniqueTotalTheoretical = (peopleCount * (peopleCount - 1)) / 2;
+              const numSessions = currentProblem.problem.num_sessions;
+              const capacityBiggestGroup = Math.max(...currentProblem.problem.groups.map(g => g.size));
+              const altMaxAvgContacts = numSessions * Math.max(0, capacityBiggestGroup - 1);
+              const altMaxUniqueTotal = (altMaxAvgContacts * peopleCount) / 2;
+              const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
+              const uniqueRatio = result.solution.unique_contacts / effectiveMaxUniqueTotal;
+              const uniqueColorClass = getColorClass(uniqueRatio);
+
+              const repPenalty = result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty;
+              const balPenalty = result.solution.attribute_balance_penalty;
+              const conPenalty = result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty;
+
+              const repColorClass = getColorClass(repPenalty === 0 ? 0 : 1, true);
+              const balColorClass = getColorClass(balPenalty === 0 ? 0 : 1, true);
+              const conColorClass = getColorClass(conPenalty === 0 ? 0 : 1, true);
+
               return (
                 <div
                   key={result.id}
-                  className={`card cursor-pointer transition-all ${
-                    isSelected ? 'ring-2' : ''
-                  } ${isBest ? 'badge-best' : ''}`}
+                  className={`card transition-all ${isCurrent ? '' : isSelected ? 'ring-2' : ''} ${isBest ? 'badge-best' : ''}`}
                   style={{
-                    ...(isSelected && { 
+                    ...(isCurrent ? {
+                      borderColor: 'var(--text-accent-green)',
+                      boxShadow: `0 0 0 3px var(--text-accent-green)`
+                    } : isSelected ? {
                       borderColor: 'var(--color-accent)',
                       boxShadow: `0 0 0 2px var(--color-accent)`
-                    }),
-                    ...(isCurrent && {
-                      borderColor: 'var(--color-accent)',
-                      boxShadow: `0 0 0 2px var(--color-accent)`
-                    })
+                    } : {})
                   }}
                   onClick={(e) => {
-                    // Ignore clicks originating from interactive elements
+                    // Ignore clicks on interactive elements to prevent double toggle
                     const target = e.target as HTMLElement;
                     if (target.closest('button, a, input, textarea, svg')) return;
-                    handleSelectForDetails(result);
+                    toggleResultSelection(result.id);
                   }}
                 >
                   {/* Result Header */}
@@ -464,6 +509,23 @@ export function ResultsHistory() {
                     </div>
 
                     <div className="flex items-center space-x-2">
+                      {isCurrent ? (
+                        <button
+                          onClick={() => handleOpenDetails(result)}
+                          className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View in Result Details
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenDetails(result)}
+                          className="text-gray-400 hover:text-gray-600"
+                          title="Open in Result Details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleExpanded(result.id)}
                         className="text-gray-400 hover:text-gray-600"
@@ -518,27 +580,21 @@ export function ResultsHistory() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Unique Contacts</div>
-                            <div className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                            <div className={`font-medium ${uniqueColorClass}`}>
                               {result.solution.unique_contacts}
                             </div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
-                            <div className="font-medium text-red-600">
-                              {(result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${repColorClass}`}>{repPenalty === 0 ? repPenalty.toFixed(2) : `-${repPenalty.toFixed(2)}`}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Balance Penalty</div>
-                            <div className="font-medium text-orange-600">
-                              {result.solution.attribute_balance_penalty.toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${balColorClass}`}>{balPenalty === 0 ? balPenalty.toFixed(2) : `-${balPenalty.toFixed(2)}`}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</div>
-                            <div className="font-medium text-purple-600">
-                              {(result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${conColorClass}`}>{conPenalty === 0 ? conPenalty.toFixed(2) : `-${conPenalty.toFixed(2)}`}</div>
                           </div>
                         </div>
                       </div>
