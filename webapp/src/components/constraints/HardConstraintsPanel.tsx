@@ -20,7 +20,12 @@ const constraintTypeLabels: Record<typeof HARD_TABS[number], string> = {
 const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstraint, onDeleteConstraint }) => {
   const [activeTab, setActiveTab] = useState<typeof HARD_TABS[number]>('ImmovablePeople');
   const [showInfo, setShowInfo] = useState(false);
-  const { GetProblem } = useAppStore();
+  const { GetProblem, ui } = useAppStore();
+
+  // Don't render until loading is complete to avoid creating new problems
+  if (ui.isLoading) {
+    return <div className="space-y-4 pt-1 pl-0">Loading...</div>;
+  }
 
   const problem = GetProblem();
 
@@ -33,8 +38,8 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
   const selectedItems = constraintsByType[activeTab] || [];
 
   return (
-    <div className="space-y-3">
-      {/* Info note just below top bar */}
+    <div className="space-y-4 pt-1 pl-0">
+      {/* Info Section */}
       <div>
         <button
           className="flex items-center gap-1 text-xs font-medium hover:text-primary transition-colors"
@@ -55,17 +60,21 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
         )}
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex flex-wrap gap-2 mb-1">
+      {/* Tab Bar */}
+      <div className="flex gap-0 border-b mb-4" style={{ borderColor: 'var(--border-primary)' }}>
         {HARD_TABS.map((t) => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
-            className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: activeTab === t ? 'var(--color-accent)' : 'var(--bg-tertiary)',
-              color: activeTab === t ? 'white' : 'var(--text-secondary)',
-            }}
+            className={
+              `px-4 py-2 -mb-px text-sm font-medium transition-colors rounded-t-md focus:outline-none ` +
+              (activeTab === t
+                ? 'bg-white dark:bg-neutral-900 border-x border-t border-b-0 border-[var(--color-accent)] text-[var(--color-accent)] shadow-sm z-10'
+                : 'bg-transparent text-[var(--text-secondary)] border-0 hover:text-[var(--color-accent)]')
+            }
+            style={activeTab === t
+              ? { borderColor: 'var(--color-accent)', borderBottom: 'none' }
+              : {}}
           >
             {constraintTypeLabels[t]}
             <span className="ml-1 text-xs">({constraintsByType[t]?.length || 0})</span>
@@ -74,7 +83,7 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       </div>
 
       {/* Add Button */}
-      <div className="mb-2">
+      <div>
         <button
           onClick={() => onAddConstraint(activeTab)}
           className="flex items-center gap-2 px-3 py-2 rounded-md font-medium text-white text-sm transition-colors"
@@ -91,7 +100,7 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {selectedItems.map(({ constraint, index }) => (
-            <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md flex items-start justify-between" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md flex items-start justify-between" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{constraint.type}</span>

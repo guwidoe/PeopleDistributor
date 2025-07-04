@@ -12,7 +12,13 @@ interface Props {
 }
 
 const ImmovablePeopleModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
-  const { GetProblem } = useAppStore();
+  const { GetProblem, ui } = useAppStore();
+  
+  // Don't render until loading is complete to avoid creating new problems
+  if (ui.isLoading) {
+    return null;
+  }
+  
   const problem = GetProblem();
   
   const editing = !!initial;

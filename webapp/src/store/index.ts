@@ -135,7 +135,7 @@ const initialState: AppState = {
   selectedResultIds: [],
   ui: {
     activeTab: "problem",
-    isLoading: false,
+    isLoading: true, // Start with loading true
     notifications: [],
     showProblemManager: false,
     showResultComparison: false,
@@ -174,7 +174,56 @@ export const useAppStore = create<AppStore>()(
           return currentProblem;
         }
 
-        // Create a default problem if none exists
+        // Check if we have a current problem ID that should be loaded
+        const { currentProblemId, savedProblems } = get();
+        if (currentProblemId && savedProblems[currentProblemId]) {
+          const savedProblem = savedProblems[currentProblemId];
+          set({ problem: savedProblem.problem });
+          return savedProblem.problem;
+        }
+
+        // Check if there are any saved problems we can load
+        const allProblems = Object.values(savedProblems);
+        if (allProblems.length > 0) {
+          const firstProblem = allProblems[0];
+          problemStorage.setCurrentProblemId(firstProblem.id);
+          set({
+            problem: firstProblem.problem,
+            currentProblemId: firstProblem.id,
+          });
+          return firstProblem.problem;
+        }
+
+        // Only create a new problem if there are truly no problems available
+        // and we're not in a loading state
+        const { ui } = get();
+        if (ui.isLoading) {
+          // Still loading, return a minimal problem temporarily
+          const tempProblem: Problem = {
+            people: [],
+            groups: [],
+            num_sessions: 3,
+            constraints: [],
+            settings: {
+              solver_type: "SimulatedAnnealing",
+              stop_conditions: {
+                max_iterations: 10000,
+                time_limit_seconds: 30,
+                no_improvement_iterations: 5000,
+              },
+              solver_params: {
+                SimulatedAnnealing: {
+                  initial_temperature: 1.0,
+                  final_temperature: 0.01,
+                  cooling_schedule: "geometric",
+                  reheat_after_no_improvement: 0,
+                },
+              },
+            },
+          };
+          return tempProblem;
+        }
+
         const defaultSettings = {
           solver_type: "SimulatedAnnealing",
           stop_conditions: {
@@ -316,42 +365,7 @@ export const useAppStore = create<AppStore>()(
 
       // Problem Management actions
       loadSavedProblems: () => {
-        let savedProblems = problemStorage.getAllProblems();
-
-        // If no problems exist yet, create a blank one automatically
-        if (Object.keys(savedProblems).length === 0) {
-          const defaultSettings = {
-            solver_type: "SimulatedAnnealing",
-            stop_conditions: {
-              max_iterations: 10000,
-              time_limit_seconds: 30,
-              no_improvement_iterations: 5000,
-            },
-            solver_params: {
-              SimulatedAnnealing: {
-                initial_temperature: 1.0,
-                final_temperature: 0.01,
-                cooling_schedule: "geometric",
-                reheat_after_no_improvement: 0,
-              },
-            },
-          } as SolverSettings;
-
-          const emptyProblem: Problem = {
-            people: [],
-            groups: [],
-            num_sessions: 3,
-            constraints: [],
-            settings: defaultSettings,
-          };
-
-          const newSaved = problemStorage.createProblem(
-            "Untitled Problem",
-            emptyProblem
-          );
-          problemStorage.setCurrentProblemId(newSaved.id);
-          savedProblems = problemStorage.getAllProblems();
-        }
+        const savedProblems = problemStorage.getAllProblems();
 
         const currentProblemId =
           problemStorage.getCurrentProblemId() || Object.keys(savedProblems)[0];
@@ -363,6 +377,11 @@ export const useAppStore = create<AppStore>()(
         if (currentProblemId && savedProblems[currentProblemId]) {
           set({ problem: savedProblems[currentProblemId].problem });
         }
+
+        // Set loading to false after loading is complete
+        set((state) => ({
+          ui: { ...state.ui, isLoading: false },
+        }));
       },
 
       createNewProblem: (name, isTemplate = false) => {

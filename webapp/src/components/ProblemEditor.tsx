@@ -99,7 +99,8 @@ export function ProblemEditor() {
     currentProblemId,
     saveProblem,
     updateCurrentProblem,
-    updateProblem
+    updateProblem,
+    ui
   } = useAppStore();
   
   const { section } = useParams<{ section: string }>();
@@ -2198,6 +2199,11 @@ export function ProblemEditor() {
     return newId;
   };
 
+  // Don't render until loading is complete to avoid creating new problems
+  if (ui.isLoading) {
+    return <div className="animate-fade-in">Loading...</div>;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -2704,7 +2710,7 @@ export function ProblemEditor() {
       )}
 
       {activeSection === 'hard' && (
-        <div className="p-6">
+        <div className="pt-0">
           <HardConstraintsPanel
             onAddConstraint={(type: 'ImmovablePeople'| 'MustStayTogether') => {
               if(type==='ImmovablePeople'){
@@ -2735,7 +2741,7 @@ export function ProblemEditor() {
       )}
 
       {activeSection === 'soft' && (
-        <div className="p-6">
+        <div className="pt-0">
           <SoftConstraintsPanel
             onAddConstraint={(type: Constraint['type']) => {
               setEditingConstraintIndex(null);
