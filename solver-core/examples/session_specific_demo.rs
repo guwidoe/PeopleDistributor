@@ -63,7 +63,7 @@ fn main() {
                 sessions: Some(vec![0, 1]),
             },
             // Charlie and Diana cannot be together in sessions 1 and 2 only
-            Constraint::CannotBeTogether {
+            Constraint::ShouldNotBeTogether {
                 people: vec!["Charlie".to_string(), "Diana".to_string()],
                 penalty_weight: 1000.0,
                 sessions: Some(vec![1, 2]),

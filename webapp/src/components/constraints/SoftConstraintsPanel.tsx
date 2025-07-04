@@ -16,16 +16,16 @@ interface AttributeBalanceConstraint {
 }
 
 interface Props {
-  onAddConstraint: (type: 'RepeatEncounter' | 'CannotBeTogether' | 'AttributeBalance') => void;
+  onAddConstraint: (type: 'RepeatEncounter' | 'ShouldNotBeTogether' | 'AttributeBalance') => void;
   onEditConstraint: (constraint: Constraint, index: number) => void;
   onDeleteConstraint: (index: number) => void;
 }
 
-const SOFT_TABS = ['RepeatEncounter', 'CannotBeTogether', 'AttributeBalance'] as const;
+const SOFT_TABS = ['RepeatEncounter', 'ShouldNotBeTogether', 'AttributeBalance'] as const;
 
 const constraintTypeLabels: Record<typeof SOFT_TABS[number], string> = {
   RepeatEncounter: 'Repeat Encounter',
-  CannotBeTogether: 'Cannot Be Together',
+  ShouldNotBeTogether: 'Should Not Be Together',
   AttributeBalance: 'Attribute Balance',
 };
 
@@ -68,7 +68,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
             <ul className="list-disc list-inside space-y-0.5">
               <li><strong>Repeat Encounter</strong>: Limit how often pairs meet.</li>
               <li><strong>Attribute Balance</strong>: Keep group attribute distributions balanced.</li>
-              <li><strong>Cannot Be Together</strong>: Discourage specified people from sharing a group.</li>
+              <li><strong>Should Not Be Together</strong>: Discourage specified people from sharing a group.</li>
             </ul>
           </div>
         )}
@@ -101,7 +101,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           style={{ backgroundColor: 'var(--color-accent)' }}
         >
           <Plus className="w-4 h-4" />
-          {activeTab === 'RepeatEncounter' ? 'Add Repeat Limit' : activeTab === 'AttributeBalance' ? 'Add Attribute Balance' : 'Add Cannot Be Together'}
+          {activeTab === 'RepeatEncounter' ? 'Add Repeat Limit' : activeTab === 'AttributeBalance' ? 'Add Attribute Balance' : 'Add Should Not Be Together'}
         </button>
       </div>
       {activeTab === 'AttributeBalance' && selectedItems.length > 0 && (
@@ -128,39 +128,39 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
                 <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                   {constraint.type === 'RepeatEncounter' && (
                     <>
-                      <div>Max encounters: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.max_allowed_encounters}</span></div>
-                      <div>Penalty function: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.penalty_function}</span></div>
+                      <div>Max encounters: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{(constraint as Extract<Constraint, { type: 'RepeatEncounter' }>).max_allowed_encounters}</span></div>
+                      <div>Penalty function: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{(constraint as Extract<Constraint, { type: 'RepeatEncounter' }>).penalty_function}</span></div>
                     </>
                   )}
 
                   {constraint.type === 'AttributeBalance' && (
                     <>
-                      <div>Group: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
-                      <div>Attribute: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
+                      <div>Group: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{(constraint as Extract<Constraint, { type: 'AttributeBalance' }>).group_id}</span></div>
+                      <div>Attribute: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{(constraint as Extract<Constraint, { type: 'AttributeBalance' }>).attribute_key}</span></div>
                       <div className="flex flex-wrap gap-1 items-center text-xs">
                         <span style={{color:'var(--text-secondary)'}}>Distribution:</span>
-                        {Object.entries(constraint.desired_values || {}).map(([k, v]) => (
+                        {Object.entries((constraint as Extract<Constraint, { type: 'AttributeBalance' }>).desired_values || {}).map(([k, v]) => (
                           <span key={k} className="inline-flex px-2 py-0.5 rounded-full font-medium" style={{backgroundColor:'var(--bg-tertiary)',color:'var(--color-accent)',border:`1px solid var(--color-accent)`}}>{k}: {v}</span>
                         ))}
                       </div>
                       <div className="flex items-center gap-1 text-xs" style={{color:'var(--color-accent)'}}>
                         <Clock className="w-3 h-3" />
                         <span>Sessions:</span>
-                        {constraint.sessions && constraint.sessions.length > 0 ? constraint.sessions.map((s:number)=>s+1).join(', ') : 'All Sessions'}
+                        {(constraint as Extract<Constraint, { type: 'AttributeBalance' }>).sessions && (constraint as Extract<Constraint, { type: 'AttributeBalance' }>).sessions!.length > 0 ? (constraint as Extract<Constraint, { type: 'AttributeBalance' }>).sessions!.map((s:number)=>s+1).join(', ') : 'All Sessions'}
                       </div>
                     </>
                   )}
 
-                  {constraint.type === 'CannotBeTogether' && (
+                  {constraint.type === 'ShouldNotBeTogether' && (
                     <>
                       <div className="flex flex-wrap items-center gap-1">
                         <span>People:</span>
-                        {constraint.people.map((pid: string, idx: number) => {
+                        {(constraint as Extract<Constraint, { type: 'ShouldNotBeTogether' }>).people.map((pid: string, idx: number) => {
                           const per = problem.people.find((p: Person) => p.id === pid);
                           return (
                             <React.Fragment key={pid}>
                               {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
-                              {idx < constraint.people.length - 1 && <span></span>}
+                              {idx < (constraint as Extract<Constraint, { type: 'ShouldNotBeTogether' }>).people.length - 1 && <span></span>}
                             </React.Fragment>
                           );
                         })}
@@ -168,7 +168,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
                       <div className="flex items-center gap-1 text-xs" style={{color:'var(--color-accent)'}}>
                         <Clock className="w-3 h-3" />
                         <span>Sessions:</span>
-                        {constraint.sessions && constraint.sessions.length > 0 ? constraint.sessions.map((s:number)=>s+1).join(', ') : 'All Sessions'}
+                        {(constraint as Extract<Constraint, { type: 'ShouldNotBeTogether' }>).sessions && (constraint as Extract<Constraint, { type: 'ShouldNotBeTogether' }>).sessions!.length > 0 ? (constraint as Extract<Constraint, { type: 'ShouldNotBeTogether' }>).sessions!.map((s:number)=>s+1).join(', ') : 'All Sessions'}
                       </div>
                     </>
                   )}

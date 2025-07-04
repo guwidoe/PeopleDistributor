@@ -352,7 +352,7 @@ class WasmService {
     const cleanedConstraints = (problem.constraints || []).map(
       (c: Constraint) => {
         if (
-          (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
+          (c.type === "MustStayTogether" || c.type === "ShouldNotBeTogether") &&
           (c.penalty_weight === undefined || c.penalty_weight === null)
         ) {
           return { ...c, penalty_weight: 1000 };

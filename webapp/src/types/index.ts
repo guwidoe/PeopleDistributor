@@ -51,7 +51,7 @@ export type Constraint =
       sessions?: number[]; // Optional: if undefined, applies to all sessions
     }
   | {
-      type: "CannotBeTogether";
+      type: "ShouldNotBeTogether";
       people: string[];
       penalty_weight: number;
       sessions?: number[]; // Optional: if undefined, applies to all sessions

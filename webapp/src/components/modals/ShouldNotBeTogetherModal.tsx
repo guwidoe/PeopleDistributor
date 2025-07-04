@@ -11,7 +11,7 @@ interface Props {
   onSave: (constraint: Constraint) => void;
 }
 
-const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
+const ShouldNotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
   const { GetProblem, ui } = useAppStore();
   
   const getInitialState = () => {
@@ -26,9 +26,9 @@ const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
     }
     
     const editing = !!initial;
-    const initPeople: string[] = editing && initial?.type === 'CannotBeTogether' ? initial.people : [];
-    const initSessions: number[] = (editing && initial?.type === 'CannotBeTogether' && initial.sessions) ? initial.sessions : [];
-    const initWeight: number = editing && initial?.type === 'CannotBeTogether' ? initial.penalty_weight : 500;
+    const initPeople: string[] = editing && initial?.type === 'ShouldNotBeTogether' ? initial.people : [];
+    const initSessions: number[] = (editing && initial?.type === 'ShouldNotBeTogether' && initial.sessions) ? initial.sessions : [];
+    const initWeight: number = editing && initial?.type === 'ShouldNotBeTogether' ? initial.penalty_weight : 500;
 
     return {
       selectedPeople: initPeople,
@@ -68,7 +68,7 @@ const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
     }
 
     const newConstraint: Constraint = {
-      type: 'CannotBeTogether',
+      type: 'ShouldNotBeTogether',
       people: selectedPeople,
       penalty_weight: penaltyWeight,
       sessions: selectedSessions.length > 0 && selectedSessions.length < sessionsCount ? selectedSessions : undefined,
@@ -87,7 +87,7 @@ const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
     <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
       <div className="rounded-lg p-6 w-full max-w-2xl mx-4 modal-content flex flex-col" style={{height: '80vh'}}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{editing ? 'Edit Cannot Be Together' : 'Add Cannot Be Together'}</h3>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{editing ? 'Edit Should Not Be Together' : 'Add Should Not Be Together'}</h3>
           <button onClick={onCancel} className="transition-colors" style={{ color: 'var(--text-tertiary)' }}><X className="w-5 h-5" /></button>
         </div>
 
@@ -173,4 +173,4 @@ const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
   );
 };
 
-export default CannotBeTogetherModal; 
+export default ShouldNotBeTogetherModal; 

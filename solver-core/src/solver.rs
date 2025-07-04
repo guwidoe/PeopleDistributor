@@ -617,7 +617,7 @@ impl State {
             }
         }
 
-        // --- Process `MustStayTogether` (Cliques) and `CannotBeTogether` (Forbidden Pairs) ---
+        // --- Process `MustStayTogether` (Cliques) and `ShouldNotBeTogether` (Forbidden Pairs) ---
         // New session-aware preprocessing using per-session DSU ----------------------
         use std::collections::hash_map::{Entry, HashMap};
 
@@ -718,9 +718,9 @@ impl State {
             })
             .collect();
 
-        // --- Process `CannotBeTogether` (Forbidden Pairs) ---
+        // --- Process `ShouldNotBeTogether` (Forbidden Pairs) ---
         for constraint in &input.constraints {
-            if let Constraint::CannotBeTogether {
+            if let Constraint::ShouldNotBeTogether {
                 people,
                 penalty_weight,
                 sessions: constraint_sessions,
@@ -742,15 +742,15 @@ impl State {
                                     .map(|id| self.person_idx_to_id[*id].clone())
                                     .collect();
                                 return Err(SolverError::ValidationError(format!(
-                                    "CannotBeTogether constraint conflicts with MustStayTogether: people {:?} are in the same clique {:?}",
+                                    "ShouldNotBeTogether constraint conflicts with MustStayTogether: people {:?} are in the same clique {:?}",
                                     people, clique_member_ids
                                 )));
                             }
                         }
 
-                        // Conflict check: if the two people are in the same hard clique for any session where both the clique and the CannotBeTogether apply
+                        // Conflict check: if the two people are in the same hard clique for any session where both the clique and the ShouldNotBeTogether apply
                         for session_idx in 0..num_sessions {
-                            // Skip session if this CannotBeTogether does not apply
+                            // Skip session if this ShouldNotBeTogether does not apply
                             if let Some(cs) = constraint_sessions {
                                 if !cs.contains(&(session_idx as u32)) {
                                     continue;
@@ -767,7 +767,7 @@ impl State {
                                         .map(|id| self.person_idx_to_id[*id].clone())
                                         .collect();
                                     return Err(SolverError::ValidationError(format!(
-                                        "CannotBeTogether constraint conflicts with MustStayTogether in session {}: people {:?} are in the same clique {:?}",
+                                        "ShouldNotBeTogether constraint conflicts with MustStayTogether in session {}: people {:?} are in the same clique {:?}",
                                         session_idx, people, clique_member_ids
                                     )));
                                 }
@@ -3537,7 +3537,7 @@ mod tests {
                 penalty_weight: 1000.0,
                 sessions: None,
             },
-            Constraint::CannotBeTogether {
+            Constraint::ShouldNotBeTogether {
                 people: vec!["p0".into(), "p1".into()],
                 penalty_weight: 1000.0,
                 sessions: None,
@@ -3549,7 +3549,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("CannotBeTogether constraint conflicts with MustStayTogether"));
+            .contains("ShouldNotBeTogether constraint conflicts with MustStayTogether"));
     }
 
     #[test]
@@ -3772,7 +3772,7 @@ mod tests {
         "constraints": [
             {"type": "RepeatEncounter", "max_allowed_encounters": 1, "penalty_function": "squared", "penalty_weight": 100},
             {"type": "MustStayTogether", "people": ["alice", "bob"], "penalty_weight": 1000, "sessions": [0, 1]},
-            {"type": "CannotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500},
+            {"type": "ShouldNotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500},
             {"type": "AttributeBalance", "group_id": "team-alpha", "attribute_key": "gender", "desired_values": {"male": 2, "female": 2}, "penalty_weight": 50}
         ],
         "solver": {
@@ -3844,12 +3844,13 @@ mod tests {
             "MustStayTogether should parse successfully"
         );
 
-        // Test CannotBeTogether parsing
-        let cannot_be_json = r#"{"type": "CannotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500}"#;
-        let cannot_be_constraint: Result<Constraint, _> = serde_json::from_str(cannot_be_json);
+        // Test ShouldNotBeTogether parsing
+        let should_not_be_json = r#"{"type": "ShouldNotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500}"#;
+        let should_not_be_constraint: Result<Constraint, _> =
+            serde_json::from_str(should_not_be_json);
         assert!(
-            cannot_be_constraint.is_ok(),
-            "CannotBeTogether should parse successfully"
+            should_not_be_constraint.is_ok(),
+            "ShouldNotBeTogether should parse successfully"
         );
 
         // Test AttributeBalance parsing

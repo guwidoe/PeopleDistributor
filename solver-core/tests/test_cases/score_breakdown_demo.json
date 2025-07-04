@@ -32,7 +32,7 @@
         "penalty_weight": 5.0
       },
       {
-        "type": "CannotBeTogether",
+        "type": "ShouldNotBeTogether",
         "people": ["p0", "p2"],
         "penalty_weight": 10.0
       }

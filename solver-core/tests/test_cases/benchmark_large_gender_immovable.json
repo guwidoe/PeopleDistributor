@@ -176,15 +176,15 @@
                 "people": ["p41", "p42", "p43", "p44"]
             },
             {
-                "type": "CannotBeTogether",
+                "type": "ShouldNotBeTogether",
                 "people": ["p50", "p51"]
             },
             {
-                "type": "CannotBeTogether",
+                "type": "ShouldNotBeTogether",
                 "people": ["p60", "p70"]
             },
             {
-                "type": "CannotBeTogether",
+                "type": "ShouldNotBeTogether",
                 "people": ["p80", "p90", "p100"]
             }
         ],

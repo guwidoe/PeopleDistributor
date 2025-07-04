@@ -161,7 +161,7 @@ export function ResultsView() {
           });
           return { constraint: c, adheres: violations === 0, violations };
         }
-        case 'CannotBeTogether': {
+        case 'ShouldNotBeTogether': {
           const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
           let violations = 0;
           sessions.forEach(session => {
@@ -283,10 +283,10 @@ export function ResultsView() {
           </>
         );
       }
-      case 'CannotBeTogether': {
+      case 'ShouldNotBeTogether': {
         return (
           <>
-            Cannot Be Together (
+            Should Not Be Together (
             {constraint.people.map((pid, idx) => {
               const person = getPersonById(pid);
               return (

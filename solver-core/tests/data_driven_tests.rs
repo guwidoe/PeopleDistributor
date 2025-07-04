@@ -248,7 +248,7 @@ fn assert_cliques_respected(input: &ApiInput, result: &SolverResult) {
 
 fn assert_forbidden_pairs_respected(input: &ApiInput, result: &SolverResult) {
     for constraint in &input.constraints {
-        if let solver_core::models::Constraint::CannotBeTogether {
+        if let solver_core::models::Constraint::ShouldNotBeTogether {
             people, sessions, ..
         } = constraint
         {
@@ -374,9 +374,9 @@ fn assert_session_specific_constraints_respected(input: &ApiInput, result: &Solv
         }
     }
 
-    // Check CannotBeTogether constraints
+    // Check ShouldNotBeTogether constraints
     for constraint in &input.constraints {
-        if let solver_core::models::Constraint::CannotBeTogether {
+        if let solver_core::models::Constraint::ShouldNotBeTogether {
             people, sessions, ..
         } = constraint
         {

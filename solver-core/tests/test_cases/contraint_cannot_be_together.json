@@ -20,7 +20,7 @@
       "objectives": [],
       "constraints": [
         {
-          "type": "CannotBeTogether",
+          "type": "ShouldNotBeTogether",
           "people": ["p0", "p1", "p2"]
         }
       ],

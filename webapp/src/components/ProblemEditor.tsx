@@ -20,7 +20,7 @@ import SoftConstraintsPanel from './constraints/SoftConstraintsPanel';
 import ImmovablePeopleModal from './modals/ImmovablePeopleModal';
 import RepeatEncounterModal from './modals/RepeatEncounterModal';
 import AttributeBalanceModal from './modals/AttributeBalanceModal';
-import CannotBeTogetherModal from './modals/CannotBeTogetherModal';
+import ShouldNotBeTogetherModal from './modals/ShouldNotBeTogetherModal';
 import MustStayTogetherModal from './modals/MustStayTogetherModal';
 import AttributeBalanceDashboard from './AttributeBalanceDashboard';
 
@@ -232,7 +232,7 @@ export function ProblemEditor() {
     desired_values?: Record<string, number>;
     // ImmovablePerson
     person_id?: string;
-    // MustStayTogether / CannotBeTogether
+    // MustStayTogether / ShouldNotBeTogether
     people?: string[];
     sessions?: number[];
   }>({
@@ -246,12 +246,12 @@ export function ProblemEditor() {
   // New individual constraint modal states
   const [showRepeatEncounterModal, setShowRepeatEncounterModal] = useState(false);
   const [showAttributeBalanceModal, setShowAttributeBalanceModal] = useState(false);
-  const [showCannotBeTogetherModal, setShowCannotBeTogetherModal] = useState(false);
+  const [showShouldNotBeTogetherModal, setShowShouldNotBeTogetherModal] = useState(false);
   const [showMustStayTogetherModal, setShowMustStayTogetherModal] = useState(false);
   const [editingConstraintIndex, setEditingConstraintIndex] = useState<number | null>(null);
 
   // New UI state for Constraints tab
-  const SOFT_TYPES = useMemo(() => ['RepeatEncounter', 'AttributeBalance', 'CannotBeTogether'] as const, []);
+  const SOFT_TYPES = useMemo(() => ['RepeatEncounter', 'AttributeBalance', 'ShouldNotBeTogether'] as const, []);
   const HARD_TYPES = useMemo(() => ['ImmovablePeople', 'MustStayTogether'] as const, []);
 
   type ConstraintCategory = 'soft' | 'hard';
@@ -606,7 +606,7 @@ export function ProblemEditor() {
         }
 
         case 'MustStayTogether':
-        case 'CannotBeTogether':
+        case 'ShouldNotBeTogether':
           if (!constraintForm.people?.length || constraintForm.people.length < 2) {
             throw new Error('Please select at least 2 people');
           }
@@ -678,7 +678,7 @@ export function ProblemEditor() {
         });
         break;
       case 'MustStayTogether':
-      case 'CannotBeTogether':
+      case 'ShouldNotBeTogether':
         setConstraintForm({
           type: constraint.type,
           people: constraint.people,
@@ -741,7 +741,7 @@ export function ProblemEditor() {
         }
 
         case 'MustStayTogether':
-        case 'CannotBeTogether':
+        case 'ShouldNotBeTogether':
           if (!constraintForm.people?.length || constraintForm.people.length < 2) {
             throw new Error('Please select at least 2 people');
           }
@@ -1345,7 +1345,7 @@ export function ProblemEditor() {
                 <option value="RepeatEncounter">Repeat Encounter Limit</option>
                 <option value="AttributeBalance">Attribute Balance</option>
                 <option value="MustStayTogether">Must Stay Together</option>
-                <option value="CannotBeTogether">Cannot Be Together</option>
+                <option value="ShouldNotBeTogether">Should Not Be Together</option>
                 <option value="ImmovablePeople">Immovable People</option>
               </select>
               {isEditing && (
@@ -1602,7 +1602,7 @@ export function ProblemEditor() {
               </>
             )}
 
-            {(constraintForm.type === 'MustStayTogether' || constraintForm.type === 'CannotBeTogether') && (
+            {(constraintForm.type === 'MustStayTogether' || constraintForm.type === 'ShouldNotBeTogether') && (
               <>
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -2336,7 +2336,7 @@ export function ProblemEditor() {
             { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions ?? 0 },
             { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
             { id: 'hard', label: 'Hard Constraints', icon: Lock, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
-            { id: 'soft', label: 'Soft Constraints', icon: Zap, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','CannotBeTogether'].includes(c.type as string)).length : 0 },
+            { id: 'soft', label: 'Soft Constraints', icon: Zap, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','ShouldNotBeTogether'].includes(c.type as string)).length : 0 },
           ].map(({ id, label, icon: Icon, count }) => (
               <NavLink
               key={id}
@@ -2802,8 +2802,8 @@ export function ProblemEditor() {
                 case 'AttributeBalance':
                   setShowAttributeBalanceModal(true);
                   break;
-                case 'CannotBeTogether':
-                  setShowCannotBeTogetherModal(true);
+                case 'ShouldNotBeTogether':
+                  setShowShouldNotBeTogetherModal(true);
                   break;
                 default:
                   // Fallback to legacy modal for any other types
@@ -2820,8 +2820,8 @@ export function ProblemEditor() {
                 case 'AttributeBalance':
                   setShowAttributeBalanceModal(true);
                   break;
-                case 'CannotBeTogether':
-                  setShowCannotBeTogetherModal(true);
+                case 'ShouldNotBeTogether':
+                  setShowShouldNotBeTogetherModal(true);
                   break;
                 default:
                   // Fallback to legacy modal for any other types
@@ -2871,7 +2871,7 @@ export function ProblemEditor() {
                   <li>• <strong>RepeatEncounter:</strong> Limit how often people meet across sessions</li>
                   <li>• <strong>AttributeBalance:</strong> Maintain desired distributions (e.g., gender balance)</li>
                   <li>• <strong>MustStayTogether:</strong> Keep certain people in the same group</li>
-                  <li>• <strong>CannotBeTogether:</strong> Prevent certain people from being grouped</li>
+                  <li>• <strong>ShouldNotBeTogether:</strong> Prevent certain people from being grouped</li>
                   <li>• <strong>ImmovablePeople:</strong> Fix someone to a specific group in specific sessions</li>
                 </ul>
               </div>
@@ -2885,7 +2885,7 @@ export function ProblemEditor() {
               'AttributeBalance': 'Attribute Balance',
               'ImmovablePeople': 'Immovable People',
               'MustStayTogether': 'Must Stay Together',
-              'CannotBeTogether': 'Cannot Be Together'
+              'ShouldNotBeTogether': 'Should Not Be Together'
             } as const;
 
             const constraintsByType = (problem?.constraints || []).reduce((acc: Record<string, { constraint: Constraint; index: number }[]>, constraint, index) => {
@@ -3017,7 +3017,7 @@ export function ProblemEditor() {
                                     </>
                                   )}
                                   
-                                  {(constraint.type === 'MustStayTogether' || constraint.type === 'CannotBeTogether') && (
+                                  {(constraint.type === 'MustStayTogether' || constraint.type === 'ShouldNotBeTogether') && (
                                     <>
                                       <div className="break-words flex flex-wrap items-center gap-1">
                                         <span>People:</span>
@@ -3295,12 +3295,12 @@ export function ProblemEditor() {
         />
       )}
 
-      {showCannotBeTogetherModal && (
-        <CannotBeTogetherModal
+      {showShouldNotBeTogetherModal && (
+        <ShouldNotBeTogetherModal
           sessionsCount={sessionsCount}
           initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
           onCancel={() => {
-            setShowCannotBeTogetherModal(false);
+            setShowShouldNotBeTogetherModal(false);
             setEditingConstraintIndex(null);
           }}
           onSave={(constraint) => {
@@ -3317,7 +3317,7 @@ export function ProblemEditor() {
               constraints: updatedConstraints
             });
             
-            setShowCannotBeTogetherModal(false);
+            setShowShouldNotBeTogetherModal(false);
             setEditingConstraintIndex(null);
           }}
         />

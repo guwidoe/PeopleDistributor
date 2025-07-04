@@ -359,7 +359,7 @@ function createFallbackDemo(): Problem {
       },
       // Charlie and Diana can't be together (personality conflict)
       {
-        type: "CannotBeTogether",
+        type: "ShouldNotBeTogether",
         people: ["charlie", "diana"],
         penalty_weight: 500.0,
       },

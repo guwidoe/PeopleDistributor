@@ -793,7 +793,7 @@ mod callback_tests {
                     penalty_weight: 50.0,
                     sessions: None,
                 }),
-                Constraint::CannotBeTogether {
+                Constraint::ShouldNotBeTogether {
                     people: vec!["person_0".to_string(), "person_1".to_string()],
                     penalty_weight: 200.0,
                     sessions: None,

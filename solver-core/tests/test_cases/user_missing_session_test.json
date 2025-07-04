@@ -23,7 +23,7 @@
     ],
     "constraints": [
       { "type": "MustStayTogether", "people": ["alice", "bob"], "penalty_weight": 1000 },
-      { "type": "CannotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 1000, "sessions": [0, 2] },
+      { "type": "ShouldNotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 1000, "sessions": [0, 2] },
       { "type": "ImmovablePerson", "person_id": "henry", "group_id": "team1", "sessions": [0, 1, 2] }
     ],
     "solver": {

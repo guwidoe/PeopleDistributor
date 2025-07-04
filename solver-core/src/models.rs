@@ -197,7 +197,7 @@ pub struct Objective {
 /// - **AttributeBalance**: Maintains desired attribute distributions within groups
 /// - **ImmovablePerson**: Fixes specific people to specific groups in specific sessions
 /// - **MustStayTogether**: Keeps certain people in the same group
-/// - **CannotBeTogether**: Prevents certain people from being in the same group
+/// - **ShouldNotBeTogether**: Prevents certain people from being in the same group
 ///
 /// # Examples
 ///
@@ -234,7 +234,7 @@ pub struct Objective {
 /// };
 ///
 /// // Prevent two people from being together
-/// let apart_constraint = Constraint::CannotBeTogether {
+/// let apart_constraint = Constraint::ShouldNotBeTogether {
 ///     people: vec!["Charlie".to_string(), "Diana".to_string()],
 ///     penalty_weight: 500.0,
 ///     sessions: None, // Applies to all sessions
@@ -262,8 +262,8 @@ pub enum Constraint {
         sessions: Option<Vec<u32>>,
     },
     /// Prevents specified people from being in the same group
-    CannotBeTogether {
-        /// List of person IDs that cannot be together
+    ShouldNotBeTogether {
+        /// List of person IDs that should not be together
         people: Vec<String>,
         /// Penalty weight for violations (higher = more important)
         #[serde(default = "default_constraint_weight")]

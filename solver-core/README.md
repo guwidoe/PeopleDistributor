@@ -69,7 +69,7 @@ let temperature = self.initial_temperature
 - **Repeat Encounter Limits**: Configurable penalties (linear/squared) for repeated pairings
 - **Attribute Balance**: Maintain desired distributions (e.g., gender balance) within groups
 - **Must-Stay-Together**: Keep specified people in the same group
-- **Cannot-Be-Together**: Prevent certain people from being grouped
+- **Should-Not-Be-Together**: Prevent certain people from being grouped
 - **Session-Specific Rules**: Apply constraints only to specific sessions
 
 ### Intelligent State Management
@@ -94,7 +94,7 @@ pub struct State {
 #### Smart Constraint Preprocessing
 
 - **Clique Detection**: Merges overlapping "must-stay-together" constraints using Union-Find
-- **Conflict Validation**: Prevents contradictory constraints (e.g., must-stay + cannot-be together)
+- **Conflict Validation**: Prevents contradictory constraints (e.g., must-stay + should-not-be together)
 - **Session Filtering**: Efficiently handles session-specific constraint applications
 
 ### Advanced Scoring System
@@ -255,7 +255,7 @@ Constraint::MustStayTogether {
 }
 
 // Light penalty for preferences (soft constraint behavior)
-Constraint::CannotBeTogether {
+Constraint::ShouldNotBeTogether {
     people: vec!["Charlie".to_string(), "Diana".to_string()],
     penalty_weight: 10.0, // Low weight - prefer to avoid but not critical
     sessions: Some(vec![2]), // Only applies to session 2
