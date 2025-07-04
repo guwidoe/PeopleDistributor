@@ -192,11 +192,13 @@ export function ResultsView() {
           });
           return { constraint: c, adheres: violations === 0, violations };
         }
-        case 'ImmovablePerson': {
+        case 'ImmovablePeople': {
           let violations = 0;
           c.sessions.forEach(session => {
             const peopleIds = schedule[session]?.[c.group_id] || [];
-            if (!peopleIds.includes(c.person_id)) violations += 1;
+            c.people.forEach(pid => {
+              if (!peopleIds.includes(pid)) violations += 1;
+            });
           });
           return { constraint: c, adheres: violations === 0, violations };
         }
@@ -255,11 +257,20 @@ export function ResultsView() {
             Attribute Balance – <span className="font-medium">{constraint.group_id}</span> ({constraint.attribute_key})
           </>
         );
-      case 'ImmovablePerson': {
-        const person = getPersonById(constraint.person_id);
+      case 'ImmovablePeople': {
         return (
           <>
-            Immovable – {person ? <PersonCard person={person} /> : constraint.person_id} in <span className="font-medium">{constraint.group_id}</span>
+            Immovable – (
+            {constraint.people.map((pid: string, idx: number) => {
+              const person = getPersonById(pid);
+              return (
+                <React.Fragment key={pid}>
+                  {idx > 0 && ''}
+                  {person ? <PersonCard person={person} /> : pid}
+                </React.Fragment>
+              );
+            })}
+            ) in <span className="font-medium">{constraint.group_id}</span>
           </>
         );
       }

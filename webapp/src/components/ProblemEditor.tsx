@@ -541,16 +541,16 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id) {
-            throw new Error('Please fill in all required fields for immovable person');
+        case 'ImmovablePeople':
+          if (!constraintForm.people?.length || !constraintForm.group_id) {
+            throw new Error('Please select at least one person and a fixed group');
           }
           // If no sessions selected, apply to all sessions
           const allSessions = Array.from({ length: sessionsCount }, (_, i) => i);
           const immovableSessions = constraintForm.sessions?.length ? constraintForm.sessions : allSessions;
           newConstraint = {
-            type: 'ImmovablePerson',
-            person_id: constraintForm.person_id,
+            type: 'ImmovablePeople',
+            people: constraintForm.people,
             group_id: constraintForm.group_id,
             sessions: immovableSessions
           };
@@ -619,13 +619,13 @@ export function ProblemEditor() {
           sessions: constraint.sessions
         });
         break;
-      case 'ImmovablePerson':
+      case 'ImmovablePeople':
         setConstraintForm({
           type: constraint.type,
-          person_id: constraint.person_id,
+          people: constraint.people,
           group_id: constraint.group_id,
           sessions: constraint.sessions,
-          penalty_weight: undefined // ImmovablePerson doesn't have penalty_weight
+          penalty_weight: undefined // ImmovablePeople doesn't have penalty_weight
         });
         break;
       case 'MustStayTogether':
@@ -675,16 +675,16 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id) {
-            throw new Error('Please fill in all required fields for immovable person');
+        case 'ImmovablePeople':
+          if (!constraintForm.people?.length || !constraintForm.group_id) {
+            throw new Error('Please select at least one person and a fixed group');
           }
           // If no sessions selected, apply to all sessions
           const allUpdateSessions = Array.from({ length: sessionsCount }, (_, i) => i);
           const immovableUpdateSessions = constraintForm.sessions?.length ? constraintForm.sessions : allUpdateSessions;
           updatedConstraint = {
-            type: 'ImmovablePerson',
-            person_id: constraintForm.person_id,
+            type: 'ImmovablePeople',
+            people: constraintForm.people,
             group_id: constraintForm.group_id,
             sessions: immovableUpdateSessions
           };
@@ -1296,7 +1296,7 @@ export function ProblemEditor() {
                 <option value="AttributeBalance">Attribute Balance</option>
                 <option value="MustStayTogether">Must Stay Together</option>
                 <option value="CannotBeTogether">Cannot Be Together</option>
-                <option value="ImmovablePerson">Immovable Person</option>
+                <option value="ImmovablePeople">Immovable People</option>
               </select>
               {isEditing && (
                 <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Constraint type cannot be changed when editing</p>
@@ -1462,26 +1462,42 @@ export function ProblemEditor() {
               </>
             )}
 
-            {constraintForm.type === 'ImmovablePerson' && (
+            {constraintForm.type === 'ImmovablePeople' && (
               <>
+                {/* People multi-select */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                    Person *
+                    People * (select at least 1)
                   </label>
-                  <select
-                    value={constraintForm.person_id || ''}
-                    onChange={(e) => setConstraintForm(prev => ({ ...prev, person_id: e.target.value }))}
-                    className="select"
-                  >
-                    <option value="">Select a person</option>
+                  <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2" style={{ borderColor: 'var(--border-secondary)' }}>
                     {problem?.people.map(person => (
-                      <option key={person.id} value={person.id}>
+                      <label key={person.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={constraintForm.people?.includes(person.id) || false}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setConstraintForm(prev => ({
+                                ...prev,
+                                people: [...(prev.people || []), person.id]
+                              }));
+                            } else {
+                              setConstraintForm(prev => ({
+                                ...prev,
+                                people: (prev.people || []).filter(id => id !== person.id)
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
+                        />
                         {person.attributes.name || person.id}
-                      </option>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
+                {/* Fixed group selection */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Fixed Group *
@@ -1498,6 +1514,7 @@ export function ProblemEditor() {
                   </select>
                 </div>
 
+                {/* Sessions checkbox selector */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Apply to Sessions (optional)
@@ -1607,7 +1624,7 @@ export function ProblemEditor() {
             )}
 
             {/* Penalty Weight - only for constraints that use it */}
-            {constraintForm.type !== 'ImmovablePerson' && (
+            {constraintForm.type !== 'ImmovablePeople' && (
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Penalty Weight
@@ -2831,7 +2848,7 @@ export function ProblemEditor() {
                   <li>• <strong>AttributeBalance:</strong> Maintain desired distributions (e.g., gender balance)</li>
                   <li>• <strong>MustStayTogether:</strong> Keep certain people in the same group</li>
                   <li>• <strong>CannotBeTogether:</strong> Prevent certain people from being grouped</li>
-                  <li>• <strong>ImmovablePerson:</strong> Fix someone to a specific group in specific sessions</li>
+                  <li>• <strong>ImmovablePeople:</strong> Fix someone to a specific group in specific sessions</li>
                 </ul>
               </div>
             )}
@@ -2842,7 +2859,7 @@ export function ProblemEditor() {
             const constraintTypeLabels = {
               'RepeatEncounter': 'Repeat Encounter Limits',
               'AttributeBalance': 'Attribute Balance',
-              'ImmovablePerson': 'Immovable People',
+              'ImmovablePeople': 'Immovable People',
               'MustStayTogether': 'Must Stay Together',
               'CannotBeTogether': 'Cannot Be Together'
             } as const;
@@ -2904,7 +2921,7 @@ export function ProblemEditor() {
                                   <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                                     {constraint.type}
                                   </span>
-                                  {constraint.type !== 'ImmovablePerson' && (
+                                  {constraint.type !== 'ImmovablePeople' && (
                                     <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>
                                       Weight: {(constraint as any).penalty_weight}
                                     </span>
@@ -2932,18 +2949,19 @@ export function ProblemEditor() {
                                     </>
                                   )}
                                   
-                                  {constraint.type === 'ImmovablePerson' && (
+                                  {constraint.type === 'ImmovablePeople' && (
                                     <>
-                                      <div>
-                                        Person:{' '}
-                                        {(problem?.people) ? (
-                                          (() => {
-                                            const p = problem.people.find(per => per.id === constraint.person_id);
-                                            return p ? <PersonCard person={p} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span>;
-                                          })()
-                                        ) : (
-                                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span>
-                                        )}
+                                      <div className="break-words flex flex-wrap items-center gap-1">
+                                        <span>People:</span>
+                                        {constraint.people.map((pid, idx) => {
+                                          const per = problem?.people.find(p => p.id === pid);
+                                          return (
+                                            <React.Fragment key={pid}>
+                                              {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
+                                              {idx < constraint.people.length - 1 && <span></span>}
+                                            </React.Fragment>
+                                          );
+                                        })}
                                       </div>
                                       <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
                                       <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
