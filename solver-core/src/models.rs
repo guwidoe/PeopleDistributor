@@ -273,6 +273,8 @@ pub enum Constraint {
         #[serde(default)]
         sessions: Option<Vec<u32>>,
     },
+    /// Fixes a *set* of people to a specific group in specific sessions (hard constraint)
+    ImmovablePeople(ImmovablePeopleParams),
 }
 
 /// Default penalty weight for constraints that don't specify one
@@ -374,6 +376,21 @@ pub struct ImmovablePersonParams {
     /// ID of the group where this person must be placed
     pub group_id: String,
     /// List of session indices where this person must be in the specified group
+    pub sessions: Vec<u32>,
+}
+
+/// Fixes multiple people to a specific group in specific sessions (hard constraint).
+///
+/// This is the multi-person analogue of `ImmovablePersonParams` and is now the
+/// preferred format. The solver treats these as hard constraints; therefore no
+/// penalty weight is necessary.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ImmovablePeopleParams {
+    /// IDs of the people who must be fixed in place
+    pub people: Vec<String>,
+    /// ID of the group where these people must be placed
+    pub group_id: String,
+    /// List of session indices where these people must be in the specified group
     pub sessions: Vec<u32>,
 }
 

@@ -792,36 +792,122 @@ impl State {
 
         // --- Process `ImmovablePerson` ---
         for constraint in &input.constraints {
-            if let Constraint::ImmovablePerson(params) = constraint {
-                let p_idx = self
-                    .person_id_to_idx
-                    .get(&params.person_id)
-                    .ok_or_else(|| {
+            match constraint {
+                Constraint::ImmovablePerson(params) => {
+                    let p_idx = self
+                        .person_id_to_idx
+                        .get(&params.person_id)
+                        .ok_or_else(|| {
+                            SolverError::ValidationError(format!(
+                                "Person '{}' not found.",
+                                params.person_id
+                            ))
+                        })?;
+                    let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
                         SolverError::ValidationError(format!(
-                            "Person '{}' not found.",
-                            params.person_id
+                            "Group '{}' not found.",
+                            params.group_id
                         ))
                     })?;
-                let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
-                    SolverError::ValidationError(format!("Group '{}' not found.", params.group_id))
-                })?;
 
-                for &session in &params.sessions {
-                    let s_idx = session as usize;
-                    if s_idx >= self.num_sessions as usize {
-                        return Err(SolverError::ValidationError(format!(
-                            "Session index {} out of bounds for immovable person {}.",
-                            s_idx, params.person_id
-                        )));
+                    for &session in &params.sessions {
+                        let s_idx = session as usize;
+                        if s_idx >= self.num_sessions as usize {
+                            return Err(SolverError::ValidationError(format!(
+                                "Session index {} out of bounds for immovable person {}.",
+                                s_idx, params.person_id
+                            )));
+                        }
+                        self.immovable_people.insert((*p_idx, s_idx), *g_idx);
                     }
-                    self.immovable_people.insert((*p_idx, s_idx), *g_idx);
                 }
+                Constraint::ImmovablePeople(params) => {
+                    // Validate group once
+                    let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
+                        SolverError::ValidationError(format!(
+                            "Group '{}' not found.",
+                            params.group_id
+                        ))
+                    })?;
+
+                    for person_id in &params.people {
+                        let p_idx = self.person_id_to_idx.get(person_id).ok_or_else(|| {
+                            SolverError::ValidationError(format!(
+                                "Person '{}' not found.",
+                                person_id
+                            ))
+                        })?;
+
+                        for &session in &params.sessions {
+                            let s_idx = session as usize;
+                            if s_idx >= self.num_sessions as usize {
+                                return Err(SolverError::ValidationError(format!(
+                                    "Session index {} out of bounds for immovable person {}.",
+                                    s_idx, person_id
+                                )));
+                            }
+                            self.immovable_people.insert((*p_idx, s_idx), *g_idx);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
         // Initialize constraint violation vectors with correct sizes
         self.clique_violations = vec![0; self.cliques.len()];
         self.forbidden_pair_violations = vec![0; self.forbidden_pairs.len()];
+
+        // === Propagate immovable constraints to clique members ===
+        // If a person in a clique is immovable on a session, all members of that clique
+        // become immovable in that session (same target group), and the clique itself
+        // is not considered active in that session anymore.
+
+        let mut expanded_immovable: HashMap<(usize, usize), usize> = HashMap::new();
+
+        for ((person_idx, session_idx), &required_group) in &self.immovable_people {
+            // Identify clique membership for this session (if any)
+            if let Some(cid) = self.person_to_clique_id[*session_idx][*person_idx] {
+                // Propagate to all clique members
+                for &member in &self.cliques[cid] {
+                    let key = (member, *session_idx);
+                    if let Some(prev_grp) = expanded_immovable.insert(key, required_group) {
+                        if prev_grp != required_group {
+                            return Err(SolverError::ValidationError(format!(
+                                "Person '{}' has conflicting immovable assignments in session {} (groups '{}' vs '{}')",
+                                self.person_idx_to_id[member],
+                                session_idx,
+                                self.group_idx_to_id[prev_grp],
+                                self.group_idx_to_id[required_group]
+                            )));
+                        }
+                    }
+                }
+
+                // Remove this session from the clique's active session list
+                match &mut self.clique_sessions[cid] {
+                    None => {
+                        // Currently active in all sessions – create explicit list excluding this one
+                        let mut all: Vec<usize> = (0..num_sessions).collect();
+                        all.retain(|&s| s != *session_idx);
+                        if all.len() == num_sessions {
+                            // should not happen (removed nothing)
+                        } else if all.len() == num_sessions - 1 {
+                            self.clique_sessions[cid] = Some(all);
+                        }
+                    }
+                    Some(list) => {
+                        list.retain(|&s| s != *session_idx);
+                        // if list becomes empty, clique no longer active anywhere
+                    }
+                }
+            } else {
+                // Person is not in a clique for this session – just copy record
+                expanded_immovable.insert((*person_idx, *session_idx), required_group);
+            }
+        }
+
+        self.immovable_people = expanded_immovable;
 
         Ok(())
     }
@@ -3905,6 +3991,62 @@ mod tests {
             "Expected positive transfer probability, got {}",
             prob
         );
+    }
+
+    #[test]
+    fn test_immovable_propagates_to_clique_members() {
+        // Scenario: p0 and p1 form a clique across all sessions.
+        // p0 is immovable to group g0_0 in session 0.
+        // Expectation:
+        //   • p1 is also immovable to g0_0 in session 0.
+        //   • The clique constraint no longer applies in session 0 but still applies in session 1.
+
+        use crate::models::ImmovablePersonParams;
+
+        // 3 people (p0, p1 in clique; p2 free) – 2 groups of size 2 – 2 sessions
+        let mut input = create_test_input(3, vec![(2, 2)], 2);
+
+        // Add constraints
+        input.constraints = vec![
+            Constraint::MustStayTogether {
+                people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
+                sessions: None, // all sessions initially
+            },
+            Constraint::ImmovablePerson(ImmovablePersonParams {
+                person_id: "p0".into(),
+                group_id: "g0_0".into(),
+                sessions: vec![0],
+            }),
+        ];
+
+        // Build state
+        let state = State::new(&input).expect("State creation should succeed");
+
+        // Resolve useful indices
+        let p0_idx = state.person_id_to_idx["p0"];
+        let p1_idx = state.person_id_to_idx["p1"];
+        let g0_idx = state.group_id_to_idx["g0_0"];
+
+        // === Assert immovable propagation ===
+        assert_eq!(
+            state.immovable_people.len(),
+            2,
+            "Both clique members should be immovable"
+        );
+        assert_eq!(state.immovable_people.get(&(p0_idx, 0)), Some(&g0_idx));
+        assert_eq!(state.immovable_people.get(&(p1_idx, 0)), Some(&g0_idx));
+
+        // === Assert clique session removal ===
+        let clique_id = state.person_to_clique_id[0][p0_idx].expect("p0 should be in clique");
+        let sessions_opt = &state.clique_sessions[clique_id];
+        // After propagation, the clique should only apply to session 1.
+        assert_eq!(sessions_opt, &Some(vec![1]));
+
+        // === Ensure no validation errors for conflicting assignments ===
+        // (Already covered by State::new success) – Additional logical check:
+        // cost calculation should yield zero immovable violations at start.
+        assert_eq!(state.immovable_violations, 0);
     }
 }
 
