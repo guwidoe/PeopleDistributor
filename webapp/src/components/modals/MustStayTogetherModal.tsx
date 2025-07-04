@@ -14,20 +14,38 @@ interface Props {
 const MustStayTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
   const { GetProblem, ui } = useAppStore();
   
+  const getInitialState = () => {
+    if (ui.isLoading) {
+      return {
+        selectedPeople: [] as string[],
+        selectedSessions: [] as number[],
+        validationError: '',
+      };
+    }
+    
+    const editing = !!initial;
+    const initPeople: string[] = editing && initial?.type === 'MustStayTogether' ? initial.people : [];
+    const initSessions: number[] = (editing && initial?.type === 'MustStayTogether' && initial.sessions) ? initial.sessions : [];
+
+    return {
+      selectedPeople: initPeople,
+      selectedSessions: initSessions,
+      validationError: '',
+    };
+  };
+
+  const initialState = getInitialState();
+  const [selectedPeople, setSelectedPeople] = useState<string[]>(initialState.selectedPeople);
+  const [selectedSessions, setSelectedSessions] = useState<number[]>(initialState.selectedSessions);
+  const [validationError, setValidationError] = useState<string>(initialState.validationError);
+  
   // Don't render until loading is complete to avoid creating new problems
   if (ui.isLoading) {
     return null;
   }
   
   const problem = GetProblem();
-  
   const editing = !!initial;
-  const initPeople: string[] = editing && initial?.type === 'MustStayTogether' ? initial.people : [];
-  const initSessions: number[] = (editing && initial?.type === 'MustStayTogether' && initial.sessions) ? initial.sessions : [];
-
-  const [selectedPeople, setSelectedPeople] = useState<string[]>(initPeople);
-  const [selectedSessions, setSelectedSessions] = useState<number[]>(initSessions);
-  const [validationError, setValidationError] = useState<string>('');
 
   const togglePerson = (pid: string) => {
     setSelectedPeople(prev => prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]);

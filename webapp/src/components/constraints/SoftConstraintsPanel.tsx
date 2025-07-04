@@ -1,8 +1,19 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Edit, Trash2, Clock } from 'lucide-react';
-import type { Constraint } from '../../types';
+import type { Constraint, Person } from '../../types';
 import { useAppStore } from '../../store';
 import AttributeBalanceDashboard from '../AttributeBalanceDashboard';
+import PersonCard from '../PersonCard';
+
+// Import the specific constraint type for the dashboard
+interface AttributeBalanceConstraint {
+  type: 'AttributeBalance';
+  group_id: string;
+  attribute_key: string;
+  desired_values: Record<string, number>;
+  penalty_weight: number;
+  sessions?: number[];
+}
 
 interface Props {
   onAddConstraint: (type: 'RepeatEncounter' | 'CannotBeTogether' | 'AttributeBalance') => void;
@@ -100,7 +111,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       {activeTab === 'AttributeBalance' && selectedItems.length > 0 && (
         <div>
           <AttributeBalanceDashboard 
-            constraints={selectedItems.map(i => i.constraint as any)} 
+            constraints={selectedItems.map(i => i.constraint as AttributeBalanceConstraint)} 
             problem={problem} 
           />
         </div>
@@ -110,7 +121,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       {selectedItems.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No {constraintTypeLabels[activeTab]} constraints defined.</p>
       ) : (
-        <div className="grid gap-3" style={{gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))'}}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {selectedItems.map(({ constraint, index }) => (
             <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md flex items-start justify-between" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
               <div className="flex-1 min-w-0">
@@ -141,26 +152,29 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
                       <div className="flex items-center gap-1 text-xs" style={{color:'var(--color-accent)'}}>
                         <Clock className="w-3 h-3" />
                         <span>Sessions:</span>
-                        {constraint.sessions && constraint.sessions.length > 0 ? (
-                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map((s:number)=>s+1).join(', ')}</span>
-                        ) : (
-                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span>
-                        )}
+                        {constraint.sessions && constraint.sessions.length > 0 ? constraint.sessions.map((s:number)=>s+1).join(', ') : 'All Sessions'}
                       </div>
                     </>
                   )}
 
                   {constraint.type === 'CannotBeTogether' && (
                     <>
-                      <div className="break-words">People: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.people.join(', ')}</span></div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span>People:</span>
+                        {constraint.people.map((pid: string, idx: number) => {
+                          const per = problem.people.find((p: Person) => p.id === pid);
+                          return (
+                            <React.Fragment key={pid}>
+                              {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
+                              {idx < constraint.people.length - 1 && <span></span>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
                       <div className="flex items-center gap-1 text-xs" style={{color:'var(--color-accent)'}}>
                         <Clock className="w-3 h-3" />
                         <span>Sessions:</span>
-                        {constraint.sessions && constraint.sessions.length > 0 ? (
-                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map((s:number)=>s+1).join(', ')}</span>
-                        ) : (
-                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span>
-                        )}
+                        {constraint.sessions && constraint.sessions.length > 0 ? constraint.sessions.map((s:number)=>s+1).join(', ') : 'All Sessions'}
                       </div>
                     </>
                   )}

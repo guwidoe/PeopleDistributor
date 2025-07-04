@@ -12,15 +12,20 @@ interface Props {
 const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) => {
   const { GetProblem, attributeDefinitions, ui } = useAppStore();
   
-  // Don't render until loading is complete to avoid creating new problems
-  if (ui.isLoading) {
-    return null;
-  }
-  
-  const problem = GetProblem();
-  const editing = !!initial;
-
   const getInitialState = () => {
+    if (ui.isLoading) {
+      return {
+        group_id: '',
+        attribute_key: '',
+        desired_values: {},
+        penalty_weight: 50,
+        sessions: [],
+      };
+    }
+    
+    const problem = GetProblem();
+    const editing = !!initial;
+
     if (editing && initial?.type === 'AttributeBalance') {
       return {
         group_id: initial.group_id || '',
@@ -41,6 +46,14 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
 
   const [formState, setFormState] = useState(getInitialState);
   const [validationError, setValidationError] = useState<string>('');
+  
+  // Don't render until loading is complete to avoid creating new problems
+  if (ui.isLoading) {
+    return null;
+  }
+  
+  const problem = GetProblem();
+  const editing = !!initial;
 
   const handleDesiredValueChange = (key: string, value: string) => {
     const numValue = parseInt(value, 10);

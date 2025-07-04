@@ -1,11 +1,54 @@
-import type { Problem, Solution, SolverSettings } from "../types";
+import type { Problem, Solution, SolverSettings, Constraint } from "../types";
 import type { ProgressUpdate, ProgressCallback } from "./wasm";
 
 interface WorkerMessage {
   type: string;
   id: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data?: any;
+  data?: unknown;
+}
+
+interface SolverMessageData {
+  problemJson?: string;
+  useProgress?: boolean;
+  args?: unknown[];
+  desired_runtime_seconds?: number;
+}
+
+interface SolverResult {
+  result: string;
+  lastProgress?: ProgressUpdate | null;
+}
+
+interface WorkerMessageData {
+  progressJson?: string;
+  result?: string;
+  lastProgressJson?: string;
+  error?: string;
+  problemJson?: string;
+  level?: string;
+  args?: unknown[];
+}
+
+interface RustSolverParams {
+  initial_temperature: number;
+  final_temperature: number;
+  reheat_after_no_improvement: number;
+}
+
+interface RustSolverSettings {
+  solver_type: string;
+  [key: string]: unknown;
+}
+
+interface RustResult {
+  schedule: Record<string, Record<string, string[]>>;
+  final_score: number;
+  unique_contacts: number;
+  repetition_penalty: number;
+  attribute_balance_penalty: number;
+  constraint_penalty: number;
+  weighted_repetition_penalty: number;
+  weighted_constraint_penalty: number;
 }
 
 export class SolverWorkerService {
@@ -65,7 +108,10 @@ export class SolverWorkerService {
         case "PROGRESS":
           if (pending?.progressCallback) {
             try {
-              const progress: ProgressUpdate = JSON.parse(data.progressJson);
+              const messageData = data as WorkerMessageData;
+              const progress: ProgressUpdate = JSON.parse(
+                messageData.progressJson || "{}"
+              );
               pending.progressCallback(progress);
               this.lastProgressUpdate = progress;
             } catch (error) {
@@ -77,8 +123,8 @@ export class SolverWorkerService {
         case "SOLVE_SUCCESS":
           if (pending) {
             // The worker now returns both the result and the last progress JSON
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { result, lastProgressJson } = data as any;
+            const messageData = data as WorkerMessageData;
+            const { result, lastProgressJson } = messageData;
 
             let lastProgress: ProgressUpdate | null = null;
             if (lastProgressJson) {
@@ -90,7 +136,7 @@ export class SolverWorkerService {
             }
 
             // Resolve with both the final result and the last progress update
-            pending.resolve({ result, lastProgress });
+            pending.resolve({ result: result || "", lastProgress });
             this.pendingMessages.delete(id);
           }
           break;
@@ -102,28 +148,28 @@ export class SolverWorkerService {
           }
           break;
 
-        case "ERROR":
+        case "ERROR": {
           if (pending) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pending.reject(new Error((data as any).error));
+            const messageData = data as WorkerMessageData;
+            pending.reject(new Error(messageData.error || "Unknown error"));
             this.pendingMessages.delete(id);
           } else {
             console.error("Worker error:", data);
           }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((data as any).problemJson) {
+          const messageData = data as WorkerMessageData;
+          if (messageData.problemJson) {
             console.debug(
               "[Worker] Solver input JSON that caused the error:",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (data as any).problemJson
+              messageData.problemJson
             );
           }
           break;
+        }
 
         case "LOG":
           {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { level, args } = data as any;
+            const messageData = data as WorkerMessageData;
+            const { level, args } = messageData;
             if (Array.isArray(args)) {
               switch (level) {
                 case "warn":
@@ -144,28 +190,29 @@ export class SolverWorkerService {
 
         case "RPC_SUCCESS":
           if (pending) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pending.resolve((data as any).result);
+            const messageData = data as WorkerMessageData;
+            pending.resolve(messageData.result || "");
             this.pendingMessages.delete(id);
           }
           break;
 
         case "RPC_ERROR":
           if (pending) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pending.reject(new Error((data as any).error));
+            const messageData = data as WorkerMessageData;
+            pending.reject(new Error(messageData.error || "Unknown error"));
             this.pendingMessages.delete(id);
           }
           break;
 
         case "PROBLEM_JSON":
           {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { problemJson } = data as any;
+            const messageData = data as WorkerMessageData;
+            const { problemJson } = messageData;
             try {
               // Store globally for quick copy/paste in devtools
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (window as any).lastSolverProblemJson = problemJson;
+              (
+                window as unknown as Record<string, unknown>
+              ).lastSolverProblemJson = problemJson;
               // Emit a browser event so other parts of the UI / devtools can listen
               window.dispatchEvent(
                 new CustomEvent("solver-problem-json", { detail: problemJson })
@@ -192,12 +239,29 @@ export class SolverWorkerService {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private sendMessage(
     type: string,
-    data: any,
+    data: SolverMessageData,
     progressCallback?: ProgressCallback
-  ): Promise<any> {
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error("Worker not initialized"));
+        return;
+      }
+
+      const id = (++this.messageId).toString();
+      this.pendingMessages.set(id, { resolve, reject, progressCallback });
+
+      this.worker.postMessage({ type, id, data });
+    });
+  }
+
+  private sendMessageWithProgress(
+    type: string,
+    data: SolverMessageData,
+    progressCallback?: ProgressCallback
+  ): Promise<SolverResult> {
     return new Promise((resolve, reject) => {
       if (!this.worker) {
         reject(new Error("Worker not initialized"));
@@ -253,8 +317,7 @@ export class SolverWorkerService {
     );
 
     // The promise now resolves with an object { result, lastProgress }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { result, lastProgress } = await this.sendMessage(
+    const { result, lastProgress } = await this.sendMessageWithProgress(
       "SOLVE",
       {
         problemJson,
@@ -267,7 +330,7 @@ export class SolverWorkerService {
     const solution = this.convertRustResultToSolution(rustResult, lastProgress);
 
     // Return both the solution and the last progress update
-    return { solution, lastProgress };
+    return { solution, lastProgress: lastProgress || null };
   }
 
   async cancel(): Promise<void> {
@@ -287,7 +350,6 @@ export class SolverWorkerService {
     // Reinitialize for future use
     try {
       await this.initialize();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       console.error("Failed to reinitialize worker after cancellation:", error);
       // Don't throw here - cancellation succeeded even if reinitialization failed
@@ -295,8 +357,9 @@ export class SolverWorkerService {
   }
 
   // Convert Problem to the format expected by the Rust solver
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private convertProblemToRustFormat(problem: Problem): any {
+  private convertProblemToRustFormat(
+    problem: Problem
+  ): Record<string, unknown> {
     // Convert solver_params from UI format to Rust format
     const solverSettings = { ...problem.settings };
 
@@ -312,10 +375,9 @@ export class SolverWorkerService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params = solverSettings.solver_params.SimulatedAnnealing as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sanitizeNumber = (v: any, d: number) =>
+        const params = solverSettings.solver_params
+          .SimulatedAnnealing as RustSolverParams;
+        const sanitizeNumber = (v: unknown, d: number) =>
           typeof v === "number" && !isNaN(v) ? v : d;
         params.initial_temperature = sanitizeNumber(
           params.initial_temperature,
@@ -331,8 +393,7 @@ export class SolverWorkerService {
         );
 
         // Flatten for serde tagged enum
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (solverSettings as any).solver_params = {
+        (solverSettings as RustSolverSettings).solver_params = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
         };
@@ -352,28 +413,29 @@ export class SolverWorkerService {
           ];
 
     // Clean constraints: ensure penalty_weight is a number when required to satisfy Rust deserialization
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cleanedConstraints = (problem.constraints || []).map((c: any) => {
-      if (
-        (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 1000 };
+    const cleanedConstraints = (problem.constraints || []).map(
+      (c: Constraint) => {
+        if (
+          (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 1000 };
+        }
+        if (
+          c.type === "AttributeBalance" &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 50 };
+        }
+        if (
+          c.type === "RepeatEncounter" &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 1 };
+        }
+        return c;
       }
-      if (
-        c.type === "AttributeBalance" &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 50 };
-      }
-      if (
-        c.type === "RepeatEncounter" &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 1 };
-      }
-      return c;
-    });
+    );
 
     return {
       problem: {
@@ -388,14 +450,16 @@ export class SolverWorkerService {
   }
 
   // Convert Rust solver result to our Solution format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertRustResultToSolution(
-    rustResult: any,
+    rustResult: RustResult,
     lastProgress?: ProgressUpdate | null
   ): Solution {
     // Convert the schedule format to assignments
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assignments: any[] = [];
+    const assignments: Array<{
+      person_id: string;
+      group_id: string;
+      session_id: number;
+    }> = [];
 
     for (const [sessionName, groups] of Object.entries(rustResult.schedule)) {
       const sessionId = parseInt(sessionName.replace("session_", ""));
@@ -444,13 +508,15 @@ export class SolverWorkerService {
   }
 
   // Helper to invoke RPC-style methods exposed by the worker / WASM module
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async callSolver(method: string, ...args: any[]): Promise<any> {
+  private async callSolver(
+    method: string,
+    ...args: unknown[]
+  ): Promise<string> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    let data: any = {};
+    let data: SolverMessageData = {};
 
     switch (method) {
       case "get_default_settings":
@@ -460,8 +526,8 @@ export class SolverWorkerService {
       case "get_recommended_settings":
         // Expect args: problemJson, desired_runtime_seconds
         data = {
-          problemJson: args[0],
-          desired_runtime_seconds: args[1],
+          problemJson: args[0] as string,
+          desired_runtime_seconds: args[1] as number,
         };
         break;
       default:
@@ -493,7 +559,7 @@ export class SolverWorkerService {
         "[SolverWorker] get_recommended_settings → desired_runtime_seconds:",
         desired_runtime_seconds
       );
-    } catch (e) {
+    } catch {
       // Swallow JSON.stringify errors for circular structures – shouldn't happen here.
     }
 

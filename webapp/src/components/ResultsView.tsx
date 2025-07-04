@@ -433,7 +433,7 @@ export function ResultsView() {
           <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             Optimization Results{resultName ? ` - ${resultName}` : ''}
           </h2>
-          <p className="mt-1 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+          <div className="mt-1 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
             Cost Score: {solution.final_score.toFixed(2)}
             <Tooltip content={<span>Cost Score = Unique contacts minus penalties. <b>Lower is better.</b></span>}>
               <Info className="w-4 h-4" />
@@ -441,7 +441,7 @@ export function ResultsView() {
             • 
             {solution.iteration_count.toLocaleString()} iterations • 
             {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic">(lower cost is better)</span>
-          </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button

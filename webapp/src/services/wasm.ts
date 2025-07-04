@@ -1,12 +1,11 @@
-/// <reference path="../types/wasm.d.ts" />
-
 import type {
   Problem,
   Solution,
   SolverSettings,
-  WasmModule,
   Assignment,
+  Constraint,
 } from "../types";
+import type { WasmModule } from "../types/wasm";
 
 // Progress update interface matching the Rust ProgressUpdate struct
 export interface ProgressUpdate {
@@ -68,6 +67,17 @@ export interface ProgressUpdate {
 
 // Progress callback type
 export type ProgressCallback = (progress: ProgressUpdate) => boolean;
+
+interface RustResult {
+  schedule: Record<string, Record<string, string[]>>;
+  final_score: number;
+  unique_contacts: number;
+  repetition_penalty: number;
+  attribute_balance_penalty: number;
+  constraint_penalty: number;
+  weighted_repetition_penalty: number;
+  weighted_constraint_penalty: number;
+}
 
 class WasmService {
   private module: WasmModule | null = null;
@@ -296,8 +306,9 @@ class WasmService {
   }
 
   // Convert Problem to the format expected by the Rust solver
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private convertProblemToRustFormat(problem: Problem): any {
+  private convertProblemToRustFormat(
+    problem: Problem
+  ): Record<string, unknown> {
     // Convert solver_params from UI format to Rust format
     const solverSettings = { ...problem.settings };
 
@@ -312,11 +323,10 @@ class WasmService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params = solverSettings.solver_params.SimulatedAnnealing as any;
+        const params = solverSettings.solver_params
+          .SimulatedAnnealing as unknown as Record<string, unknown>;
         // Provide defaults when fields are null / undefined / NaN
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sanitizeNumber = (v: any, d: number) =>
+        const sanitizeNumber = (v: unknown, d: number) =>
           typeof v === "number" && !isNaN(v) ? v : d;
         params.initial_temperature = sanitizeNumber(
           params.initial_temperature,
@@ -331,8 +341,7 @@ class WasmService {
           0
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (solverSettings.solver_params as any) = {
+        (solverSettings.solver_params as unknown as Record<string, unknown>) = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
         };
@@ -340,28 +349,29 @@ class WasmService {
     }
 
     // Clean constraints: remove undefined/null penalty_weight to satisfy Rust deserialization
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cleanedConstraints = (problem.constraints || []).map((c: any) => {
-      if (
-        (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 1000 };
+    const cleanedConstraints = (problem.constraints || []).map(
+      (c: Constraint) => {
+        if (
+          (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 1000 };
+        }
+        if (
+          c.type === "AttributeBalance" &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 50 };
+        }
+        if (
+          c.type === "RepeatEncounter" &&
+          (c.penalty_weight === undefined || c.penalty_weight === null)
+        ) {
+          return { ...c, penalty_weight: 1 };
+        }
+        return c;
       }
-      if (
-        c.type === "AttributeBalance" &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 50 };
-      }
-      if (
-        c.type === "RepeatEncounter" &&
-        (c.penalty_weight === undefined || c.penalty_weight === null)
-      ) {
-        return { ...c, penalty_weight: 1 };
-      }
-      return c;
-    });
+    );
 
     return {
       problem: {
@@ -381,9 +391,8 @@ class WasmService {
   }
 
   // Convert Rust solver result to our Solution format
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertRustResultToSolution(
-    rustResult: any,
+    rustResult: RustResult,
     lastProgress?: ProgressUpdate
   ): Solution {
     // Convert the schedule format to assignments

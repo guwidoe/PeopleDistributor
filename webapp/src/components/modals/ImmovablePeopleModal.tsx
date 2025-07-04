@@ -14,22 +14,43 @@ interface Props {
 const ImmovablePeopleModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
   const { GetProblem, ui } = useAppStore();
   
+  const getInitialState = () => {
+    if (ui.isLoading) {
+      return {
+        selectedPeople: [] as string[],
+        groupId: '',
+        selectedSessions: [] as number[],
+        validationError: '',
+      };
+    }
+    
+    const problem = GetProblem();
+    const editing = !!initial;
+    const initPeople: string[] = editing && initial?.type === 'ImmovablePeople' ? initial.people : [];
+    const initGroup: string = editing && initial?.type === 'ImmovablePeople' ? initial.group_id : ((problem.groups && problem.groups.length > 0) ? problem.groups[0].id : '');
+    const initSessions: number[] = (editing && initial?.type === 'ImmovablePeople' && initial.sessions) ? initial.sessions : [];
+
+    return {
+      selectedPeople: initPeople,
+      groupId: initGroup,
+      selectedSessions: initSessions,
+      validationError: '',
+    };
+  };
+
+  const initialState = getInitialState();
+  const [selectedPeople, setSelectedPeople] = useState<string[]>(initialState.selectedPeople);
+  const [groupId, setGroupId] = useState<string>(initialState.groupId);
+  const [selectedSessions, setSelectedSessions] = useState<number[]>(initialState.selectedSessions);
+  const [validationError, setValidationError] = useState<string>(initialState.validationError);
+  
   // Don't render until loading is complete to avoid creating new problems
   if (ui.isLoading) {
     return null;
   }
   
   const problem = GetProblem();
-  
   const editing = !!initial;
-  const initPeople: string[] = editing && initial?.type === 'ImmovablePeople' ? initial.people : [];
-  const initGroup: string = editing && initial?.type === 'ImmovablePeople' ? initial.group_id : ((problem.groups && problem.groups.length > 0) ? problem.groups[0].id : '');
-  const initSessions: number[] = (editing && initial?.type === 'ImmovablePeople' && initial.sessions) ? initial.sessions : [];
-
-  const [selectedPeople, setSelectedPeople] = useState<string[]>(initPeople);
-  const [groupId, setGroupId] = useState<string>(initGroup);
-  const [selectedSessions, setSelectedSessions] = useState<number[]>(initSessions);
-  const [validationError, setValidationError] = useState<string>('');
 
   const togglePerson = (pid: string) => {
     setSelectedPeople(prev => prev.includes(pid) ? prev.filter(p => p !== pid) : [...prev, pid]);

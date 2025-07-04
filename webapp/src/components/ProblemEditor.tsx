@@ -3,6 +3,16 @@ import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
+
+// Import the specific constraint type for the dashboard
+interface AttributeBalanceConstraint {
+  type: 'AttributeBalance';
+  group_id: string;
+  attribute_key: string;
+  desired_values: Record<string, number>;
+  penalty_weight: number;
+  sessions?: number[];
+}
 import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
 import PersonCard from './PersonCard';
 import HardConstraintsPanel from './constraints/HardConstraintsPanel';
@@ -2190,12 +2200,20 @@ export function ProblemEditor() {
     return [headerLine, ...dataLines].join('\n');
   };
 
-  // === Helper: Generate a unique person ID across all existing people ===
+  // === Helper: Generate a unique person ID across all existing people in all problems ===
   const generateUniquePersonId = (): string => {
+    // Get all person IDs across all problems
+    const allProblems = useAppStore.getState().savedProblems;
+    const allPersonIds = new Set<string>();
+    Object.values(allProblems).forEach(p => p.problem.people.forEach(person => allPersonIds.add(person.id)));
+    // Also include people in the current unsaved problem
+    if (problem?.people) {
+      problem.people.forEach(person => allPersonIds.add(person.id));
+    }
     let newId: string;
     do {
       newId = `person_${Math.random().toString(36).slice(2, 10)}`;
-    } while (problem?.people?.some(p => p.id === newId));
+    } while (allPersonIds.has(newId));
     return newId;
   };
 
@@ -2904,7 +2922,7 @@ export function ProblemEditor() {
 
                       {/* Dashboard for Attribute Balance */}
                       {activeConstraintTab === 'AttributeBalance' && (
-                        <AttributeBalanceDashboard constraints={selectedItems.map(i => i.constraint as any)} problem={problem!} />
+                        <AttributeBalanceDashboard constraints={selectedItems.map(i => i.constraint as AttributeBalanceConstraint)} problem={problem!} />
                       )}
 
                       <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">

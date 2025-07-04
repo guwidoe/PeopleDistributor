@@ -14,24 +14,45 @@ interface Props {
 const CannotBeTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCancel, onSave }) => {
   const { GetProblem, ui } = useAppStore();
   
+  const getInitialState = () => {
+    if (ui.isLoading) {
+      return {
+        selectedPeople: [] as string[],
+        selectedSessions: [] as number[],
+        penaltyWeight: 500,
+        personSearch: '',
+        validationError: '',
+      };
+    }
+    
+    const editing = !!initial;
+    const initPeople: string[] = editing && initial?.type === 'CannotBeTogether' ? initial.people : [];
+    const initSessions: number[] = (editing && initial?.type === 'CannotBeTogether' && initial.sessions) ? initial.sessions : [];
+    const initWeight: number = editing && initial?.type === 'CannotBeTogether' ? initial.penalty_weight : 500;
+
+    return {
+      selectedPeople: initPeople,
+      selectedSessions: initSessions,
+      penaltyWeight: initWeight,
+      personSearch: '',
+      validationError: '',
+    };
+  };
+
+  const initialState = getInitialState();
+  const [selectedPeople, setSelectedPeople] = useState<string[]>(initialState.selectedPeople);
+  const [selectedSessions, setSelectedSessions] = useState<number[]>(initialState.selectedSessions);
+  const [penaltyWeight, setPenaltyWeight] = useState<number>(initialState.penaltyWeight);
+  const [personSearch, setPersonSearch] = useState(initialState.personSearch);
+  const [validationError, setValidationError] = useState<string>(initialState.validationError);
+  
   // Don't render until loading is complete to avoid creating new problems
   if (ui.isLoading) {
     return null;
   }
   
   const problem = GetProblem();
-  
   const editing = !!initial;
-  const initPeople: string[] = editing && initial?.type === 'CannotBeTogether' ? initial.people : [];
-  const initSessions: number[] = (editing && initial?.type === 'CannotBeTogether' && initial.sessions) ? initial.sessions : [];
-  const initWeight: number = editing && initial?.type === 'CannotBeTogether' ? initial.penalty_weight : 500;
-
-
-  const [selectedPeople, setSelectedPeople] = useState<string[]>(initPeople);
-  const [selectedSessions, setSelectedSessions] = useState<number[]>(initSessions);
-  const [penaltyWeight, setPenaltyWeight] = useState<number>(initWeight);
-  const [personSearch, setPersonSearch] = useState('');
-  const [validationError, setValidationError] = useState<string>('');
   
   const filteredPeople = problem.people.filter(p => p.id.toLowerCase().includes(personSearch.toLowerCase()));
 
