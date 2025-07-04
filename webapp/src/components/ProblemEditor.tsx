@@ -2705,7 +2705,7 @@ export function ProblemEditor() {
                   onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
                   className="input w-32"
                 />
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
                   The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.
                 </p>
               </div>
