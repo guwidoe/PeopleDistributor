@@ -519,7 +519,7 @@ export function SolverPanel() {
               </Tooltip>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <div className="flex items-center space-x-2 mb-1">
                 <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -765,7 +765,7 @@ export function SolverPanel() {
         </div>
 
         {/* Basic Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="text-center p-4 bg-primary-50 rounded-lg">
             <Activity className="h-8 w-8 text-primary-600 mx-auto mb-2" />
             <div className="text-2xl font-bold text-primary-600">
@@ -795,7 +795,7 @@ export function SolverPanel() {
         </div>
 
         {/* Control Buttons */}
-        <div className="flex items-center space-x-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
           {/* Runtime (s) */}
           <div className="flex flex-col items-start">
             <label className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -806,7 +806,7 @@ export function SolverPanel() {
               value={desiredRuntimeMain}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeMain(Number(e.target.value))}
               disabled={solverState.isRunning}
-              className="input w-28"
+              className="input w-full sm:w-28"
               min="1"
             />
           </div>
@@ -831,7 +831,7 @@ export function SolverPanel() {
           
           <button
             onClick={handleResetSolver}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center justify-center space-x-2"
             disabled={solverState.isRunning}
           >
             <RotateCcw className="h-4 w-4" />
@@ -859,7 +859,7 @@ export function SolverPanel() {
           {showMetrics && (
             <>
               {/* Temperature and Progress */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Temperature</span>

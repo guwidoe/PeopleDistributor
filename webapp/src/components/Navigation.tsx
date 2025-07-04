@@ -50,7 +50,7 @@ export function Navigation() {
                 key={tab.id}
                 to={tab.path}
                 className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 border ${
+                  `flex-1 flex items-center justify-center space-x-2 px-2 sm:px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 border ${
                     isActive
                       ? 'shadow-sm'
                       : 'border-transparent hover:bg-opacity-50'
@@ -64,7 +64,7 @@ export function Navigation() {
                 title={tab.description}
               >
                 <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="text-xs sm:text-sm">{tab.label}</span>
               </NavLink>
             );
           })}

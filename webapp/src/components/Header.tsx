@@ -10,7 +10,7 @@ export function Header() {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
       <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
           <Link to="/landingpage" className="flex items-center space-x-3 group">
             <div className="flex items-center space-x-2">
               <Users className="h-8 w-8 transition-colors" style={{ color: 'var(--color-accent)' }} />
@@ -20,15 +20,16 @@ export function Header() {
             </div>
           </Link>
           
-          <div className="flex items-center space-x-2 sm:space-x-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
             {!currentProblemName && (
               <button
                 onClick={() => setShowProblemManager(true)}
-                className="btn-secondary flex items-center space-x-2"
+                className="btn-secondary flex items-center space-x-2 w-full sm:w-auto justify-center sm:justify-start"
                 title="Manage problems"
               >
                 <FolderOpen className="h-4 w-4" />
                 <span className="hidden sm:inline">Manage Problems</span>
+                <span className="sm:hidden">Manage</span>
               </button>
             )}
             {currentProblemName && (
@@ -47,12 +48,15 @@ export function Header() {
               </div>
             )}
             
-            <a href="https://github.com/guwidoe/PeopleDistributor/issues" target="_blank" rel="noopener noreferrer" title="Report an issue or suggest a feature" className="flex items-center space-x-2 text-sm transition-colors p-2 rounded-md hover:bg-opacity-50" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}>
-              <Bug className="h-4 w-4" />
-              <span className="hidden lg:inline">Report Issue</span>
-            </a>
-            
-            <HeaderThemeToggle />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <a href="https://github.com/guwidoe/PeopleDistributor/issues" target="_blank" rel="noopener noreferrer" title="Report an issue or suggest a feature" className="flex items-center space-x-2 text-sm transition-colors p-2 rounded-md hover:bg-opacity-50 flex-1 sm:flex-none justify-center sm:justify-start" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}>
+                <Bug className="h-4 w-4" />
+                <span className="hidden lg:inline">Report Issue</span>
+                <span className="lg:hidden">Issues</span>
+              </a>
+              
+              <HeaderThemeToggle />
+            </div>
           </div>
         </div>
       </div>

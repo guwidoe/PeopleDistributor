@@ -50,20 +50,21 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
   const selectedItems = constraintsByType[activeTab] || [];
 
   return (
-    <div className="space-y-4 pt-1 pl-0">
-      {/* Info Section */}
-      <div>
+    <div className="space-y-4 pt-0 pl-0">
+      {/* Title */}
+      <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Soft Constraints</h3>
+      {/* Info Box */}
+      <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
         <button
-          className="flex items-center gap-1 text-xs font-medium hover:text-primary transition-colors"
+          className="flex items-center gap-2 w-full p-4 text-left"
           onClick={() => setShowInfo(!showInfo)}
-          style={{ color: 'var(--text-secondary)' }}
         >
-          {showInfo ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          <span>About Soft Constraints</span>
+          {showInfo ? <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} /> : <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />}
+          <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Soft Constraints work?</h4>
         </button>
         {showInfo && (
-          <div className="mt-1 pl-5 text-xs space-y-1" style={{ color: 'var(--text-tertiary)' }}>
-            <p>Soft constraints can be violated. Each violation increases the schedule cost by its penalty weight.</p>
+          <div className="p-4 pt-0 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-2">Soft constraints can be violated. Each violation increases the schedule cost by its penalty weight.</p>
             <ul className="list-disc list-inside space-y-0.5">
               <li><strong>Repeat Encounter</strong>: Limit how often pairs meet.</li>
               <li><strong>Attribute Balance</strong>: Keep group attribute distributions balanced.</li>
@@ -72,8 +73,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           </div>
         )}
       </div>
-
-      {/* Tab Bar */}
+      {/* Sub-tabs and constraint lists remain unchanged */}
       <div className="flex gap-0 border-b mb-4" style={{ borderColor: 'var(--border-primary)' }}>
         {SOFT_TABS.map((t) => (
           <button
@@ -94,8 +94,6 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           </button>
         ))}
       </div>
-
-      {/* Add Button */}
       <div>
         <button
           onClick={() => onAddConstraint(activeTab)}
@@ -106,8 +104,6 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           {activeTab === 'RepeatEncounter' ? 'Add Repeat Limit' : activeTab === 'AttributeBalance' ? 'Add Attribute Balance' : 'Add Cannot Be Together'}
         </button>
       </div>
-
-      {/* Attribute Balance Dashboard */}
       {activeTab === 'AttributeBalance' && selectedItems.length > 0 && (
         <div>
           <AttributeBalanceDashboard 
@@ -116,8 +112,6 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           />
         </div>
       )}
-
-      {/* List */}
       {selectedItems.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No {constraintTypeLabels[activeTab]} constraints defined.</p>
       ) : (

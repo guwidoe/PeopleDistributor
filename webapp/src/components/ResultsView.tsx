@@ -428,32 +428,35 @@ export function ResultsView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             Optimization Results{resultName ? ` - ${resultName}` : ''}
           </h2>
-          <div className="mt-1 flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-            Cost Score: {solution.final_score.toFixed(2)}
-            <Tooltip content={<span>Cost Score = Unique contacts minus penalties. <b>Lower is better.</b></span>}>
-              <Info className="w-4 h-4" />
-            </Tooltip>
-            • 
-            {solution.iteration_count.toLocaleString()} iterations • 
-            {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic">(lower cost is better)</span>
+          <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2" style={{ color: 'var(--text-secondary)' }}>
+            <div className="flex items-center gap-2">
+              Cost Score: {solution.final_score.toFixed(2)}
+              <Tooltip content={<span>Cost Score = Unique contacts minus penalties. <b>Lower is better.</b></span>}>
+                <Info className="w-4 h-4" />
+              </Tooltip>
+            </div>
+            <div className="flex items-center gap-2">
+              {solution.iteration_count.toLocaleString()} iterations • 
+              {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic">(lower cost is better)</span>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
           >
             {showDetails ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {showDetails ? 'Hide' : 'Show'} Details
           </button>
           <button
             onClick={handleExportResults}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
           >
             <Download className="w-4 h-4" />
             Export
@@ -462,7 +465,7 @@ export function ResultsView() {
       </div>
 
       {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {renderMetricCard("Cost Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
         {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${effectiveMaxUniqueTotal}`, Users, uniqueColorClass)}
         {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${effectiveMaxAvgContacts}`, PieChart, avgColorClass)}
@@ -554,7 +557,7 @@ export function ResultsView() {
       {/* Schedule View */}
       <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
         <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
             <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Group Assignments</h3>
             <div className="flex items-center gap-2">
               <button

@@ -38,20 +38,21 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
   const selectedItems = constraintsByType[activeTab] || [];
 
   return (
-    <div className="space-y-4 pt-1 pl-0">
-      {/* Info Section */}
-      <div>
+    <div className="space-y-4 pt-0 pl-0">
+      {/* Title */}
+      <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Hard Constraints</h3>
+      {/* Info Box */}
+      <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
         <button
-          className="flex items-center gap-1 text-xs font-medium hover:text-primary transition-colors"
+          className="flex items-center gap-2 w-full p-4 text-left"
           onClick={() => setShowInfo(!showInfo)}
-          style={{ color: 'var(--text-secondary)' }}
         >
-          {showInfo ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          <span>About Hard Constraints</span>
+          {showInfo ? <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} /> : <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />}
+          <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Hard Constraints work?</h4>
         </button>
         {showInfo && (
-          <div className="mt-0.5 pl-5 text-xs space-y-1" style={{ color: 'var(--text-tertiary)' }}>
-            <p>Hard constraints <strong>must</strong> be satisfied. The solver throws an error if they cannot all be met.</p>
+          <div className="p-4 pt-0 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <p className="mb-2">Hard constraints <strong>must</strong> be satisfied. The solver throws an error if they cannot all be met.</p>
             <ul className="list-disc list-inside space-y-0.5">
               <li><strong>Immovable People</strong>: Fix selected people to a group in chosen sessions.</li>
               <li><strong>Must Stay Together</strong>: Keep selected people in the same group.</li>
@@ -59,8 +60,7 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           </div>
         )}
       </div>
-
-      {/* Tab Bar */}
+      {/* Sub-tabs and constraint lists remain unchanged */}
       <div className="flex gap-0 border-b mb-4" style={{ borderColor: 'var(--border-primary)' }}>
         {HARD_TABS.map((t) => (
           <button
@@ -81,8 +81,6 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           </button>
         ))}
       </div>
-
-      {/* Add Button */}
       <div>
         <button
           onClick={() => onAddConstraint(activeTab)}
@@ -93,8 +91,6 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
           {activeTab === 'ImmovablePeople' ? 'Add Immovable People' : 'Add Clique'}
         </button>
       </div>
-
-      {/* List of constraints of this type */}
       {selectedItems.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>No {constraintTypeLabels[activeTab]} constraints defined.</p>
       ) : (

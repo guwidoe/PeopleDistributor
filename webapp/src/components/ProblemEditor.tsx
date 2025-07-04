@@ -268,6 +268,8 @@ export function ProblemEditor() {
     }
   }, [constraintCategoryTab, activeConstraintTab, SOFT_TYPES, HARD_TYPES]);
   const [showConstraintInfo, setShowConstraintInfo] = useState<boolean>(false);
+  const [showSessionsInfo, setShowSessionsInfo] = useState<boolean>(false);
+  const [showObjectivesInfo, setShowObjectivesInfo] = useState<boolean>(false);
 
   const handleSaveProblem = () => {
     if (!problem) return;
@@ -905,7 +907,7 @@ export function ProblemEditor() {
 
     const sortedPeople = sortPeople(problem.people);
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {sortedPeople.map(renderPersonCard)}
       </div>
     );
@@ -2225,24 +2227,24 @@ export function ProblemEditor() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Setup</h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
           >
             <Upload className="w-4 h-4" />
             Load
           </button>
           <button
             onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-2"
+            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
           >
             <Save className="w-4 h-4" />
             Save
@@ -2250,7 +2252,7 @@ export function ProblemEditor() {
           <div className="relative" ref={demoDropdownRef}>
             <button
               onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary flex items-center gap-2 justify-center sm:justify-start w-full sm:w-auto"
             >
               <Zap className="w-4 h-4" />
               Demo Data
@@ -2327,7 +2329,7 @@ export function ProblemEditor() {
 
       {/* Navigation */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <nav className="flex space-x-8">
+        <nav className="flex flex-wrap gap-2 sm:gap-8">
           {[
             { id: 'people', label: 'People', icon: Users, count: (problem?.people ?? []).length },
             { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
@@ -2339,14 +2341,15 @@ export function ProblemEditor() {
               <NavLink
               key={id}
               to={`/app/problem/${id}`}
-              className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors"
+              className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap"
               style={({ isActive }) => ({
                 borderBottomColor: isActive ? 'var(--color-accent)' : 'transparent',
                 color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)'
               })}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.split(' ')[0]}</span>
               {typeof count === 'number' && (
                 <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs">
                   {count}
@@ -2446,11 +2449,11 @@ export function ProblemEditor() {
             {/* People Section */}
             <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
               <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)' }}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
                   <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>
                     People ({problem?.people.length || 0})
                   </h3>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     {/* View Toggle */}
                     <div className="flex items-center gap-2">
                       <button
@@ -2663,8 +2666,31 @@ export function ProblemEditor() {
 
       {activeSection === 'sessions' && (
         <div className="space-y-4">
-          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions Configuration</h3>
-          
+          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions</h3>
+          {/* Collapsible info box OUTSIDE the main box */}
+          <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <button
+              className="flex items-center gap-2 w-full p-4 text-left"
+              onClick={() => setShowSessionsInfo(!showSessionsInfo)}
+            >
+              {showSessionsInfo ? (
+                <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              ) : (
+                <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              )}
+              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Sessions work?</h4>
+            </button>
+            {showSessionsInfo && (
+              <div className="p-4 pt-0">
+                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                  <li>• Each session represents a time period (e.g., morning, afternoon, day 1, day 2)</li>
+                  <li>• People are assigned to groups within each session</li>
+                  <li>• The algorithm maximizes unique contacts across all sessions</li>
+                  <li>• People can participate in all sessions or only specific ones</li>
+                </ul>
+              </div>
+            )}
+          </div>
           <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
             <div className="space-y-4">
               <div>
@@ -2683,16 +2709,6 @@ export function ProblemEditor() {
                   The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.
                 </p>
               </div>
-              
-              <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-                <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>How Sessions Work</h4>
-                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                  <li>• Each session represents a time period (e.g., morning, afternoon, day 1, day 2)</li>
-                  <li>• People are assigned to groups within each session</li>
-                  <li>• The algorithm maximizes unique contacts across all sessions</li>
-                  <li>• People can participate in all sessions or only specific ones</li>
-                </ul>
-              </div>
             </div>
           </div>
         </div>
@@ -2701,29 +2717,45 @@ export function ProblemEditor() {
       {activeSection === 'objectives' && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Objectives</h3>
-
-          <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
-              weights to create a custom scoring function. Currently the solver supports the
-              <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
-            </p>
+          {/* Collapsible info box OUTSIDE the main box */}
+          <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <button
+              className="flex items-center gap-2 w-full p-4 text-left"
+              onClick={() => setShowObjectivesInfo(!showObjectivesInfo)}
+            >
+              {showObjectivesInfo ? (
+                <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              ) : (
+                <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              )}
+              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Objectives work?</h4>
+            </button>
+            {showObjectivesInfo && (
+              <div className="p-4 pt-0">
+                <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
+                  weights to create a custom scoring function. Currently the solver supports the
+                  <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
+                </p>
+              </div>
+            )}
           </div>
-
-          {/* Unique Contacts Objective Editor */}
-          <ObjectiveWeightEditor
-            currentWeight={getCurrentObjectiveWeight()}
-            onCommit={(newWeight) => {
-              if (!problem) return;
-              const newObjectives = [
-                {
-                  type: 'maximize_unique_contacts',
-                  weight: newWeight,
-                },
-              ];
-              updateProblem({ objectives: newObjectives });
-            }}
-          />
+          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            {/* Unique Contacts Objective Editor */}
+            <ObjectiveWeightEditor
+              currentWeight={getCurrentObjectiveWeight()}
+              onCommit={(newWeight) => {
+                if (!problem) return;
+                const newObjectives = [
+                  {
+                    type: 'maximize_unique_contacts',
+                    weight: newWeight,
+                  },
+                ];
+                updateProblem({ objectives: newObjectives });
+              }}
+            />
+          </div>
         </div>
       )}
 

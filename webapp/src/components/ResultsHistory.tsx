@@ -288,47 +288,49 @@ export function ResultsHistory() {
   return (
     <div className="space-y-6">
       {/* Header & Bulk Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Results History</h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             {results.length} result{results.length !== 1 ? 's' : ''} for "{currentProblem.name}"
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {results.length > 0 && (
             <button
               onClick={handleSelectAll}
-              className="btn-secondary text-sm"
+              className="btn-secondary text-sm w-full sm:w-auto"
             >
               {selectedResultIds.length === allResultIds.length ? 'Clear Selection' : 'Select All'}
             </button>
           )}
           {selectedResultIds.length > 0 && (
-            <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <span>{selectedResultIds.length} selected</span>
-              {selectedResultIds.length >= 2 && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm w-full sm:w-auto" style={{ color: 'var(--text-secondary)' }}>
+              <span className="text-center sm:text-left">{selectedResultIds.length} selected</span>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {selectedResultIds.length >= 2 && (
+                  <button
+                    onClick={handleCompareSelected}
+                    className="btn-primary flex items-center justify-center sm:justify-start space-x-2"
+                  >
+                    <GitCompare className="h-4 w-4" />
+                    <span>Compare</span>
+                  </button>
+                )}
                 <button
-                  onClick={handleCompareSelected}
-                  className="btn-primary flex items-center space-x-2"
+                  onClick={handleBulkDelete}
+                  className="btn-danger flex items-center justify-center sm:justify-start space-x-2"
                 >
-                  <GitCompare className="h-4 w-4" />
-                  <span>Compare</span>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete {selectedResultIds.length > 1 ? `${selectedResultIds.length} Results` : 'Result'}</span>
                 </button>
-              )}
-              <button
-                onClick={handleBulkDelete}
-                className="btn-danger flex items-center space-x-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete {selectedResultIds.length > 1 ? `${selectedResultIds.length} Results` : 'Result'}</span>
-              </button>
-              <button
-                onClick={() => selectResultsForComparison([])}
-                className="btn-secondary"
-              >
-                Clear
-              </button>
+                <button
+                  onClick={() => selectResultsForComparison([])}
+                  className="btn-secondary"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -336,9 +338,9 @@ export function ResultsHistory() {
 
       {/* Problem Summary */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-4">
                       <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Problem Overview</h3>
-          <div className="flex items-center space-x-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
             <div className="flex items-center space-x-1">
               <Users className="h-4 w-4" />
               <span>{currentProblem.problem.people.length} people</span>
@@ -360,7 +362,7 @@ export function ResultsHistory() {
               <Target className="h-5 w-5" style={{ color: 'var(--badge-best-text)' }} />
               <span className="font-medium" style={{ color: 'var(--badge-best-text)' }}>Best Result</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div>
                 <span style={{ color: 'var(--badge-best-text)' }}>Score:</span>
                 <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
