@@ -15,12 +15,12 @@ import {
   XCircle,
   Info
 } from 'lucide-react';
-import { Constraint } from '../types';
+import { Constraint, Person } from '../types';
 import { Tooltip } from './Tooltip';
 import PersonCard from './PersonCard';
 
 export function ResultsView() {
-  const { problem, solution, solverState, addNotification, currentProblemId, savedProblems } = useAppStore();
+  const { problem, solution, solverState, currentProblemId, savedProblems } = useAppStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showDetails, setShowDetails] = useState(false);
 
@@ -32,66 +32,6 @@ export function ResultsView() {
     const match = problem.results.find(r => r.solution === solution);
     return match?.name;
   }, [currentProblemId, savedProblems, solution]);
-
-  if (!solution) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--text-secondary)' }}>
-        <Target className="w-16 h-16 mb-4" style={{ color: 'var(--text-tertiary)' }} />
-        <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--text-primary)' }}>No Results Yet</h3>
-        <p className="text-center max-w-md" style={{ color: 'var(--text-secondary)' }}>
-          Run the solver to see optimization results and group assignments.
-        </p>
-      </div>
-    );
-  }
-
-  const handleExportResults = () => {
-    const exportData = {
-      problem,
-      solution,
-      timestamp: new Date().toISOString(),
-    };
-    
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-    
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `optimization-results-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const generateSummaryText = () => {
-    if (!problem || !solution) return '';
-    
-    const repPenalty = solution.weighted_repetition_penalty ?? solution.repetition_penalty;
-    const conPenalty = solution.weighted_constraint_penalty ?? solution.constraint_penalty;
-    
-    return `Optimization Results Summary:\n  \nFinal Score: ${solution.final_score.toFixed(2)}\nUnique Contacts: ${solution.unique_contacts}\nRepetition Penalty: ${repPenalty.toFixed(2)}\nConstraint Penalty: ${conPenalty.toFixed(2)}\nIterations: ${solution.iteration_count}\nTime: ${(solution.elapsed_time_ms / 1000).toFixed(2)}s\nSessions: ${problem?.num_sessions || 0}\nGroups: ${problem?.groups.length || 0}`;
-  };
-
-  // Group assignments by session for display
-  const sessionData = Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
-    const sessionAssignments = solution.assignments.filter(a => a.session_id === sessionIndex);
-    const groups = problem?.groups.map(group => ({
-      ...group,
-      people: sessionAssignments
-        .filter(a => a.group_id === group.id)
-        .map(a => problem?.people.find(p => p.id === a.person_id))
-        .filter(Boolean)
-    })) || [];
-    
-    return {
-      sessionIndex,
-      groups,
-      totalPeople: sessionAssignments.length
-    };
-  });
 
   // === Derived Metrics ===
   const avgUniqueContacts = useMemo(() => {
@@ -119,22 +59,17 @@ export function ResultsView() {
   const effectiveMaxAvgContacts = Math.max(1, Math.min(maxAvgContactsTheoretical, altMaxAvgContacts || maxAvgContactsTheoretical));
   const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
 
-  const uniqueRatio = useMemo(() => solution.unique_contacts / effectiveMaxUniqueTotal, [solution.unique_contacts, effectiveMaxUniqueTotal]);
+  const uniqueRatio = useMemo(() => solution?.unique_contacts ? solution.unique_contacts / effectiveMaxUniqueTotal : 0, [solution?.unique_contacts, effectiveMaxUniqueTotal]);
   const avgRatio = useMemo(() => avgUniqueContacts / effectiveMaxAvgContacts, [avgUniqueContacts, effectiveMaxAvgContacts]);
 
   // Constraint penalty normalization
-  const finalConstraintPenalty = solution.weighted_constraint_penalty ?? solution.constraint_penalty;
+  const finalConstraintPenalty = solution?.weighted_constraint_penalty ?? solution?.constraint_penalty ?? 0;
   const baselineConstraintPenalty = useMemo(() => {
     const base = solverState.initialConstraintPenalty ?? solverState.currentConstraintPenalty ?? finalConstraintPenalty;
     return base === 0 ? (finalConstraintPenalty > 0 ? finalConstraintPenalty : 1) : base;
   }, [solverState.initialConstraintPenalty, solverState.currentConstraintPenalty, finalConstraintPenalty]);
 
   const constraintRatio = Math.min(finalConstraintPenalty / baselineConstraintPenalty, 1);
-
-  // Color classes
-  const uniqueColorClass = getColorClass(uniqueRatio);
-  const avgColorClass = getColorClass(avgRatio);
-  const constraintColorClass = getColorClass(constraintRatio, true);
 
   // === Constraint Compliance Evaluation ===
   type ConstraintCompliance = { constraint: Constraint; adheres: boolean; violations: number };
@@ -150,7 +85,7 @@ export function ResultsView() {
       schedule[a.session_id][a.group_id].push(a.person_id);
     });
 
-    const personMap = new Map<string, any>(problem.people.map(p => [p.id, p]));
+    const personMap = new Map<string, Person>(problem.people.map(p => [p.id, p]));
 
     const results: ConstraintCompliance[] = problem.constraints.map((c): ConstraintCompliance => {
       switch (c.type) {
@@ -194,7 +129,8 @@ export function ResultsView() {
         }
         case 'ImmovablePeople': {
           let violations = 0;
-          c.sessions.forEach(session => {
+          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          sessions.forEach(session => {
             const peopleIds = schedule[session]?.[c.group_id] || [];
             c.people.forEach(pid => {
               if (!peopleIds.includes(pid)) violations += 1;
@@ -244,6 +180,62 @@ export function ResultsView() {
 
     return results;
   }, [problem, solution]);
+
+  if (!solution) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--text-secondary)' }}>
+        <Target className="w-16 h-16 mb-4" style={{ color: 'var(--text-tertiary)' }} />
+        <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--text-primary)' }}>No Results Yet</h3>
+        <p className="text-center max-w-md" style={{ color: 'var(--text-secondary)' }}>
+          Run the solver to see optimization results and group assignments.
+        </p>
+      </div>
+    );
+  }
+
+  const handleExportResults = () => {
+    const exportData = {
+      problem,
+      solution,
+      timestamp: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `optimization-results-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Group assignments by session for display
+  const sessionData = Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
+    const sessionAssignments = solution.assignments.filter(a => a.session_id === sessionIndex);
+    const groups = problem?.groups.map(group => ({
+      ...group,
+      people: sessionAssignments
+        .filter(a => a.group_id === group.id)
+        .map(a => problem?.people.find(p => p.id === a.person_id))
+        .filter(Boolean)
+    })) || [];
+    
+    return {
+      sessionIndex,
+      groups,
+      totalPeople: sessionAssignments.length
+    };
+  });
+
+  // Color classes
+  const uniqueColorClass = getColorClass(uniqueRatio);
+  const avgColorClass = getColorClass(avgRatio);
+  const constraintColorClass = getColorClass(constraintRatio, true);
 
   const getPersonById = (id: string) => problem?.people.find(p => p.id === id);
 
@@ -313,7 +305,7 @@ export function ResultsView() {
     }
   };
 
-  const renderMetricCard = (title: string, value: string | number, icon: React.ComponentType<any>, color: string) => (
+  const renderMetricCard = (title: string, value: string | number, icon: React.ComponentType<{ className?: string }>, color: string) => (
     <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
       <div className="flex items-center justify-between">
         <div>
@@ -325,7 +317,7 @@ export function ResultsView() {
     </div>
   );
 
-  const renderPersonBadge = (person: any) => {
+  const renderPersonBadge = (person: Person) => {
     if (!person) return null;
     return <PersonCard key={person.id} person={person} />;
   };
@@ -355,7 +347,7 @@ export function ResultsView() {
                 <div className="space-y-2">
                   {group.people.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {group.people.map(renderPersonBadge)}
+                      {group.people.filter((person): person is Person => person !== undefined).map(renderPersonBadge)}
                     </div>
                   ) : (
                     <p className="text-sm italic" style={{ color: 'var(--text-tertiary)' }}>No assignments</p>

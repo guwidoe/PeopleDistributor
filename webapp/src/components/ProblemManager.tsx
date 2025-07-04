@@ -80,10 +80,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
   const problemSummaries: ProblemSummary[] = Object.values(savedProblems).map(p => ({
     id: p.id,
     name: p.name,
-    peopleCount: p.problem.people.length,
-    groupsCount: p.problem.groups.length,
-    sessionsCount: p.problem.num_sessions,
-    resultsCount: p.results.length,
+    peopleCount: p.problem?.people?.length || 0,
+    groupsCount: p.problem?.groups?.length || 0,
+    sessionsCount: p.problem?.num_sessions || 0,
+    resultsCount: p.results?.length || 0,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     isTemplate: p.isTemplate,
@@ -132,11 +132,10 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
 
     if (newProblemMode === 'empty') {
       // set current problem to empty then save
-      setProblem(minimalProblem as any);
+      setProblem(minimalProblem);
     }
 
     createNewProblem(newProblemName, newProblemIsTemplate);
-    
     setShowCreateDialog(false);
     setNewProblemName('');
     setNewProblemIsTemplate(false);
@@ -309,7 +308,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
               <select
                 className="input"
                 value={filterTemplate}
-                onChange={(e) => setFilterTemplate(e.target.value as any)}
+                onChange={(e) => setFilterTemplate(e.target.value as 'all' | 'problems' | 'templates')}
               >
                 <option value="all">All</option>
                 <option value="problems">Problems</option>

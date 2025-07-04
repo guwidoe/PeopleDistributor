@@ -55,6 +55,7 @@ interface AppStore extends AppState {
   setProblem: (problem: Problem) => void;
   updateProblem: (updates: Partial<Problem>) => void;
   updateCurrentProblem: (problemId: string, problem: Problem) => void;
+  GetProblem: () => Problem;
 
   // Solution management
   setSolution: (solution: Solution | null) => void;
@@ -165,6 +166,58 @@ export const useAppStore = create<AppStore>()(
         } catch (error) {
           console.error("Failed to update problem:", error);
         }
+      },
+
+      GetProblem: () => {
+        const currentProblem = get().problem;
+        if (currentProblem) {
+          return currentProblem;
+        }
+
+        // Create a default problem if none exists
+        const defaultSettings = {
+          solver_type: "SimulatedAnnealing",
+          stop_conditions: {
+            max_iterations: 10000,
+            time_limit_seconds: 30,
+            no_improvement_iterations: 5000,
+          },
+          solver_params: {
+            SimulatedAnnealing: {
+              initial_temperature: 1.0,
+              final_temperature: 0.01,
+              cooling_schedule: "geometric",
+              reheat_after_no_improvement: 0,
+            },
+          },
+        } as SolverSettings;
+
+        const emptyProblem: Problem = {
+          people: [],
+          groups: [],
+          num_sessions: 3,
+          constraints: [],
+          settings: defaultSettings,
+        };
+
+        // Create and save the new problem
+        const newSaved = problemStorage.createProblem(
+          "Untitled Problem",
+          emptyProblem
+        );
+        problemStorage.setCurrentProblemId(newSaved.id);
+
+        // Update the store state
+        set((state) => ({
+          problem: emptyProblem,
+          currentProblemId: newSaved.id,
+          savedProblems: {
+            ...state.savedProblems,
+            [newSaved.id]: newSaved,
+          },
+        }));
+
+        return emptyProblem;
       },
 
       // Solution management
@@ -798,6 +851,7 @@ export const useAppStore = create<AppStore>()(
             updatedProblem = {
               ...updatedProblem,
               people: updatedProblem.people.map((p) => {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { [key]: _removed, ...restAttrs } = p.attributes || {};
                 return { ...p, attributes: { ...restAttrs } } as Person;
               }),

@@ -28,6 +28,7 @@ export interface Problem {
   people: { name: string; id: string }[];
   tables: { name: string; capacity: number; id: string }[];
   groups: { name: string; person_ids: string[]; id: string }[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constraints: { type: string; value: any }[];
 }
 
@@ -51,5 +52,6 @@ export interface Solution {
 
 export interface SolverSettings {
   // Define SolverSettings structure - can be fleshed out later if needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }

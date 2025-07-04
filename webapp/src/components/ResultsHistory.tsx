@@ -5,7 +5,6 @@ import {
   BarChart3, 
   Clock, 
   Zap, 
-  TrendingUp, 
   ChevronDown, 
   ChevronUp, 
   Edit3, 
@@ -404,7 +403,7 @@ export function ResultsHistory() {
         <div className="space-y-4">
           {results
             .sort((a, b) => b.timestamp - a.timestamp) // Most recent first
-            .map((result, index) => {
+            .map((result) => {
               const isExpanded = expandedResults.has(result.id);
               const isSelected = selectedResultIds.includes(result.id);
               const isBest = result.id === bestResult?.id;

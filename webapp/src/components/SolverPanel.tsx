@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info, BarChart3 } from 'lucide-react';
-import type { SolverSettings, SolverState } from '../types';
+import type { SolverSettings } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
 import { Tooltip } from './Tooltip';
@@ -23,7 +23,9 @@ export function SolverPanel() {
       const next = !prev;
       try {
         localStorage.setItem('solverMetricsExpanded', String(next));
-      } catch {}
+      } catch {
+        // Ignore localStorage errors (e.g., in private browsing mode)
+      }
       return next;
     });
   };
@@ -158,9 +160,14 @@ export function SolverPanel() {
           const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain);
 
           // 2️⃣ Convert the flattened `solver_params` coming from Rust into the nested UI shape
-          const sp: any = (rawSettings as any).solver_params;
+          const sp = (rawSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
           if (sp && !("SimulatedAnnealing" in sp) && sp.solver_type === "SimulatedAnnealing") {
-            const { initial_temperature, final_temperature, cooling_schedule, reheat_after_no_improvement } = sp as any;
+            const { initial_temperature, final_temperature, cooling_schedule, reheat_after_no_improvement } = sp as {
+              initial_temperature: number;
+              final_temperature: number;
+              cooling_schedule: string;
+              reheat_after_no_improvement: number;
+            };
             selectedSettings = {
               ...rawSettings,
               solver_params: {
@@ -258,9 +265,9 @@ export function SolverPanel() {
         });
         
         // Log significant score improvements
-        if (progress.best_score < (window as any).lastLoggedBestScore - 50 || !(window as any).lastLoggedBestScore) {
+        if (progress.best_score < ((window as { lastLoggedBestScore?: number }).lastLoggedBestScore ?? 0) - 50 || !(window as { lastLoggedBestScore?: number }).lastLoggedBestScore) {
           console.log(`[SolverPanel] Significant improvement: best_score dropped to ${progress.best_score} at iteration ${progress.iteration}`);
-          (window as any).lastLoggedBestScore = progress.best_score;
+          (window as { lastLoggedBestScore?: number }).lastLoggedBestScore = progress.best_score;
         }
         
         // Check if solver was cancelled
@@ -415,15 +422,20 @@ export function SolverPanel() {
       const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeSettings);
 
       // Transform solver_params to UI structure if returned in flattened form
-      let uiSettings: SolverSettings = recommendedSettings as any;
-      const sp: any = (recommendedSettings as any).solver_params;
+      let uiSettings: SolverSettings = recommendedSettings as SolverSettings;
+      const sp = (recommendedSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
       if (sp && !('SimulatedAnnealing' in sp) && sp.solver_type === 'SimulatedAnnealing') {
         const {
           initial_temperature,
           final_temperature,
           cooling_schedule,
           reheat_after_no_improvement,
-        } = sp as any;
+        } = sp as {
+          initial_temperature: number;
+          final_temperature: number;
+          cooling_schedule: string;
+          reheat_after_no_improvement: number;
+        };
 
         uiSettings = {
           ...recommendedSettings,

@@ -12,6 +12,7 @@ export interface DemoCaseWithMetrics extends DemoCase {
   peopleCount: number;
   groupCount: number;
   sessionCount: number;
+  description: string;
 }
 
 // Dynamically discover test case files
@@ -52,6 +53,7 @@ async function discoverTestCaseFiles(): Promise<string[]> {
 }
 
 // Convert test case format to webapp's Problem format
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function convertTestCaseToProblem(testCase: any): Problem {
   const input = testCase.input;
 
@@ -71,6 +73,7 @@ function convertTestCaseToProblem(testCase: any): Problem {
   };
 
   // Ensure every person has a "name" attribute (treat names as attributes)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const peopleWithNames = input.problem.people.map((p: any) => {
     const attrs = { ...(p.attributes || {}) };
     if (!attrs.name) {
@@ -179,6 +182,7 @@ export async function loadDemoCasesWithMetrics(): Promise<
     `Loaded ${demoCases.length} demo cases:`,
     demoCases.map((c) => c.name)
   );
+
   return demoCases;
 }
 

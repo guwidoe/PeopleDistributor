@@ -1,9 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { Settings, Play, BarChart3, History, FolderOpen } from 'lucide-react';
+import { Settings, Play, BarChart3, History } from 'lucide-react';
 
 export function Navigation() {
-  const { setShowProblemManager, currentProblemId, savedProblems } = useAppStore();
+
 
   const tabs = [
     {
@@ -36,7 +35,7 @@ export function Navigation() {
     },
   ];
 
-  const currentProblemName = currentProblemId ? savedProblems[currentProblemId]?.name : null;
+
 
   return (
     <div className="space-y-4">

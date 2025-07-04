@@ -9,9 +9,9 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ showLabel = false, size = 'md' }: ThemeToggleProps) {
-  const { theme, isDark, setTheme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
 
-  const themes: { value: Theme; label: string; icon: React.ComponentType<any> }[] = [
+  const themes: { value: Theme; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'light', label: 'Light', icon: Sun },
     { value: 'dark', label: 'Dark', icon: Moon },
     { value: 'system', label: 'System', icon: Monitor },

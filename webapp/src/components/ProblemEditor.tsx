@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
 import PersonCard from './PersonCard';
+import HardConstraintsPanel from './constraints/HardConstraintsPanel';
+import SoftConstraintsPanel from './constraints/SoftConstraintsPanel';
+import ImmovablePeopleModal from './modals/ImmovablePeopleModal';
+import RepeatEncounterModal from './modals/RepeatEncounterModal';
+import AttributeBalanceModal from './modals/AttributeBalanceModal';
+import CannotBeTogetherModal from './modals/CannotBeTogetherModal';
+import MustStayTogetherModal from './modals/MustStayTogetherModal';
+import AttributeBalanceDashboard from './AttributeBalanceDashboard';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
   solver_type: "SimulatedAnnealing",
@@ -73,12 +81,14 @@ const ObjectiveWeightEditor: React.FC<ObjectiveWeightEditorProps> = ({ currentWe
   );
 };
 
+
+
 export function ProblemEditor() {
   const { 
     problem, 
     setProblem, 
+    GetProblem,
     addNotification, 
-    generateDemoData,
     loadDemoCase,
     demoDropdownOpen,
     setDemoDropdownOpen,
@@ -219,8 +229,33 @@ export function ProblemEditor() {
     penalty_weight: 1
   });
 
+  const [showImmovableModal,setShowImmovableModal]=useState(false);
+  const [editingImmovableIndex,setEditingImmovableIndex]=useState<number|null>(null);
+
+  // New individual constraint modal states
+  const [showRepeatEncounterModal, setShowRepeatEncounterModal] = useState(false);
+  const [showAttributeBalanceModal, setShowAttributeBalanceModal] = useState(false);
+  const [showCannotBeTogetherModal, setShowCannotBeTogetherModal] = useState(false);
+  const [showMustStayTogetherModal, setShowMustStayTogetherModal] = useState(false);
+  const [editingConstraintIndex, setEditingConstraintIndex] = useState<number | null>(null);
+
   // New UI state for Constraints tab
-  const [activeConstraintTab, setActiveConstraintTab] = useState<string>('RepeatEncounter');
+  const SOFT_TYPES = useMemo(() => ['RepeatEncounter', 'AttributeBalance', 'CannotBeTogether'] as const, []);
+  const HARD_TYPES = useMemo(() => ['ImmovablePeople', 'MustStayTogether'] as const, []);
+
+  type ConstraintCategory = 'soft' | 'hard';
+
+  const [constraintCategoryTab, setConstraintCategoryTab] = useState<ConstraintCategory>('soft');
+
+  // Ensure activeConstraintTab is always valid for current category
+  const [activeConstraintTab, setActiveConstraintTab] = useState<string>(SOFT_TYPES[0]);
+
+  useEffect(() => {
+    const validTypes = (constraintCategoryTab === 'soft' ? SOFT_TYPES : HARD_TYPES) as readonly string[];
+    if (!validTypes.includes(activeConstraintTab)) {
+      setActiveConstraintTab(validTypes[0]);
+    }
+  }, [constraintCategoryTab, activeConstraintTab, SOFT_TYPES, HARD_TYPES]);
   const [showConstraintInfo, setShowConstraintInfo] = useState<boolean>(false);
 
   const handleSaveProblem = () => {
@@ -541,7 +576,7 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePeople':
+        case 'ImmovablePeople': {
           if (!constraintForm.people?.length || !constraintForm.group_id) {
             throw new Error('Please select at least one person and a fixed group');
           }
@@ -555,6 +590,7 @@ export function ProblemEditor() {
             sessions: immovableSessions
           };
           break;
+        }
 
         case 'MustStayTogether':
         case 'CannotBeTogether':
@@ -675,7 +711,7 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePeople':
+        case 'ImmovablePeople': {
           if (!constraintForm.people?.length || !constraintForm.group_id) {
             throw new Error('Please select at least one person and a fixed group');
           }
@@ -689,6 +725,7 @@ export function ProblemEditor() {
             sessions: immovableUpdateSessions
           };
           break;
+        }
 
         case 'MustStayTogether':
         case 'CannotBeTogether':
@@ -1904,8 +1941,7 @@ export function ProblemEditor() {
   const [groupBulkCsvInput, setGroupBulkCsvInput] = useState('');
   const [groupBulkHeaders, setGroupBulkHeaders] = useState<string[]>([]);
   const [groupBulkRows, setGroupBulkRows] = useState<Record<string, string>[]>([]);
-  const [groupGenCount, setGroupGenCount] = useState(3);
-  const [groupGenSize, setGroupGenSize] = useState(4);
+
 
   // Close group bulk dropdown when clicking outside
   useEffect(() => {
@@ -2153,149 +2189,6 @@ export function ProblemEditor() {
     return [headerLine, ...dataLines].join('\n');
   };
 
-  // ================= Attribute Balance Dashboard =================
-  interface AttributeBalanceConstraint {
-    type: 'AttributeBalance';
-    group_id: string;
-    attribute_key: string;
-    desired_values: Record<string, number>;
-    penalty_weight: number;
-    sessions?: number[];
-  }
-
-  const AttributeBalanceDashboard: React.FC<{ constraints: AttributeBalanceConstraint[] }> = ({ constraints }) => {
-    if (constraints.length === 0 || !problem) return null;
-
-    // === Session filter state ===
-    const [sessionFilter, setSessionFilter] = useState<number>(0); // default to first session
-
-    const filteredConstraints = constraints.filter(c => {
-      // Include if constraint applies to current session
-      return !c.sessions || c.sessions.includes(sessionFilter);
-    });
-
-    if (filteredConstraints.length === 0) return (
-      <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-        No Attribute Balance constraints for selected session.
-      </div>
-    );
-
-    // Build per-attribute metrics including weight-specific counts per value
-    const metrics = filteredConstraints.reduce((acc, c) => {
-      const key = c.attribute_key;
-      if (!acc[key]) {
-        acc[key] = {
-          maxWeight: 1,
-          valueWeightCounts: {} as Record<string, Record<number, number>>, // value -> weight -> count
-        };
-      }
-      acc[key].maxWeight = Math.max(acc[key].maxWeight, c.penalty_weight || 1);
-
-      Object.entries(c.desired_values).forEach(([val, cnt]) => {
-        if (!acc[key].valueWeightCounts[val]) acc[key].valueWeightCounts[val] = {};
-        const w = c.penalty_weight || 1;
-        acc[key].valueWeightCounts[val][w] = (acc[key].valueWeightCounts[val][w] || 0) + cnt;
-      });
-      return acc;
-    }, {} as Record<string, { maxWeight: number; valueWeightCounts: Record<string, Record<number, number>> }>);
-
-    // Helper to interpolate color between red (min) and green (max)
-    const weightToColor = (weight: number, max: number) => {
-      const ratio = max > 1 ? (weight - 1) / (max - 1) : 1; // 0 -> red, 1 -> green
-      const r = Math.round(255 * (1 - ratio));
-      const g = Math.round(128 + (127 * ratio)); // start at dark red -> green
-      const b = Math.round(0);
-      return `rgb(${r},${g},${b})`;
-    };
-
-    // Available counts from people
-    const available: Record<string, Record<string, number>> = {};
-    problem.people.forEach((p) => {
-      Object.entries(p.attributes).forEach(([k, v]) => {
-        if (!available[k]) available[k] = {};
-        const val = String(v);
-        available[k][val] = (available[k][val] || 0) + 1;
-      });
-    });
-
-    return (
-      <div className="rounded-md border p-4 space-y-4" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
-        {/* Session selector */}
-        {problem.num_sessions > 1 && (
-          <div className="flex items-center gap-2 mb-2" onWheel={(e)=>{
-                e.preventDefault();
-                const dir = e.deltaY > 0 ? 1 : -1;
-                setSessionFilter(prev => (prev + dir + problem.num_sessions) % problem.num_sessions);
-              }}>
-            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Session:</span>
-            <select
-              value={sessionFilter}
-              onChange={(e)=>setSessionFilter(parseInt(e.target.value))}
-              className="text-xs px-1 py-0.5 rounded border"
-              style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', borderColor: 'var(--border-secondary)' }}
-            >
-              {Array.from({length: problem.num_sessions},(_,i)=>i).map(s=>(
-                <option key={s} value={s}>{s+1}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {Object.entries(metrics).map(([attr, data]) => {
-          const availForAttr = available[attr] || {};
-          const totalAllocated = Object.values(data.valueWeightCounts).reduce((sum, vw) => sum + Object.values(vw).reduce((a,b)=>a+b,0), 0);
-          const totalAvailable = Object.values(availForAttr).reduce((a, b) => a + b, 0);
-
-          return (
-            <div key={attr} className="space-y-1">
-              <h5 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>
-                {attr}: {totalAllocated} / {totalAvailable || '—'} total
-              </h5>
-
-              {Object.entries(data.valueWeightCounts).map(([val, weightMap]) => {
-                const avail = availForAttr[val] || 0;
-                const totalForVal = Object.values(weightMap).reduce((a,b)=>a+b,0);
-                const segments = Object.entries(weightMap).sort((a,b)=>Number(a[0])-Number(b[0]));
-                return (
-                  <div key={val} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    <span className="capitalize w-20">{val}</span>
-                    <span className="whitespace-nowrap">{totalForVal} / {avail}</span>
-                    <div className="flex-1 h-2 rounded bg-gray-700 overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                      <div className="flex h-full w-full">
-                        {segments.map(([wStr, count]) => {
-                          const segPct = avail ? (count / avail) * 100 : 0;
-                          return (
-                            <div key={wStr} style={{ width: `${segPct}%`, backgroundColor: weightToColor(Number(wStr), data.maxWeight) }} />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Weight legend */}
-              {(() => {
-                const weightSet = new Set<string>();
-                Object.values(data.valueWeightCounts).forEach(wm => Object.keys(wm).forEach(w=>weightSet.add(w)));
-                const weights = Array.from(weightSet).sort((a,b)=>Number(a)-Number(b));
-                return (
-                  <div className="flex flex-wrap gap-2 mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                    {weights.map(w => (
-                      <span key={w} className="inline-flex items-center gap-1">
-                        <span className="w-3 h-3 rounded" style={{ backgroundColor: weightToColor(Number(w), data.maxWeight) }}></span>
-                        weight {w}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
   // === Helper: Generate a unique person ID across all existing people ===
   const generateUniquePersonId = (): string => {
     let newId: string;
@@ -2412,11 +2305,12 @@ export function ProblemEditor() {
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <nav className="flex space-x-8">
           {[
-            { id: 'people', label: 'People', icon: Users, count: problem?.people.length },
-            { id: 'groups', label: 'Groups', icon: Hash, count: problem?.groups.length },
-            { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions },
+            { id: 'people', label: 'People', icon: Users, count: (problem?.people ?? []).length },
+            { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
+            { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions ?? 0 },
             { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
-            { id: 'constraints', label: 'Constraints', icon: Settings, count: problem?.constraints.length },
+            { id: 'hard', label: 'Hard Constraints', icon: Settings, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
+            { id: 'soft', label: 'Soft Constraints', icon: Settings, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','CannotBeTogether'].includes(c.type as string)).length : 0 },
           ].map(({ id, label, icon: Icon, count }) => (
               <NavLink
               key={id}
@@ -2809,6 +2703,80 @@ export function ProblemEditor() {
         </div>
       )}
 
+      {activeSection === 'hard' && (
+        <div className="p-6">
+          <HardConstraintsPanel
+            onAddConstraint={(type: 'ImmovablePeople'| 'MustStayTogether') => {
+              if(type==='ImmovablePeople'){
+                setEditingImmovableIndex(null);
+                setShowImmovableModal(true);
+              }else if(type==='MustStayTogether'){
+                setEditingConstraintIndex(null);
+                setShowMustStayTogetherModal(true);
+              }else{
+                setConstraintForm((prev) => ({ ...prev, type }));
+                setShowConstraintForm(true);
+              }
+            }}
+            onEditConstraint={(c: Constraint, i: number) => {
+               if(c.type==='ImmovablePeople'){
+                   setEditingImmovableIndex(i);
+                   setShowImmovableModal(true);
+               } else if(c.type==='MustStayTogether'){
+                   setEditingConstraintIndex(i);
+                   setShowMustStayTogetherModal(true);
+               } else {
+                   handleEditConstraint(c,i);
+               }
+            }}
+            onDeleteConstraint={(i: number) => handleDeleteConstraint(i)}
+          />
+        </div>
+      )}
+
+      {activeSection === 'soft' && (
+        <div className="p-6">
+          <SoftConstraintsPanel
+            onAddConstraint={(type: Constraint['type']) => {
+              setEditingConstraintIndex(null);
+              switch (type) {
+                case 'RepeatEncounter':
+                  setShowRepeatEncounterModal(true);
+                  break;
+                case 'AttributeBalance':
+                  setShowAttributeBalanceModal(true);
+                  break;
+                case 'CannotBeTogether':
+                  setShowCannotBeTogetherModal(true);
+                  break;
+                default:
+                  // Fallback to legacy modal for any other types
+                  setConstraintForm((prev) => ({ ...prev, type }));
+                  setShowConstraintForm(true);
+              }
+            }}
+            onEditConstraint={(c: Constraint, i: number) => {
+              setEditingConstraintIndex(i);
+              switch (c.type) {
+                case 'RepeatEncounter':
+                  setShowRepeatEncounterModal(true);
+                  break;
+                case 'AttributeBalance':
+                  setShowAttributeBalanceModal(true);
+                  break;
+                case 'CannotBeTogether':
+                  setShowCannotBeTogetherModal(true);
+                  break;
+                default:
+                  // Fallback to legacy modal for any other types
+                  handleEditConstraint(c, i);
+              }
+            }}
+            onDeleteConstraint={(i: number) => handleDeleteConstraint(i)}
+          />
+        </div>
+      )}
+
       {activeSection === 'constraints' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -2872,11 +2840,32 @@ export function ProblemEditor() {
               return acc;
             }, {});
 
-            const tabOrder = Object.keys(constraintTypeLabels) as (keyof typeof constraintTypeLabels)[];
+            const tabOrder = [...(constraintCategoryTab === 'soft' ? SOFT_TYPES : HARD_TYPES)] as (keyof typeof constraintTypeLabels)[];
             const selectedItems = constraintsByType[activeConstraintTab] || [];
 
             return (
               <>
+                {/* Category tabs */}
+                <div className="flex gap-2 mb-4">
+                  {(['soft', 'hard'] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        setConstraintCategoryTab(cat);
+                        const firstType = cat === 'soft' ? SOFT_TYPES[0] : HARD_TYPES[0];
+                        setActiveConstraintTab(firstType);
+                      }}
+                      className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: constraintCategoryTab === cat ? 'var(--color-accent)' : 'var(--bg-tertiary)',
+                        color: constraintCategoryTab === cat ? 'white' : 'var(--text-secondary)'
+                      }}
+                    >
+                      {cat === 'soft' ? 'Soft Constraints' : 'Hard Constraints'}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Tab list */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {tabOrder.map((type) => (
@@ -2909,7 +2898,7 @@ export function ProblemEditor() {
 
                       {/* Dashboard for Attribute Balance */}
                       {activeConstraintTab === 'AttributeBalance' && (
-                        <AttributeBalanceDashboard constraints={selectedItems.map(i => i.constraint as any)} />
+                        <AttributeBalanceDashboard constraints={selectedItems.map(i => i.constraint as any)} problem={problem!} />
                       )}
 
                       <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
@@ -2923,7 +2912,7 @@ export function ProblemEditor() {
                                   </span>
                                   {constraint.type !== 'ImmovablePeople' && (
                                     <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>
-                                      Weight: {(constraint as any).penalty_weight}
+                                      Weight: {(constraint as Constraint & { penalty_weight: number }).penalty_weight}
                                     </span>
                                   )}
                                 </div>
@@ -2964,7 +2953,11 @@ export function ProblemEditor() {
                                         })}
                                       </div>
                                       <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
-                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                      {constraint.sessions && constraint.sessions.length > 0 ? (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                      ) : (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
+                                      )}
                                     </>
                                   )}
                                   
@@ -3165,6 +3158,142 @@ export function ProblemEditor() {
 
       <input type="file" accept=".csv,text/csv" ref={csvFileInputRef} className="hidden" onChange={handleCsvFileSelected} />
       <input type="file" accept=".csv,text/csv" ref={groupCsvFileInputRef} className="hidden" onChange={handleGroupCsvFileSelected} />
+      {showImmovableModal && (
+        <ImmovablePeopleModal
+           sessionsCount={sessionsCount}
+           initial={editingImmovableIndex!==null ? (GetProblem().constraints[editingImmovableIndex] || null) : null}
+           onCancel={()=>{setShowImmovableModal(false); setEditingImmovableIndex(null);} }
+           onSave={(con)=>{
+              const currentProblem = GetProblem();
+              const updatedConstraints=[...currentProblem.constraints];
+              if(editingImmovableIndex!==null){ 
+                updatedConstraints[editingImmovableIndex]=con; 
+              }
+              else{ 
+                updatedConstraints.push(con);
+              } 
+              
+              setProblem({ 
+                ...currentProblem, 
+                constraints: updatedConstraints 
+              });
+              
+              setShowImmovableModal(false);
+              setEditingImmovableIndex(null);
+           }}
+        />
+      )}
+
+      {/* New individual constraint modals */}
+      {showRepeatEncounterModal && (
+        <RepeatEncounterModal
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowRepeatEncounterModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowRepeatEncounterModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showAttributeBalanceModal && (
+        <AttributeBalanceModal
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowAttributeBalanceModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowAttributeBalanceModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showCannotBeTogetherModal && (
+        <CannotBeTogetherModal
+          sessionsCount={sessionsCount}
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowCannotBeTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowCannotBeTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showMustStayTogetherModal && (
+        <MustStayTogetherModal
+          sessionsCount={sessionsCount}
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowMustStayTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowMustStayTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
     </div>
   );
 } 

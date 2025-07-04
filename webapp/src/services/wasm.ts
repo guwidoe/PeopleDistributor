@@ -296,6 +296,7 @@ class WasmService {
   }
 
   // Convert Problem to the format expected by the Rust solver
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertProblemToRustFormat(problem: Problem): any {
     // Convert solver_params from UI format to Rust format
     const solverSettings = { ...problem.settings };
@@ -311,8 +312,10 @@ class WasmService {
         solverType === "SimulatedAnnealing" &&
         "SimulatedAnnealing" in solverSettings.solver_params
       ) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params = solverSettings.solver_params.SimulatedAnnealing as any;
         // Provide defaults when fields are null / undefined / NaN
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sanitizeNumber = (v: any, d: number) =>
           typeof v === "number" && !isNaN(v) ? v : d;
         params.initial_temperature = sanitizeNumber(
@@ -328,6 +331,7 @@ class WasmService {
           0
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (solverSettings.solver_params as any) = {
           solver_type: solverType,
           ...solverSettings.solver_params.SimulatedAnnealing,
@@ -336,6 +340,7 @@ class WasmService {
     }
 
     // Clean constraints: remove undefined/null penalty_weight to satisfy Rust deserialization
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cleanedConstraints = (problem.constraints || []).map((c: any) => {
       if (
         (c.type === "MustStayTogether" || c.type === "CannotBeTogether") &&
@@ -376,6 +381,7 @@ class WasmService {
   }
 
   // Convert Rust solver result to our Solution format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertRustResultToSolution(
     rustResult: any,
     lastProgress?: ProgressUpdate
