@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table, Lock } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
 
 // Import the specific constraint type for the dashboard
@@ -2333,8 +2333,8 @@ export function ProblemEditor() {
             { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
             { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions ?? 0 },
             { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
-            { id: 'hard', label: 'Hard Constraints', icon: Settings, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
-            { id: 'soft', label: 'Soft Constraints', icon: Settings, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','CannotBeTogether'].includes(c.type as string)).length : 0 },
+            { id: 'hard', label: 'Hard Constraints', icon: Lock, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
+            { id: 'soft', label: 'Soft Constraints', icon: Zap, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','CannotBeTogether'].includes(c.type as string)).length : 0 },
           ].map(({ id, label, icon: Icon, count }) => (
               <NavLink
               key={id}
