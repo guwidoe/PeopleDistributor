@@ -2234,29 +2234,29 @@ export function ProblemEditor() {
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-row gap-2 min-w-0">
           <button
             onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
+            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-2 sm:px-4"
           >
-            <Upload className="w-4 h-4" />
-            Load
+            <Upload className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Load</span>
           </button>
           <button
             onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
+            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-2 sm:px-4"
           >
-            <Save className="w-4 h-4" />
-            Save
+            <Save className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Save</span>
           </button>
-          <div className="relative" ref={demoDropdownRef}>
+          <div className="relative flex-shrink-0" ref={demoDropdownRef}>
             <button
               onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-2 justify-center sm:justify-start w-full sm:w-auto"
+              className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4"
             >
-              <Zap className="w-4 h-4" />
-              Demo Data
-              <ChevronDown className="w-3 h-3" />
+              <Zap className="w-4 h-4 flex-shrink-0" />
+              <span>Demo Data</span>
+              <ChevronDown className="w-3 h-3 flex-shrink-0" />
             </button>
             
             {demoDropdownOpen && (
@@ -2329,7 +2329,7 @@ export function ProblemEditor() {
 
       {/* Navigation */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <nav className="flex flex-wrap gap-2 sm:gap-8">
+        <nav className="flex flex-wrap gap-1 sm:gap-2 md:gap-8 overflow-x-auto">
           {[
             { id: 'people', label: 'People', icon: Users, count: (problem?.people ?? []).length },
             { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
@@ -2341,17 +2341,17 @@ export function ProblemEditor() {
               <NavLink
               key={id}
               to={`/app/problem/${id}`}
-              className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 sm:gap-2 py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0"
               style={({ isActive }) => ({
                 borderBottomColor: isActive ? 'var(--color-accent)' : 'transparent',
                 color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)'
               })}
             >
-              <Icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{label}</span>
-              <span className="sm:hidden">{label.split(' ')[0]}</span>
+              <Icon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="hidden xs:inline">{label}</span>
+              <span className="xs:hidden">{label.split(' ')[0]}</span>
               {typeof count === 'number' && (
-                <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs">
+                <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-1 sm:px-2 py-0.5 rounded-full text-xs">
                   {count}
                 </span>
               )}

@@ -765,32 +765,32 @@ export function SolverPanel() {
         </div>
 
         {/* Basic Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <div className="text-center p-4 bg-primary-50 rounded-lg">
-            <Activity className="h-8 w-8 text-primary-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-primary-600">
+        <div className="flex flex-row gap-2 sm:gap-4 mb-6 overflow-x-auto">
+          <div className="text-center p-3 sm:p-4 bg-primary-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-primary-600">
               {solverState.currentIteration.toLocaleString()}
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Iterations</div>
+            <div className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>Iterations</div>
           </div>
-          <div className="text-center p-4 bg-success-50 rounded-lg">
-            <TrendingUp className="h-8 w-8 text-success-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-success-600">
+          <div className="text-center p-3 sm:p-4 bg-success-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-success-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-success-600">
               {solverState.bestScore.toFixed(2)}
             </div>
-            <div className="text-sm flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
-              Best Cost Score
+            <div className="text-xs sm:text-sm flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+              <span className="truncate">Best Cost Score</span>
               <Tooltip content={<span>Cost Score = (Weighted max possible contacts − weighted current contacts) + weighted constraint penalties. The solver is trying to minimize this score. <b>Lower is better.</b></span>}>
-                <Info className="h-3 w-3" />
+                <Info className="h-3 w-3 flex-shrink-0" />
               </Tooltip>
             </div>
           </div>
-          <div className="text-center p-4 bg-warning-50 rounded-lg">
-            <Clock className="h-8 w-8 text-warning-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-warning-600">
+          <div className="text-center p-3 sm:p-4 bg-warning-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-warning-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-warning-600">
               {(solverState.elapsedTime / 1000).toFixed(1)}s
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
+            <div className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
         </div>
 
