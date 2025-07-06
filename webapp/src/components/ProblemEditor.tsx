@@ -145,9 +145,11 @@ export function ProblemEditor() {
   const [groupForm, setGroupForm] = useState<GroupFormData>({
     size: 4
   });
+  const [groupFormInputs, setGroupFormInputs] = useState<{ size?: string }>({});
 
   const [newAttribute, setNewAttribute] = useState({ key: '', values: [''] });
   const [sessionsCount, setSessionsCount] = useState(problem?.num_sessions || 3);
+  const [sessionsFormInputs, setSessionsFormInputs] = useState<{ count?: string }>({});
 
   // === Objectives Helpers ===
   const getCurrentObjectiveWeight = () => {
@@ -288,18 +290,20 @@ export function ProblemEditor() {
     setShowProblemManager(true);
   };
 
-  const handleSessionsCountChange = (count: number) => {
-    setSessionsCount(count);
-    
-    const updatedProblem: Problem = {
-      people: problem?.people || [],
-      groups: problem?.groups || [],
-      num_sessions: count,
-      constraints: problem?.constraints || [],
-      settings: problem?.settings || getDefaultSolverSettings()
-    };
+  const handleSessionsCountChange = (count: number | null) => {
+    if (count !== null) {
+      setSessionsCount(count);
+      
+      const updatedProblem: Problem = {
+        people: problem?.people || [],
+        groups: problem?.groups || [],
+        num_sessions: count,
+        constraints: problem?.constraints || [],
+        settings: problem?.settings || getDefaultSolverSettings()
+      };
 
-    setProblem(updatedProblem);
+      setProblem(updatedProblem);
+    }
   };
 
   const handleAddPerson = () => {
@@ -413,9 +417,21 @@ export function ProblemEditor() {
       return;
     }
 
+    // Validate size from input
+    const sizeValue = groupFormInputs.size || groupForm.size.toString();
+    const size = parseInt(sizeValue);
+    if (isNaN(size) || size < 1) {
+      addNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Please enter a valid group size (1 or greater)',
+      });
+      return;
+    }
+
     const newGroup: Group = {
       id: groupForm.id,
-      size: groupForm.size
+      size: size
     };
 
     const updatedProblem: Problem = {
@@ -428,6 +444,7 @@ export function ProblemEditor() {
 
     setProblem(updatedProblem);
     setGroupForm({ size: 4 });
+    setGroupFormInputs({});
     setShowGroupForm(false);
     
     addNotification({
@@ -564,14 +581,17 @@ export function ProblemEditor() {
     try {
       switch (constraintForm.type) {
         case 'RepeatEncounter':
-          if (!constraintForm.max_allowed_encounters || constraintForm.max_allowed_encounters < 0) {
+          if (constraintForm.max_allowed_encounters === null || constraintForm.max_allowed_encounters === undefined || constraintForm.max_allowed_encounters < 0) {
             throw new Error('Please enter a valid maximum allowed encounters');
+          }
+          if (constraintForm.penalty_weight === null || constraintForm.penalty_weight === undefined || constraintForm.penalty_weight <= 0) {
+            throw new Error('Please enter a valid penalty weight');
           }
           newConstraint = {
             type: 'RepeatEncounter',
-            max_allowed_encounters: constraintForm.max_allowed_encounters,
+            max_allowed_encounters: constraintForm.max_allowed_encounters!,
             penalty_function: constraintForm.penalty_function || 'squared',
-            penalty_weight: constraintForm.penalty_weight || 1
+            penalty_weight: constraintForm.penalty_weight!
           };
           break;
 
@@ -594,7 +614,7 @@ export function ProblemEditor() {
             throw new Error('Please select at least one person and a fixed group');
           }
           // If no sessions selected, apply to all sessions
-          const allSessions = Array.from({ length: sessionsCount }, (_, i) => i);
+          const allSessions = Array.from({ length: sessionsCount ?? 3 }, (_, i) => i);
           const immovableSessions = constraintForm.sessions?.length ? constraintForm.sessions : allSessions;
           newConstraint = {
             type: 'ImmovablePeople',
@@ -1081,8 +1101,8 @@ export function ProblemEditor() {
     const sessions = Array.from({ length: sessionsCount }, (_, i) => i);
 
     return (
-      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-                  <div className="rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto modal-content">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                  <div className="rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Person' : 'Add Person'}
@@ -1224,8 +1244,8 @@ export function ProblemEditor() {
     const isEditing = editingGroup !== null;
 
     return (
-      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-                  <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                  <div className="rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto modal-content max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Group' : 'Add Group'}
@@ -1268,9 +1288,17 @@ export function ProblemEditor() {
                 type="number"
                 min="1"
                 max="20"
-                value={groupForm.size}
-                onChange={(e) => setGroupForm(prev => ({ ...prev, size: parseInt(e.target.value) || 1 }))}
-                className="input"
+                value={groupFormInputs.size ?? groupForm.size?.toString() ?? ''}
+                onChange={(e) => {
+                  setGroupFormInputs(prev => ({ ...prev, size: e.target.value }));
+                }}
+                className={`input ${(() => {
+                  const inputValue = groupFormInputs.size;
+                  if (inputValue !== undefined) {
+                    return inputValue === '' || isNaN(parseInt(inputValue)) || parseInt(inputValue) < 1;
+                  }
+                  return groupForm.size < 1;
+                })() ? 'border-red-500 focus:border-red-500' : ''}`}
               />
               <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                 Maximum number of people that can be assigned to this group in any single session
@@ -1321,7 +1349,8 @@ export function ProblemEditor() {
                 setEditingConstraint(null);
                 setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
               }}
-              className="text-gray-400 hover:text-gray-600"
+              className="transition-colors p-2 -m-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+              style={{ color: 'var(--text-tertiary)' }}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1364,12 +1393,17 @@ export function ProblemEditor() {
                     type="number"
                     min="0"
                     max="10"
-                    value={constraintForm.max_allowed_encounters || ''}
-                    onChange={(e) => setConstraintForm(prev => ({ 
-                      ...prev, 
-                      max_allowed_encounters: parseInt(e.target.value) || 0 
-                    }))}
-                    className="input"
+                    value={constraintForm.max_allowed_encounters ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*$/.test(value)) {
+                        setConstraintForm(prev => ({ 
+                          ...prev, 
+                          max_allowed_encounters: value === '' ? undefined : parseInt(value)
+                        }));
+                      }
+                    }}
+                    className={`input ${(constraintForm.max_allowed_encounters === undefined || constraintForm.max_allowed_encounters < 0) ? 'border-red-500 focus:border-red-500' : ''}`}
                     placeholder="e.g., 1"
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
@@ -1452,14 +1486,24 @@ export function ProblemEditor() {
                               type="number"
                               min="0"
                               max="20"
-                              value={constraintForm.desired_values?.[value] || ''}
-                              onChange={(e) => setConstraintForm(prev => ({
-                                ...prev,
-                                desired_values: {
-                                  ...prev.desired_values,
-                                  [value]: parseInt(e.target.value) || 0
+                              value={constraintForm.desired_values?.[value] ?? ''}
+                              onChange={(e) => {
+                                const inputValue = e.target.value;
+                                if (inputValue === '' || /^\d*$/.test(inputValue)) {
+                                  setConstraintForm(prev => {
+                                    const newDesiredValues = { ...prev.desired_values };
+                                    if (inputValue === '') {
+                                      delete newDesiredValues[value];
+                                    } else {
+                                      newDesiredValues[value] = parseInt(inputValue);
+                                    }
+                                    return {
+                                      ...prev,
+                                      desired_values: newDesiredValues
+                                    };
+                                  });
                                 }
-                              }))}
+                              }}
                               className="input flex-1"
                               placeholder="0"
                             />
@@ -1683,12 +1727,15 @@ export function ProblemEditor() {
                   type="number"
                   min="1"
                   max="10000"
-                  value={constraintForm.penalty_weight || ''}
-                  onChange={(e) => setConstraintForm(prev => ({ 
-                    ...prev, 
-                    penalty_weight: parseFloat(e.target.value) || 1 
-                  }))}
-                  className="input"
+                  value={constraintForm.penalty_weight ?? ''}
+                  onChange={(e) => {
+                    const numValue = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                    setConstraintForm(prev => ({ 
+                      ...prev, 
+                      penalty_weight: numValue 
+                    }));
+                  }}
+                  className={`input ${(constraintForm.penalty_weight === undefined || constraintForm.penalty_weight <= 0) ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                   Higher values make this constraint more important (1-10000). 
@@ -2701,9 +2748,26 @@ export function ProblemEditor() {
                   type="number"
                   min="1"
                   max="10"
-                  value={sessionsCount}
-                  onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
-                  className="input w-32"
+                  value={sessionsFormInputs.count ?? sessionsCount?.toString() ?? ''}
+                  onChange={(e) => {
+                    setSessionsFormInputs(prev => ({ ...prev, count: e.target.value }));
+                  }}
+                  onBlur={() => {
+                    // Validate and apply the sessions count from input
+                    const countValue = sessionsFormInputs.count || sessionsCount.toString();
+                    const count = parseInt(countValue);
+                    if (!isNaN(count) && count >= 1) {
+                      handleSessionsCountChange(count);
+                      setSessionsFormInputs({});
+                    }
+                  }}
+                  className={`input w-32 ${(() => {
+                    const inputValue = sessionsFormInputs.count;
+                    if (inputValue !== undefined) {
+                      return inputValue === '' || isNaN(parseInt(inputValue)) || parseInt(inputValue) < 1;
+                    }
+                    return sessionsCount < 1;
+                  })() ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
                 <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
                   The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.

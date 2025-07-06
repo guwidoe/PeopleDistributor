@@ -9,16 +9,24 @@ interface Props {
   onSave: (constraint: Constraint) => void;
 }
 
+interface FormState {
+  group_id: string;
+  attribute_key: string;
+  desired_values: Record<string, number | null>;
+  penalty_weight: number | null;
+  sessions: number[];
+}
+
 const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) => {
   const { GetProblem, attributeDefinitions, ui } = useAppStore();
   
-  const getInitialState = () => {
+  const getInitialState = (): FormState => {
     if (ui.isLoading) {
       return {
         group_id: '',
         attribute_key: '',
         desired_values: {},
-        penalty_weight: 50,
+        penalty_weight: 10,
         sessions: [],
       };
     }
@@ -31,7 +39,7 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
         group_id: initial.group_id || '',
         attribute_key: initial.attribute_key || '',
         desired_values: initial.desired_values || {},
-        penalty_weight: initial.penalty_weight || 50,
+        penalty_weight: initial.penalty_weight || 10,
         sessions: initial.sessions || [],
       };
     }
@@ -39,12 +47,12 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
       group_id: problem.groups?.[0]?.id || '',
       attribute_key: attributeDefinitions?.[0]?.key || '',
       desired_values: {},
-      penalty_weight: 50,
+      penalty_weight: 10,
       sessions: [],
     };
   };
 
-  const [formState, setFormState] = useState(getInitialState);
+  const [formState, setFormState] = useState<FormState>(getInitialState);
   const [validationError, setValidationError] = useState<string>('');
   
   // Don't render until loading is complete to avoid creating new problems
@@ -55,11 +63,16 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
   const problem = GetProblem();
   const editing = !!initial;
 
+  // Validation function
+  const isPenaltyWeightValid = (value: number | null) => {
+    return value !== null && value > 0;
+  };
+
   const handleDesiredValueChange = (key: string, value: string) => {
-    const numValue = parseInt(value, 10);
+    const numValue = value === '' ? null : parseInt(value, 10);
     setFormState(prev => ({
       ...prev,
-      desired_values: { ...prev.desired_values, [key]: isNaN(numValue) ? 0 : numValue },
+      desired_values: { ...prev.desired_values, [key]: numValue },
     }));
   };
 
@@ -78,17 +91,25 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
       setValidationError('Please define at least one desired value for the distribution.');
       return;
     }
-    if (formState.penalty_weight <= 0) {
+    if (!isPenaltyWeightValid(formState.penalty_weight)) {
       setValidationError('Penalty weight must be a positive number.');
       return;
     }
+
+    // Filter out null values from desired_values
+    const validDesiredValues: Record<string, number> = {};
+    Object.entries(formState.desired_values).forEach(([key, value]) => {
+      if (value !== null) {
+        validDesiredValues[key] = value;
+      }
+    });
 
     const newConstraint: Constraint = {
       type: 'AttributeBalance',
       group_id: formState.group_id,
       attribute_key: formState.attribute_key,
-      desired_values: formState.desired_values,
-      penalty_weight: formState.penalty_weight,
+      desired_values: validDesiredValues,
+      penalty_weight: formState.penalty_weight!,
       sessions: formState.sessions.length > 0 ? formState.sessions : undefined,
     };
 
@@ -98,45 +119,61 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
   const selectedAttribute = attributeDefinitions.find(a => a.key === formState.attribute_key);
 
   return (
-    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-      <div className="rounded-lg p-6 w-full max-w-lg mx-4 modal-content">
+    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+      <div className="rounded-lg p-4 sm:p-6 w-full max-w-lg mx-auto modal-content max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{editing ? 'Edit Attribute Balance' : 'Add Attribute Balance'}</h3>
-          <button onClick={onCancel} className="transition-colors" style={{ color: 'var(--text-tertiary)' }}><X className="w-5 h-5" /></button>
+          <button 
+            onClick={onCancel} 
+            className="transition-colors p-2 -m-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" 
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {validationError && (
           <div className="mb-4 p-3 rounded-md border" style={{ backgroundColor: 'var(--color-error-50)', borderColor: 'var(--color-error-200)', color: 'var(--color-error-700)' }}>{validationError}</div>
         )}
 
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Group *</label>
-            <select name="group_id" value={formState.group_id} onChange={e => setFormState(p => ({...p, group_id: e.target.value}))} className="select w-full">
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Group *</label>
+            <select 
+              name="group_id" 
+              value={formState.group_id} 
+              onChange={e => setFormState(p => ({...p, group_id: e.target.value}))} 
+              className="select w-full text-base py-3"
+            >
               {problem.groups?.map(g => (<option key={g.id} value={g.id}>{g.id}</option>))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Attribute *</label>
-            <select name="attribute_key" value={formState.attribute_key} onChange={e => setFormState(p => ({...p, attribute_key: e.target.value, desired_values: {}}))} className="select w-full">
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Attribute *</label>
+            <select 
+              name="attribute_key" 
+              value={formState.attribute_key} 
+              onChange={e => setFormState(p => ({...p, attribute_key: e.target.value, desired_values: {}}))} 
+              className="select w-full text-base py-3"
+            >
               {attributeDefinitions.map(a => (<option key={a.key} value={a.key}>{a.key}</option>))}
             </select>
           </div>
 
           {selectedAttribute && (
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Desired Distribution *</label>
-              <div className="border rounded p-3 space-y-2" style={{ borderColor: 'var(--border-secondary)' }}>
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Desired Distribution *</label>
+              <div className="border rounded p-4 space-y-3" style={{ borderColor: 'var(--border-secondary)' }}>
                 {selectedAttribute.values.map(val => (
-                  <div key={val} className="flex items-center justify-between gap-2">
-                    <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{val}</span>
+                  <div key={val} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{val}</span>
                     <input
                       type="number"
                       min="0"
-                      value={formState.desired_values[val] || ''}
+                      value={formState.desired_values[val] ?? ''}
                       onChange={e => handleDesiredValueChange(val, e.target.value)}
-                      className="input w-24 text-center"
+                      className="input w-full sm:w-32 text-center text-base py-2"
                       placeholder="Count"
                     />
                   </div>
@@ -146,15 +183,36 @@ const AttributeBalanceModal: React.FC<Props> = ({ initial, onCancel, onSave }) =
           )}
           
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Penalty Weight</label>
-            <input type="number" name="penalty_weight" value={formState.penalty_weight} onChange={e => setFormState(p => ({...p, penalty_weight: parseFloat(e.target.value) || 0}))} className="input w-full" />
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Penalty Weight</label>
+            <input 
+              type="number" 
+              name="penalty_weight" 
+              value={formState.penalty_weight ?? ''} 
+              onChange={e => {
+                const numValue = e.target.value === '' ? null : parseFloat(e.target.value);
+                setFormState(p => ({...p, penalty_weight: numValue}));
+              }} 
+              className={`input w-full text-base py-3 ${!isPenaltyWeightValid(formState.penalty_weight) ? 'border-red-500 focus:border-red-500' : ''}`} 
+              min="0"
+              step="0.1"
+            />
+            <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>Higher values make the solver prioritize this constraint more.</p>
           </div>
-
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onCancel} className="px-4 py-2 rounded text-sm" style={{backgroundColor:'var(--bg-tertiary)',color:'var(--text-secondary)'}}>Cancel</button>
-          <button onClick={handleSave} className="px-4 py-2 rounded text-sm" style={{backgroundColor:'var(--color-accent)',color:'white'}}>Save</button>
+        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8 pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <button 
+            onClick={onCancel} 
+            className="btn-secondary flex-1 sm:flex-none px-6 py-3 text-base font-medium"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="btn-primary flex-1 sm:flex-none px-6 py-3 text-base font-medium"
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>

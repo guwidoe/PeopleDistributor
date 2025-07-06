@@ -33,9 +33,21 @@ export function SolverPanel() {
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
   // Runtime input used for the quick-start (automatic) button
-  const [desiredRuntimeMain, setDesiredRuntimeMain] = useState<number>(3);
+  const [desiredRuntimeMain, setDesiredRuntimeMain] = useState<number | null>(3);
   // Runtime input used inside the settings panel for the Auto-set feature
   const [desiredRuntimeSettings, setDesiredRuntimeSettings] = useState<number>(3);
+  
+  // Input states for allowing empty values during typing (using same pattern as group form)
+  const [solverFormInputs, setSolverFormInputs] = useState<{
+    maxIterations?: string;
+    timeLimit?: string;
+    noImprovement?: string;
+    initialTemp?: string;
+    finalTemp?: string;
+    reheat?: string;
+    desiredRuntimeSettings?: string;
+    desiredRuntimeMain?: string;
+  }>({});
 
   // Holds the settings that were actually used for the currently running / last run
   const [runSettings, setRunSettings] = useState<SolverSettings | null>(null);
@@ -157,7 +169,7 @@ export function SolverPanel() {
       if (useRecommended) {
         try {
           // 1️⃣ Fetch recommended settings from the WASM backend
-          const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain);
+          const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain ?? 3);
 
           // 2️⃣ Convert the flattened `solver_params` coming from Rust into the nested UI shape
           const sp = (rawSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
@@ -502,8 +514,16 @@ export function SolverPanel() {
                 <input
                   id="desiredRuntime"
                   type="number"
-                  value={desiredRuntimeSettings}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeSettings(Number(e.target.value))}
+                  value={solverFormInputs.desiredRuntimeSettings ?? desiredRuntimeSettings.toString()}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: e.target.value }))}
+                  onBlur={() => {
+                    const inputValue = solverFormInputs.desiredRuntimeSettings || desiredRuntimeSettings.toString();
+                    const numValue = parseInt(inputValue);
+                    if (!isNaN(numValue) && numValue >= 1) {
+                      setDesiredRuntimeSettings(numValue);
+                      setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: undefined }));
+                    }
+                  }}
                   disabled={solverState.isRunning}
                   className="input w-24 md:w-32"
                 />
@@ -532,14 +552,22 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.max_iterations || 10000}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    max_iterations: parseInt(e.target.value) || 10000
+                value={solverFormInputs.maxIterations ?? (solverSettings.stop_conditions.max_iterations || 10000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, maxIterations: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.maxIterations || (solverSettings.stop_conditions.max_iterations || 10000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 1000) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        max_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, maxIterations: undefined }));
                   }
-                })}
+                }}
                 min="1000"
                 max="100000"
               />
@@ -556,14 +584,22 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.time_limit_seconds || 30}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    time_limit_seconds: parseInt(e.target.value) || 30
+                value={solverFormInputs.timeLimit ?? (solverSettings.stop_conditions.time_limit_seconds || 30).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, timeLimit: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.timeLimit || (solverSettings.stop_conditions.time_limit_seconds || 30).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 10) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        time_limit_seconds: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, timeLimit: undefined }));
                   }
-                })}
+                }}
                 min="10"
                 max="300"
               />
@@ -580,14 +616,22 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.no_improvement_iterations || 5000}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    no_improvement_iterations: parseInt(e.target.value) || 5000
+                value={solverFormInputs.noImprovement ?? (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, noImprovement: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.noImprovement || (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 100) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        no_improvement_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, noImprovement: undefined }));
                   }
-                })}
+                }}
                 min="100"
                 max="50000"
                 placeholder="Iterations without improvement before stopping"
@@ -605,17 +649,25 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      initial_temperature: parseFloat(e.target.value) || 1.0
-                    }
+                value={solverFormInputs.initialTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, initialTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.initialTemp || (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.1) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          initial_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, initialTemp: undefined }));
                   }
-                })}
+                }}
                 step="0.1"
                 min="0.1"
                 max="10.0"
@@ -633,17 +685,25 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      final_temperature: parseFloat(e.target.value) || 0.01
-                    }
+                value={solverFormInputs.finalTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, finalTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.finalTemp || (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.001) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          final_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, finalTemp: undefined }));
                   }
-                })}
+                }}
                 step="0.001"
                 min="0.001"
                 max="1.0"
@@ -661,17 +721,25 @@ export function SolverPanel() {
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      reheat_after_no_improvement: parseInt(e.target.value) || 0
-                    }
+                value={solverFormInputs.reheat ?? (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, reheat: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.reheat || (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          reheat_after_no_improvement: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, reheat: undefined }));
                   }
-                })}
+                }}
                 min="0"
                 max="50000"
                 placeholder="0 = disabled"
@@ -803,8 +871,16 @@ export function SolverPanel() {
             </label>
             <input
               type="number"
-              value={desiredRuntimeMain}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeMain(Number(e.target.value))}
+              value={solverFormInputs.desiredRuntimeMain ?? (desiredRuntimeMain?.toString() || '')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: e.target.value }))}
+              onBlur={() => {
+                const inputValue = solverFormInputs.desiredRuntimeMain || (desiredRuntimeMain?.toString() || '');
+                const numValue = inputValue === '' ? null : Number(inputValue);
+                if (numValue === null || (!isNaN(numValue) && numValue >= 1)) {
+                  setDesiredRuntimeMain(numValue);
+                  setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: undefined }));
+                }
+              }}
               disabled={solverState.isRunning}
               className="input w-full sm:w-28"
               min="1"

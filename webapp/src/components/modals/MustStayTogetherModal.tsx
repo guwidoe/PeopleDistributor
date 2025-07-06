@@ -85,11 +85,15 @@ const MustStayTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
   };
 
   return (
-    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-      <div className="rounded-lg p-6 w-full max-w-lg mx-4 modal-content">
+    <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+      <div className="rounded-lg p-4 sm:p-6 w-full max-w-lg mx-auto modal-content max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{editing ? 'Edit Must Stay Together' : 'Add Must Stay Together'}</h3>
-          <button onClick={onCancel} className="transition-colors" style={{ color: 'var(--text-tertiary)' }}>
+          <button 
+            onClick={onCancel} 
+            className="transition-colors p-2 -m-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" 
+            style={{ color: 'var(--text-tertiary)' }}
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -101,22 +105,27 @@ const MustStayTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
           </div>
         )}
 
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-6">
           {/* People select */}
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>People (select 2 or more) *</label>
-            <div className="flex flex-wrap gap-2 mb-2">
+            <label className="block text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>People (select 2 or more) *</label>
+            <div className="flex flex-wrap gap-2 mb-3">
               {selectedPeople.map(pid => {
                 const per = problem.people?.find(p => p.id === pid);
                 return per ? <PersonCard key={pid} person={per} /> : <span key={pid} className="text-xs px-2 py-0.5 rounded-full" style={{backgroundColor:'var(--bg-tertiary)', color:'var(--color-accent)'}}>{pid}</span>;
               })}
             </div>
-            <div className="border rounded p-2 max-h-40 overflow-y-auto" style={{ borderColor:'var(--border-secondary)' }}>
+            <div className="border rounded p-3 max-h-48 overflow-y-auto" style={{ borderColor:'var(--border-secondary)' }}>
               {problem.people && problem.people.length > 0 ? (
                 problem.people.map(p => (
-                  <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer mb-1" style={{ color:'var(--text-secondary)' }}>
-                    <input type="checkbox" checked={selectedPeople.includes(p.id)} onChange={() => togglePerson(p.id)} />
-                    {p.attributes.name || p.id}
+                  <label key={p.id} className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 mb-1" style={{ color:'var(--text-secondary)' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedPeople.includes(p.id)} 
+                      onChange={() => togglePerson(p.id)} 
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">{p.attributes.name || p.id}</span>
                   </label>
                 ))
               ) : (
@@ -130,24 +139,39 @@ const MustStayTogetherModal: React.FC<Props> = ({ sessionsCount, initial, onCanc
 
           {/* Sessions select */}
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Sessions</label>
-            <div className="flex flex-wrap gap-2">
+            <label className="block text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>Sessions</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {Array.from({length: sessionsCount},(_,i)=>i).map(i=> (
-                <label key={i} className="flex items-center gap-1 text-xs cursor-pointer" style={{color:'var(--text-secondary)'}}>
-                  <input type="checkbox" checked={selectedSessions.includes(i)} onChange={()=>toggleSession(i)} />
-                  Session {i+1}
+                <label key={i} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800" style={{color:'var(--text-secondary)'}}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedSessions.includes(i)} 
+                    onChange={()=>toggleSession(i)} 
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Session {i+1}</span>
                 </label>
               ))}
             </div>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
               {selectedSessions.length === 0 ? 'No sessions selected - will apply to all sessions' : `Selected ${selectedSessions.length} session(s)`}
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onCancel} className="px-4 py-2 rounded text-sm" style={{backgroundColor:'var(--bg-tertiary)',color:'var(--text-secondary)'}}>Cancel</button>
-          <button onClick={handleSave} className="px-4 py-2 rounded text-sm" style={{backgroundColor:'var(--color-accent)',color:'white'}}>Save</button>
+        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8 pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <button 
+            onClick={onCancel} 
+            className="btn-secondary flex-1 sm:flex-none px-6 py-3 text-base font-medium"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="btn-primary flex-1 sm:flex-none px-6 py-3 text-base font-medium"
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>
