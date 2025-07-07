@@ -20,9 +20,9 @@ const calculateIsDark = (theme: Theme): boolean => {
 };
 
 export function ThemeToggle({ showLabel = false, size = 'md' }: ThemeToggleProps) {
-  const { theme, setTheme } = useThemeStore();
+  const { theme, isDark, setTheme } = useThemeStore();
 
-  const themes: { value: Theme; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const themes: { value: Theme; label: string; icon: React.ComponentType<any> }[] = [
     { value: 'light', label: 'Light', icon: Sun },
     { value: 'dark', label: 'Dark', icon: Moon },
     { value: 'system', label: 'System', icon: Monitor },
