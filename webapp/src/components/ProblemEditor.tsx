@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table, Lock } from 'lucide-react';
@@ -169,8 +170,10 @@ export function ProblemEditor() {
     return 1;
   })();
 
-  // Demo dropdown ref for click outside handling
-  const demoDropdownRef = useRef<HTMLDivElement>(null);
+  // Demo dropdown refs & positioning helpers
+  const demoDropdownRef = useRef<HTMLDivElement>(null); // wraps the trigger button
+  const dropdownMenuRef = useRef<HTMLDivElement>(null); // portal menu element
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   
   // Demo cases with metrics state
   const [demoCasesWithMetrics, setDemoCasesWithMetrics] = useState<DemoCaseWithMetrics[]>([]);
@@ -198,10 +201,28 @@ export function ProblemEditor() {
     }
   }, [demoDropdownOpen, demoCasesWithMetrics.length, loadingDemoMetrics, addNotification]);
 
+  // When dropdown opens, calculate its viewport position (20rem wide → 320px)
+  useEffect(() => {
+    if (demoDropdownOpen && demoDropdownRef.current) {
+      const rect = demoDropdownRef.current.getBoundingClientRect();
+      const dropdownWidth = 320;
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4, // 4px gap (mt-1)
+        left: rect.right - dropdownWidth + window.scrollX,
+      });
+    }
+  }, [demoDropdownOpen]);
+
   // Click outside to close demo dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (demoDropdownRef.current && !demoDropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        demoDropdownRef.current &&
+        !demoDropdownRef.current.contains(target) &&
+        dropdownMenuRef.current &&
+        !dropdownMenuRef.current.contains(target)
+      ) {
         setDemoDropdownOpen(false);
       }
     };
@@ -2300,98 +2321,115 @@ export function ProblemEditor() {
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex flex-row flex-nowrap gap-2 w-full overflow-x-auto">
-          <button
-            onClick={handleLoadProblem}
-            className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
-          >
-            <Upload className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-            <span className="truncate text-sm sm:text-base">Load</span>
-          </button>
-          <button
-            onClick={handleSaveProblem}
-            className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
-          >
-            <Save className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-            <span className="truncate text-sm sm:text-base">Save</span>
-          </button>
-          <div className="relative" ref={demoDropdownRef}>
+        <div className="w-full overflow-x-auto">
+          <div className="flex flex-row flex-nowrap gap-2 justify-end w-full overflow-visible">
             <button
-              onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
+              onClick={handleLoadProblem}
+              className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+              style={{ outline: 'none', boxShadow: 'none' }}
             >
-              <Zap className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="text-sm sm:text-base">Demo Data</span>
-              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <Upload className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="truncate">Load</span>
             </button>
-            
-            {demoDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-80 rounded-md shadow-lg z-10 border overflow-hidden max-h-96 overflow-y-auto" 
-                   style={{ 
-                     backgroundColor: 'var(--bg-primary)', 
-                     borderColor: 'var(--border-primary)' 
-                   }}>
-                {loadingDemoMetrics ? (
-                  <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
-                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: 'var(--color-accent)' }}></div>
-                    <span className="ml-2 text-sm">Loading demo cases...</span>
-                  </div>
-                ) : (
-                  <>
-                    {/* Category groups */}
-                    {(['Simple', 'Intermediate', 'Advanced', 'Benchmark'] as const).map(category => {
-                      const casesInCategory = demoCasesWithMetrics.filter(c => c.category === category);
-                      if (casesInCategory.length === 0) return null;
-                      
-                      return (
-                        <div key={category}>
-                          <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-b"
-                               style={{ 
-                                 backgroundColor: 'var(--bg-tertiary)', 
-                                 borderColor: 'var(--border-primary)',
-                                 color: 'var(--text-tertiary)'
-                               }}>
-                            {category}
-                          </div>
-                          {casesInCategory.map(demoCase => (
-                            <button
-                              key={demoCase.id}
-                              onClick={() => loadDemoCase(demoCase.id)}
-                              className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
-                              style={{ 
-                                color: 'var(--text-primary)',
-                                backgroundColor: 'transparent',
-                                borderColor: 'var(--border-primary)'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{demoCase.name}</span>
-                                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                                  <Users className="w-3 h-3" />
-                                  <span>{demoCase.peopleCount}</span>
-                                  <Hash className="w-3 h-3 ml-1" />
-                                  <span>{demoCase.groupCount}</span>
-                                  <Calendar className="w-3 h-3 ml-1" />
-                                  <span>{demoCase.sessionCount}</span>
-                                </div>
-                              </div>
-                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                {demoCase.description}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            )}
+            <button
+              onClick={handleSaveProblem}
+              className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+              style={{ outline: 'none', boxShadow: 'none' }}
+            >
+              <Save className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="truncate">Save</span>
+            </button>
+            <div className="relative" ref={demoDropdownRef}>
+              <button
+                onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
+                className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+                style={{ outline: 'none', boxShadow: 'none' }}
+              >
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span>Demo Data</span>
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              </button>
+              {/* Dropdown menu rendered in portal; inline fallback removed */}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* === Demo Data dropdown rendered in a portal so it's not clipped by its parent === */}
+      {demoDropdownOpen && dropdownPosition && createPortal(
+        <div
+          ref={dropdownMenuRef}
+          className="fixed z-50 w-80 rounded-md shadow-lg border overflow-hidden max-h-96 overflow-y-auto"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            backgroundColor: 'var(--bg-primary)',
+            borderColor: 'var(--border-primary)',
+          }}
+        >
+          {loadingDemoMetrics ? (
+            <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
+              <div
+                className="inline-block animate-spin rounded-full h-4 w-4 border-b-2"
+                style={{ borderColor: 'var(--color-accent)' }}
+              ></div>
+              <span className="ml-2 text-sm">Loading demo cases...</span>
+            </div>
+          ) : (
+            <>
+              {(['Simple', 'Intermediate', 'Advanced', 'Benchmark'] as const).map((category) => {
+                const casesInCategory = demoCasesWithMetrics.filter((c) => c.category === category);
+                if (casesInCategory.length === 0) return null;
+
+                return (
+                  <div key={category}>
+                    <div
+                      className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-b"
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderColor: 'var(--border-primary)',
+                        color: 'var(--text-tertiary)',
+                      }}
+                    >
+                      {category}
+                    </div>
+                    {casesInCategory.map((demoCase) => (
+                      <button
+                        key={demoCase.id}
+                        onClick={() => loadDemoCase(demoCase.id)}
+                        className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
+                        style={{
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'transparent',
+                          borderColor: 'var(--border-primary)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{demoCase.name}</span>
+                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                            <Users className="w-3 h-3" />
+                            <span>{demoCase.peopleCount}</span>
+                            <Hash className="w-3 h-3 ml-1" />
+                            <span>{demoCase.groupCount}</span>
+                            <Calendar className="w-3 h-3 ml-1" />
+                            <span>{demoCase.sessionCount}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                          {demoCase.description}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Navigation */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
