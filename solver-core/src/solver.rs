@@ -147,8 +147,9 @@ pub struct State {
     pub attribute_balance_constraints: Vec<AttributeBalanceParams>,
     /// Merged cliques (groups of people who must stay together)
     pub cliques: Vec<Vec<usize>>,
-    /// Maps each person to their clique index (None if not in a clique)
-    pub person_to_clique_id: Vec<Option<usize>>,
+    /// Maps each person *per session* to their clique index (None if not in a clique in that session)
+    /// Dimension: [session][person]
+    pub person_to_clique_id: Vec<Vec<Option<usize>>>,
     /// Pairs of people who cannot be together
     pub forbidden_pairs: Vec<(usize, usize)>,
     /// Immovable person assignments: `(person_index, session_index) -> group_index`
@@ -412,8 +413,15 @@ impl State {
 
         // Calculate baseline score to prevent negative scores from unique contacts metric
         // Maximum possible unique contacts = (n * (n-1)) / 2, multiplied by objective weight
+        // or (num_sessions * (max_group_size - 1) * n) / 2, depending on which is smaller
         let max_possible_unique_contacts = if people_count >= 2 {
-            (people_count * (people_count - 1)) / 2
+            std::cmp::min(
+                (people_count * (people_count - 1)) / 2,
+                (people_count
+                    * input.problem.num_sessions as usize
+                    * (group_capacities.iter().max().unwrap_or(&1) - 1))
+                    / 2,
+            )
         } else {
             0
         };
@@ -434,7 +442,10 @@ impl State {
             person_attributes,
             attribute_balance_constraints,
             cliques: vec![], // To be populated by preprocessing
-            person_to_clique_id: vec![None; people_count], // To be populated
+            person_to_clique_id: vec![
+                vec![None; people_count];
+                input.problem.num_sessions as usize
+            ], // To be populated
             forbidden_pairs: vec![], // To be populated
             immovable_people: HashMap::new(), // To be populated
             clique_sessions: vec![], // To be populated by preprocessing
@@ -613,123 +624,110 @@ impl State {
             }
         }
 
-        // --- Process `MustStayTogether` (Cliques) and `CannotBeTogether` (Forbidden Pairs) ---
-        // This part combines clique logic and must-stay-together constraints.
-        // It uses a Disjoint Set Union (DSU) data structure to merge people into cliques.
+        // --- Process `MustStayTogether` (Cliques) and `ShouldNotBeTogether` (Forbidden Pairs) ---
+        // New session-aware preprocessing using per-session DSU ----------------------
+        use std::collections::hash_map::{Entry, HashMap};
 
-        let mut dsu = Dsu::new(people_count);
-        let mut person_to_clique_id = vec![None; people_count];
+        self.cliques.clear();
+        self.clique_sessions.clear();
+        self.clique_weights.clear();
 
-        for constraint in &input.constraints {
-            if let Constraint::MustStayTogether {
-                people,
-                penalty_weight: _,
-                sessions: _,
-            } = constraint
-            {
-                if people.len() < 2 {
-                    continue;
-                }
-                for i in 0..(people.len() - 1) {
-                    let p1_id = &people[i];
-                    let p2_id = &people[i + 1];
-                    let p1_idx = self.person_id_to_idx.get(p1_id).ok_or_else(|| {
-                        SolverError::ValidationError(format!("Person '{}' not found.", p1_id))
-                    })?;
-                    let p2_idx = self.person_id_to_idx.get(p2_id).ok_or_else(|| {
-                        SolverError::ValidationError(format!("Person '{}' not found.", p2_id))
-                    })?;
-                    dsu.union(*p1_idx, *p2_idx);
-                }
-            }
-        }
+        // Map from member list -> global clique id
+        let mut members_to_id: HashMap<Vec<usize>, usize> = HashMap::new();
 
-        let mut cliques: HashMap<usize, Vec<usize>> = HashMap::new();
-        for i in 0..people_count {
-            let root = dsu.find(i);
-            cliques.entry(root).or_default().push(i);
-        }
+        // Reset mapping (session, person)
+        self.person_to_clique_id = vec![vec![None; people_count]; num_sessions];
 
-        self.cliques = Vec::new();
-        self.clique_weights = Vec::new();
-        self.clique_sessions = Vec::new();
-        let mut clique_id_counter = 0;
-        for (_, clique_members) in cliques {
-            if clique_members.len() < 2 {
-                continue;
-            }
+        for session_idx in 0..num_sessions {
+            let mut dsu = Dsu::new(people_count);
 
-            // Check if the clique is too large for any available group
-            let max_group_size = input
-                .problem
-                .groups
-                .iter()
-                .map(|g| g.size)
-                .max()
-                .unwrap_or(0) as usize;
-            if clique_members.len() > max_group_size {
-                let member_ids: Vec<String> = clique_members
-                    .iter()
-                    .map(|id| self.person_idx_to_id[*id].clone())
-                    .collect();
-                return Err(SolverError::ValidationError(format!(
-                    "Clique {:?} (size {}) is larger than any available group (max size: {})",
-                    member_ids,
-                    clique_members.len(),
-                    max_group_size
-                )));
-            }
-
-            // Find the constraint weight and sessions for this clique
-            let mut clique_weight = 1000.0;
-            let mut clique_sessions_opt = None;
-
+            // Union people for constraints active this session
             for constraint in &input.constraints {
                 if let Constraint::MustStayTogether {
-                    people,
-                    penalty_weight,
-                    sessions,
+                    people, sessions, ..
                 } = constraint
                 {
-                    // Check if this constraint applies to this clique
-                    let constraint_person_indices: Vec<usize> = people
-                        .iter()
-                        .filter_map(|p| self.person_id_to_idx.get(p))
-                        .cloned()
-                        .collect();
+                    let active = match sessions {
+                        Some(list) => list.iter().any(|&s| s as usize == session_idx),
+                        None => true,
+                    };
+                    if !active || people.len() < 2 {
+                        continue;
+                    }
 
-                    if constraint_person_indices
-                        .iter()
-                        .any(|&p| clique_members.contains(&p))
-                    {
-                        clique_weight = *penalty_weight;
-                        clique_sessions_opt.clone_from(sessions);
-                        break;
+                    for w in people.windows(2) {
+                        let a = self.person_id_to_idx[&w[0]];
+                        let b = self.person_id_to_idx[&w[1]];
+                        dsu.union(a, b);
                     }
                 }
             }
 
-            for &member in &clique_members {
-                person_to_clique_id[member] = Some(clique_id_counter);
-            }
-            self.cliques.push(clique_members);
-            self.clique_weights.push(clique_weight);
-
-            // Convert sessions to indices if provided
-            if let Some(sessions) = clique_sessions_opt {
-                let session_indices: Vec<usize> = sessions.iter().map(|&s| s as usize).collect();
-                self.clique_sessions.push(Some(session_indices));
-            } else {
-                self.clique_sessions.push(None); // Apply to all sessions
+            // collect buckets
+            let mut root_to_members: HashMap<usize, Vec<usize>> = HashMap::new();
+            for p in 0..people_count {
+                let r = dsu.find(p);
+                root_to_members.entry(r).or_default().push(p);
             }
 
-            clique_id_counter += 1;
+            for members in root_to_members.values() {
+                if members.len() < 2 {
+                    continue;
+                }
+
+                let mut key = members.clone();
+                key.sort_unstable();
+
+                let cid = match members_to_id.entry(key.clone()) {
+                    Entry::Occupied(e) => *e.get(),
+                    Entry::Vacant(v) => {
+                        let id = self.cliques.len();
+                        v.insert(id);
+                        self.cliques.push(key);
+                        self.clique_sessions.push(Some(Vec::new()));
+                        self.clique_weights.push(1000.0); // hard
+                        id
+                    }
+                };
+
+                if let Some(ref mut vec) = self.clique_sessions[cid] {
+                    if !vec.contains(&session_idx) {
+                        vec.push(session_idx);
+                    }
+                }
+
+                for &m in members {
+                    if self.person_to_clique_id[session_idx][m].is_some() {
+                        return Err(SolverError::ValidationError(format!(
+                            "Person '{}' is part of multiple cliques in session {}.",
+                            self.person_idx_to_id[m], session_idx
+                        )));
+                    }
+                    self.person_to_clique_id[session_idx][m] = Some(cid);
+                }
+            }
         }
-        self.person_to_clique_id = person_to_clique_id;
 
-        // --- Process `CannotBeTogether` (Forbidden Pairs) ---
+        // convert session vectors so that a clique active in all sessions becomes None
+        let clique_sessions = std::mem::take(&mut self.clique_sessions);
+        self.clique_sessions = clique_sessions
+            .into_iter()
+            .map(|opt| match opt {
+                Some(mut v) => {
+                    v.sort_unstable();
+                    if v.len() == num_sessions {
+                        None
+                    } else {
+                        Some(v)
+                    }
+                }
+                None => None,
+            })
+            .collect();
+
+        // --- Process `ShouldNotBeTogether` (Forbidden Pairs) ---
         for constraint in &input.constraints {
-            if let Constraint::CannotBeTogether {
+            if let Constraint::ShouldNotBeTogether {
                 people,
                 penalty_weight,
                 sessions: constraint_sessions,
@@ -742,8 +740,8 @@ impl State {
 
                         // Check for conflict with cliques
                         if let (Some(c1), Some(c2)) = (
-                            self.person_to_clique_id[p1_idx],
-                            self.person_to_clique_id[p2_idx],
+                            self.person_to_clique_id[0][p1_idx],
+                            self.person_to_clique_id[0][p2_idx],
                         ) {
                             if c1 == c2 {
                                 let clique_member_ids: Vec<String> = self.cliques[c1]
@@ -751,9 +749,35 @@ impl State {
                                     .map(|id| self.person_idx_to_id[*id].clone())
                                     .collect();
                                 return Err(SolverError::ValidationError(format!(
-                                    "CannotBeTogether constraint conflicts with MustStayTogether: people {:?} are in the same clique {:?}",
+                                    "ShouldNotBeTogether constraint conflicts with MustStayTogether: people {:?} are in the same clique {:?}",
                                     people, clique_member_ids
                                 )));
+                            }
+                        }
+
+                        // Conflict check: if the two people are in the same hard clique for any session where both the clique and the ShouldNotBeTogether apply
+                        for session_idx in 0..num_sessions {
+                            // Skip session if this ShouldNotBeTogether does not apply
+                            if let Some(cs) = constraint_sessions {
+                                if !cs.contains(&(session_idx as u32)) {
+                                    continue;
+                                }
+                            }
+
+                            if let (Some(c1), Some(c2)) = (
+                                self.person_to_clique_id[session_idx][p1_idx],
+                                self.person_to_clique_id[session_idx][p2_idx],
+                            ) {
+                                if c1 == c2 {
+                                    let clique_member_ids: Vec<String> = self.cliques[c1]
+                                        .iter()
+                                        .map(|id| self.person_idx_to_id[*id].clone())
+                                        .collect();
+                                    return Err(SolverError::ValidationError(format!(
+                                        "ShouldNotBeTogether constraint conflicts with MustStayTogether in session {}: people {:?} are in the same clique {:?}",
+                                        session_idx, people, clique_member_ids
+                                    )));
+                                }
                             }
                         }
 
@@ -775,36 +799,122 @@ impl State {
 
         // --- Process `ImmovablePerson` ---
         for constraint in &input.constraints {
-            if let Constraint::ImmovablePerson(params) = constraint {
-                let p_idx = self
-                    .person_id_to_idx
-                    .get(&params.person_id)
-                    .ok_or_else(|| {
+            match constraint {
+                Constraint::ImmovablePerson(params) => {
+                    let p_idx = self
+                        .person_id_to_idx
+                        .get(&params.person_id)
+                        .ok_or_else(|| {
+                            SolverError::ValidationError(format!(
+                                "Person '{}' not found.",
+                                params.person_id
+                            ))
+                        })?;
+                    let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
                         SolverError::ValidationError(format!(
-                            "Person '{}' not found.",
-                            params.person_id
+                            "Group '{}' not found.",
+                            params.group_id
                         ))
                     })?;
-                let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
-                    SolverError::ValidationError(format!("Group '{}' not found.", params.group_id))
-                })?;
 
-                for &session in &params.sessions {
-                    let s_idx = session as usize;
-                    if s_idx >= self.num_sessions as usize {
-                        return Err(SolverError::ValidationError(format!(
-                            "Session index {} out of bounds for immovable person {}.",
-                            s_idx, params.person_id
-                        )));
+                    for &session in &params.sessions {
+                        let s_idx = session as usize;
+                        if s_idx >= self.num_sessions as usize {
+                            return Err(SolverError::ValidationError(format!(
+                                "Session index {} out of bounds for immovable person {}.",
+                                s_idx, params.person_id
+                            )));
+                        }
+                        self.immovable_people.insert((*p_idx, s_idx), *g_idx);
                     }
-                    self.immovable_people.insert((*p_idx, s_idx), *g_idx);
                 }
+                Constraint::ImmovablePeople(params) => {
+                    // Validate group once
+                    let g_idx = self.group_id_to_idx.get(&params.group_id).ok_or_else(|| {
+                        SolverError::ValidationError(format!(
+                            "Group '{}' not found.",
+                            params.group_id
+                        ))
+                    })?;
+
+                    for person_id in &params.people {
+                        let p_idx = self.person_id_to_idx.get(person_id).ok_or_else(|| {
+                            SolverError::ValidationError(format!(
+                                "Person '{}' not found.",
+                                person_id
+                            ))
+                        })?;
+
+                        for &session in &params.sessions {
+                            let s_idx = session as usize;
+                            if s_idx >= self.num_sessions as usize {
+                                return Err(SolverError::ValidationError(format!(
+                                    "Session index {} out of bounds for immovable person {}.",
+                                    s_idx, person_id
+                                )));
+                            }
+                            self.immovable_people.insert((*p_idx, s_idx), *g_idx);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
         // Initialize constraint violation vectors with correct sizes
         self.clique_violations = vec![0; self.cliques.len()];
         self.forbidden_pair_violations = vec![0; self.forbidden_pairs.len()];
+
+        // === Propagate immovable constraints to clique members ===
+        // If a person in a clique is immovable on a session, all members of that clique
+        // become immovable in that session (same target group), and the clique itself
+        // is not considered active in that session anymore.
+
+        let mut expanded_immovable: HashMap<(usize, usize), usize> = HashMap::new();
+
+        for ((person_idx, session_idx), &required_group) in &self.immovable_people {
+            // Identify clique membership for this session (if any)
+            if let Some(cid) = self.person_to_clique_id[*session_idx][*person_idx] {
+                // Propagate to all clique members
+                for &member in &self.cliques[cid] {
+                    let key = (member, *session_idx);
+                    if let Some(prev_grp) = expanded_immovable.insert(key, required_group) {
+                        if prev_grp != required_group {
+                            return Err(SolverError::ValidationError(format!(
+                                "Person '{}' has conflicting immovable assignments in session {} (groups '{}' vs '{}')",
+                                self.person_idx_to_id[member],
+                                session_idx,
+                                self.group_idx_to_id[prev_grp],
+                                self.group_idx_to_id[required_group]
+                            )));
+                        }
+                    }
+                }
+
+                // Remove this session from the clique's active session list
+                match &mut self.clique_sessions[cid] {
+                    None => {
+                        // Currently active in all sessions – create explicit list excluding this one
+                        let mut all: Vec<usize> = (0..num_sessions).collect();
+                        all.retain(|&s| s != *session_idx);
+                        if all.len() == num_sessions {
+                            // should not happen (removed nothing)
+                        } else if all.len() == num_sessions - 1 {
+                            self.clique_sessions[cid] = Some(all);
+                        }
+                    }
+                    Some(list) => {
+                        list.retain(|&s| s != *session_idx);
+                        // if list becomes empty, clique no longer active anywhere
+                    }
+                }
+            } else {
+                // Person is not in a clique for this session – just copy record
+                expanded_immovable.insert((*person_idx, *session_idx), required_group);
+            }
+        }
+
+        self.immovable_people = expanded_immovable;
 
         Ok(())
     }
@@ -1597,16 +1707,16 @@ impl State {
         }
 
         // Hard Constraint Delta - Cliques
-        if let Some(c_id) = self.person_to_clique_id[p1_idx] {
+        if let Some(c_id) = self.person_to_clique_id[day][p1_idx] {
             let clique = &self.cliques[c_id];
             // If p2 is not in the same clique, this swap would break the clique
-            if self.person_to_clique_id[p2_idx] != Some(c_id) {
+            if self.person_to_clique_id[day][p2_idx] != Some(c_id) {
                 delta_cost += self.clique_weights[c_id] * clique.len() as f64;
             }
-        } else if let Some(c_id) = self.person_to_clique_id[p2_idx] {
+        } else if let Some(c_id) = self.person_to_clique_id[day][p2_idx] {
             // Same logic if p2 is in a clique and p1 is not
             let clique = &self.cliques[c_id];
-            if self.person_to_clique_id[p1_idx] != Some(c_id) {
+            if self.person_to_clique_id[day][p1_idx] != Some(c_id) {
                 delta_cost += self.clique_weights[c_id] * clique.len() as f64;
             }
         }
@@ -2393,7 +2503,7 @@ impl State {
             if violation_count > 0 {
                 let weight = self.forbidden_pair_weights[pair_idx];
                 breakdown.push_str(&format!(
-                    "\n  CannotBeTogether[{}]: {} (weight: {:.1})",
+                    "\n  ShouldNotBeTogether[{}]: {} (weight: {:.1})",
                     pair_idx, violation_count, weight
                 ));
                 has_constraints = true;
@@ -2430,22 +2540,31 @@ impl State {
         breakdown
     }
 
-    /// Calculate the probability of attempting a clique swap based on clique density
-    pub fn calculate_clique_swap_probability(&self) -> f64 {
-        let total_people = self.person_idx_to_id.len();
-        let people_in_cliques = self
-            .person_to_clique_id
-            .iter()
-            .filter(|clique_id| clique_id.is_some())
-            .count();
-
-        if people_in_cliques == 0 || total_people == 0 {
-            return 0.0; // No cliques, no clique swaps
+    /// Returns, for each session, the probability of attempting a clique-swap move.
+    ///
+    /// The heuristic is unchanged: probability scales linearly with the fraction of
+    /// people already locked into cliques for that session, capped at 0.1.
+    pub fn calculate_clique_swap_probability(&self) -> Vec<f64> {
+        let total_people = self.person_idx_to_id.len() as f64;
+        if total_people == 0.0 {
+            return vec![0.0; self.num_sessions as usize];
         }
 
-        let clique_ratio = people_in_cliques as f64 / total_people as f64;
-        // Probability scales with clique density, maxing out at 0.1 when all people are in cliques
-        (clique_ratio * 0.2).min(0.1)
+        (0..self.num_sessions as usize)
+            .map(|session_idx| {
+                let in_cliques = self.person_to_clique_id[session_idx]
+                    .iter()
+                    .filter(|entry| entry.is_some())
+                    .count() as f64;
+
+                if in_cliques == 0.0 {
+                    0.0
+                } else {
+                    let ratio = in_cliques / total_people;
+                    (ratio * 0.2).min(0.1)
+                }
+            })
+            .collect()
     }
 
     /// Find all non-clique, movable people in a specific group for a given day
@@ -2456,7 +2575,7 @@ impl State {
                 // Must be participating in this session
                 self.person_participation[person_idx][day] &&
                 // Must not be in a clique
-                self.person_to_clique_id[person_idx].is_none() &&
+                self.person_to_clique_id[day][person_idx].is_none() &&
                 // Must not be immovable in this session
                 !self.immovable_people.contains_key(&(person_idx, day))
             })
@@ -2619,7 +2738,7 @@ impl State {
             .collect();
         new_to_members.extend_from_slice(clique);
 
-        // Check CannotBeTogether constraints
+        // Check ShouldNotBeTogether constraints
         for (pair_idx, &(person1, person2)) in self.forbidden_pairs.iter().enumerate() {
             let pair_weight = self.forbidden_pair_weights[pair_idx];
 
@@ -2834,7 +2953,7 @@ impl State {
         }
 
         // Person must not be part of a clique
-        if self.person_to_clique_id[person_idx].is_some() {
+        if self.person_to_clique_id[day][person_idx].is_some() {
             return false;
         }
 
@@ -3330,41 +3449,60 @@ mod tests {
 
     #[test]
     fn test_clique_merging() {
-        let mut input = create_test_input(10, vec![(1, 10)], 1);
+        // Create two overlapping MustStayTogether constraints with different session sets
+        // A: {p0, p1} active in sessions 0 and 1
+        // B: {p1, p2} active in sessions 1 and 2
+        // Expected result:
+        //   - Clique {p0,p1}  active only in session 0
+        //   - Clique {p1,p2}  active only in session 2
+        //   - Clique {p0,p1,p2} active only in session 1 (overlap)
+
+        let mut input = create_test_input(6, vec![(1, 6)], 3);
+
         input.constraints = vec![
             Constraint::MustStayTogether {
                 people: vec!["p0".into(), "p1".into()],
                 penalty_weight: 1000.0,
-                sessions: None,
+                sessions: Some(vec![0, 1]),
             },
             Constraint::MustStayTogether {
                 people: vec!["p1".into(), "p2".into()],
                 penalty_weight: 1000.0,
-                sessions: None,
-            },
-            Constraint::MustStayTogether {
-                people: vec!["p4".into(), "p5".into()],
-                penalty_weight: 1000.0,
-                sessions: None,
+                sessions: Some(vec![1, 2]),
             },
         ];
 
         let state = State::new(&input).unwrap();
-        assert_eq!(state.cliques.len(), 2, "Should have 2 merged cliques");
 
-        let clique1 = state.cliques.iter().find(|c| c.contains(&0)).unwrap();
-        assert!(
-            clique1.contains(&1) && clique1.contains(&2),
-            "Clique 1 is incorrect"
-        );
+        assert_eq!(state.cliques.len(), 3, "Should create three cliques");
 
-        let clique2 = state.cliques.iter().find(|c| c.contains(&4)).unwrap();
-        assert!(clique2.contains(&5), "Clique 2 is incorrect");
+        // Collect helper maps: set of members -> sessions
+        let mut clique_map: Vec<(Vec<usize>, Option<Vec<usize>>)> = state
+            .cliques
+            .iter()
+            .enumerate()
+            .map(|(idx, members)| {
+                let mut m = members.clone();
+                m.sort();
+                (m, state.clique_sessions[idx].clone())
+            })
+            .collect();
 
-        assert_eq!(state.person_to_clique_id[0], state.person_to_clique_id[1]);
-        assert_eq!(state.person_to_clique_id[1], state.person_to_clique_id[2]);
-        assert_ne!(state.person_to_clique_id[2], state.person_to_clique_id[3]);
-        assert_eq!(state.person_to_clique_id[4], state.person_to_clique_id[5]);
+        clique_map.sort_by_key(|(m, _)| m.len());
+
+        // Small cliques size 2
+        let (c_a, sess_a) = &clique_map[0];
+        let (c_b, sess_b) = &clique_map[1];
+        let (c_overlap, sess_overlap) = &clique_map[2];
+
+        assert_eq!(c_a, &vec![0, 1]);
+        assert_eq!(sess_a.as_ref().unwrap(), &vec![0usize]);
+
+        assert_eq!(c_b, &vec![1, 2]);
+        assert_eq!(sess_b.as_ref().unwrap(), &vec![2usize]);
+
+        assert_eq!(c_overlap, &vec![0, 1, 2]);
+        assert_eq!(sess_overlap.as_ref().unwrap(), &vec![1usize]);
     }
 
     #[test]
@@ -3406,7 +3544,7 @@ mod tests {
                 penalty_weight: 1000.0,
                 sessions: None,
             },
-            Constraint::CannotBeTogether {
+            Constraint::ShouldNotBeTogether {
                 people: vec!["p0".into(), "p1".into()],
                 penalty_weight: 1000.0,
                 sessions: None,
@@ -3418,7 +3556,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("CannotBeTogether constraint conflicts with MustStayTogether"));
+            .contains("ShouldNotBeTogether constraint conflicts with MustStayTogether"));
     }
 
     #[test]
@@ -3426,7 +3564,10 @@ mod tests {
         // Test with no cliques
         let input_no_cliques = create_test_input(10, vec![(2, 5)], 1);
         let state_no_cliques = State::new(&input_no_cliques).unwrap();
-        assert_eq!(state_no_cliques.calculate_clique_swap_probability(), 0.0);
+        assert_eq!(
+            state_no_cliques.calculate_clique_swap_probability(),
+            vec![0.0]
+        );
 
         // Test with some cliques
         let mut input_with_cliques = create_test_input(10, vec![(2, 5)], 1);
@@ -3443,9 +3584,10 @@ mod tests {
             },
         ];
         let state_with_cliques = State::new(&input_with_cliques).unwrap();
-        let probability = state_with_cliques.calculate_clique_swap_probability();
+        let probabilities = state_with_cliques.calculate_clique_swap_probability();
 
-        assert!(probability > 0.0);
+        assert!(!probabilities.is_empty());
+        assert!(probabilities[0] > 0.0);
     }
 
     #[test]
@@ -3475,7 +3617,7 @@ mod tests {
 
         // Should only include movable non-clique people
         for &person_idx in &non_clique_people {
-            assert!(state.person_to_clique_id[person_idx].is_none());
+            assert!(state.person_to_clique_id[0][person_idx].is_none());
             assert!(!state.immovable_people.contains_key(&(person_idx, 0)));
         }
     }
@@ -3637,7 +3779,7 @@ mod tests {
         "constraints": [
             {"type": "RepeatEncounter", "max_allowed_encounters": 1, "penalty_function": "squared", "penalty_weight": 100},
             {"type": "MustStayTogether", "people": ["alice", "bob"], "penalty_weight": 1000, "sessions": [0, 1]},
-            {"type": "CannotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500},
+            {"type": "ShouldNotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500},
             {"type": "AttributeBalance", "group_id": "team-alpha", "attribute_key": "gender", "desired_values": {"male": 2, "female": 2}, "penalty_weight": 50}
         ],
         "solver": {
@@ -3709,12 +3851,13 @@ mod tests {
             "MustStayTogether should parse successfully"
         );
 
-        // Test CannotBeTogether parsing
-        let cannot_be_json = r#"{"type": "CannotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500}"#;
-        let cannot_be_constraint: Result<Constraint, _> = serde_json::from_str(cannot_be_json);
+        // Test ShouldNotBeTogether parsing
+        let should_not_be_json = r#"{"type": "ShouldNotBeTogether", "people": ["charlie", "diana"], "penalty_weight": 500}"#;
+        let should_not_be_constraint: Result<Constraint, _> =
+            serde_json::from_str(should_not_be_json);
         assert!(
-            cannot_be_constraint.is_ok(),
-            "CannotBeTogether should parse successfully"
+            should_not_be_constraint.is_ok(),
+            "ShouldNotBeTogether should parse successfully"
         );
 
         // Test AttributeBalance parsing
@@ -3857,6 +4000,62 @@ mod tests {
             prob
         );
     }
+
+    #[test]
+    fn test_immovable_propagates_to_clique_members() {
+        // Scenario: p0 and p1 form a clique across all sessions.
+        // p0 is immovable to group g0_0 in session 0.
+        // Expectation:
+        //   • p1 is also immovable to g0_0 in session 0.
+        //   • The clique constraint no longer applies in session 0 but still applies in session 1.
+
+        use crate::models::ImmovablePersonParams;
+
+        // 3 people (p0, p1 in clique; p2 free) – 2 groups of size 2 – 2 sessions
+        let mut input = create_test_input(3, vec![(2, 2)], 2);
+
+        // Add constraints
+        input.constraints = vec![
+            Constraint::MustStayTogether {
+                people: vec!["p0".into(), "p1".into()],
+                penalty_weight: 1000.0,
+                sessions: None, // all sessions initially
+            },
+            Constraint::ImmovablePerson(ImmovablePersonParams {
+                person_id: "p0".into(),
+                group_id: "g0_0".into(),
+                sessions: vec![0],
+            }),
+        ];
+
+        // Build state
+        let state = State::new(&input).expect("State creation should succeed");
+
+        // Resolve useful indices
+        let p0_idx = state.person_id_to_idx["p0"];
+        let p1_idx = state.person_id_to_idx["p1"];
+        let g0_idx = state.group_id_to_idx["g0_0"];
+
+        // === Assert immovable propagation ===
+        assert_eq!(
+            state.immovable_people.len(),
+            2,
+            "Both clique members should be immovable"
+        );
+        assert_eq!(state.immovable_people.get(&(p0_idx, 0)), Some(&g0_idx));
+        assert_eq!(state.immovable_people.get(&(p1_idx, 0)), Some(&g0_idx));
+
+        // === Assert clique session removal ===
+        let clique_id = state.person_to_clique_id[0][p0_idx].expect("p0 should be in clique");
+        let sessions_opt = &state.clique_sessions[clique_id];
+        // After propagation, the clique should only apply to session 1.
+        assert_eq!(sessions_opt, &Some(vec![1]));
+
+        // === Ensure no validation errors for conflicting assignments ===
+        // (Already covered by State::new success) – Additional logical check:
+        // cost calculation should yield zero immovable violations at start.
+        assert_eq!(state.immovable_violations, 0);
+    }
 }
 
 #[cfg(test)]
@@ -3883,7 +4082,7 @@ mod attribute_balance_tests {
         for swap_num in 1..=10 {
             // Find two people to swap (avoid cliques and immovable people)
             let swappable_people: Vec<usize> = (0..state.person_idx_to_id.len())
-                .filter(|&p_idx| state.person_to_clique_id[p_idx].is_none())
+                .filter(|&p_idx| state.person_to_clique_id[0][p_idx].is_none())
                 .collect();
 
             if swappable_people.len() < 2 {

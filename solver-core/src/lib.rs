@@ -378,7 +378,6 @@ pub fn calculate_recommended_settings(
     // degenerate cases (e.g. extremely good initial schedule) there may be no
     // accepted uphill moves even though some were attempted, and vice-versa.
     // If no positive cost increases were seen, we fall back to a small default.
-    use std::f64::consts::LN_2;
 
     let max_uphill_delta = metrics
         .biggest_attempted_increase
@@ -387,14 +386,16 @@ pub fn calculate_recommended_settings(
     eprintln!("[DEBUG] max_uphill_delta chosen: {}", max_uphill_delta);
 
     let init_temp = if max_uphill_delta > 0.0 {
-        max_uphill_delta / LN_2
+        -max_uphill_delta / 0.01_f64.ln()
     } else {
         1.0 // conservative fallback when no uphill moves were observed
     };
 
     eprintln!("[DEBUG] calculated init_temp: {}", init_temp);
 
-    let final_temp = -1.0 / (0.05f64).ln();
+    // Final temperature is the temperature at which a step which
+    // increases the cost function by 1 is accepted with probability of 0.001%.
+    let final_temp = -1.0 / (0.00001f64).ln();
 
     eprintln!("[DEBUG] calculated final_temp: {}", final_temp);
 
@@ -792,7 +793,7 @@ mod callback_tests {
                     penalty_weight: 50.0,
                     sessions: None,
                 }),
-                Constraint::CannotBeTogether {
+                Constraint::ShouldNotBeTogether {
                     people: vec!["person_0".to_string(), "person_1".to_string()],
                     penalty_weight: 200.0,
                     sessions: None,

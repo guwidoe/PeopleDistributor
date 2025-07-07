@@ -1,9 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, NavLink } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Check, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table } from 'lucide-react';
+import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table, Lock } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
+
+// Import the specific constraint type for the dashboard
+interface AttributeBalanceConstraint {
+  type: 'AttributeBalance';
+  group_id: string;
+  attribute_key: string;
+  desired_values: Record<string, number>;
+  penalty_weight: number;
+  sessions?: number[];
+}
 import { loadDemoCasesWithMetrics, type DemoCaseWithMetrics } from '../services/demoDataService';
+import PersonCard from './PersonCard';
+import HardConstraintsPanel from './constraints/HardConstraintsPanel';
+import SoftConstraintsPanel from './constraints/SoftConstraintsPanel';
+import ImmovablePeopleModal from './modals/ImmovablePeopleModal';
+import RepeatEncounterModal from './modals/RepeatEncounterModal';
+import AttributeBalanceModal from './modals/AttributeBalanceModal';
+import ShouldNotBeTogetherModal from './modals/ShouldNotBeTogetherModal';
+import MustStayTogetherModal from './modals/MustStayTogetherModal';
+import AttributeBalanceDashboard from './AttributeBalanceDashboard';
+import { DemoDataWarningModal } from './modals/DemoDataWarningModal';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
   solver_type: "SimulatedAnnealing",
@@ -72,26 +93,33 @@ const ObjectiveWeightEditor: React.FC<ObjectiveWeightEditorProps> = ({ currentWe
   );
 };
 
+
+
 export function ProblemEditor() {
   const { 
     problem, 
     setProblem, 
+    GetProblem,
     addNotification, 
-    generateDemoData,
     loadDemoCase,
+    loadDemoCaseOverwrite,
+    loadDemoCaseNewProblem,
     demoDropdownOpen,
     setDemoDropdownOpen,
     attributeDefinitions,
     addAttributeDefinition,
     removeAttributeDefinition,
+    setShowProblemManager,
     currentProblemId,
     saveProblem,
     updateCurrentProblem,
-    updateProblem
+    updateProblem,
+    ui
   } = useAppStore();
   
   const { section } = useParams<{ section: string }>();
   const activeSection = section || 'people';
+  const navigate = useNavigate();
 
   const [showAttributesSection, setShowAttributesSection] = useState(false);
   const [peopleViewMode, setPeopleViewMode] = useState<'grid' | 'list'>('grid');
@@ -122,9 +150,11 @@ export function ProblemEditor() {
   const [groupForm, setGroupForm] = useState<GroupFormData>({
     size: 4
   });
+  const [groupFormInputs, setGroupFormInputs] = useState<{ size?: string }>({});
 
   const [newAttribute, setNewAttribute] = useState({ key: '', values: [''] });
   const [sessionsCount, setSessionsCount] = useState(problem?.num_sessions || 3);
+  const [sessionsFormInputs, setSessionsFormInputs] = useState<{ count?: string }>({});
 
   // === Objectives Helpers ===
   const getCurrentObjectiveWeight = () => {
@@ -143,8 +173,10 @@ export function ProblemEditor() {
     return 1;
   })();
 
-  // Demo dropdown ref for click outside handling
-  const demoDropdownRef = useRef<HTMLDivElement>(null);
+  // Demo dropdown refs & positioning helpers
+  const demoDropdownRef = useRef<HTMLDivElement>(null); // wraps the trigger button
+  const dropdownMenuRef = useRef<HTMLDivElement>(null); // portal menu element
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   
   // Demo cases with metrics state
   const [demoCasesWithMetrics, setDemoCasesWithMetrics] = useState<DemoCaseWithMetrics[]>([]);
@@ -172,10 +204,28 @@ export function ProblemEditor() {
     }
   }, [demoDropdownOpen, demoCasesWithMetrics.length, loadingDemoMetrics, addNotification]);
 
+  // When dropdown opens, calculate its viewport position (20rem wide → 320px)
+  useEffect(() => {
+    if (demoDropdownOpen && demoDropdownRef.current) {
+      const rect = demoDropdownRef.current.getBoundingClientRect();
+      const dropdownWidth = 320;
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4, // 4px gap (mt-1)
+        left: rect.right - dropdownWidth + window.scrollX,
+      });
+    }
+  }, [demoDropdownOpen]);
+
   // Click outside to close demo dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (demoDropdownRef.current && !demoDropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        demoDropdownRef.current &&
+        !demoDropdownRef.current.contains(target) &&
+        dropdownMenuRef.current &&
+        !dropdownMenuRef.current.contains(target)
+      ) {
         setDemoDropdownOpen(false);
       }
     };
@@ -209,7 +259,7 @@ export function ProblemEditor() {
     desired_values?: Record<string, number>;
     // ImmovablePerson
     person_id?: string;
-    // MustStayTogether / CannotBeTogether
+    // MustStayTogether / ShouldNotBeTogether
     people?: string[];
     sessions?: number[];
   }>({
@@ -217,64 +267,112 @@ export function ProblemEditor() {
     penalty_weight: 1
   });
 
-  const handleSaveProblem = () => {
-    if (!problem) {
-      addNotification({
-        type: 'error',
-        title: 'No Problem',
-        message: 'Please configure a problem first',
-      });
-      return;
-    }
+  const [showImmovableModal,setShowImmovableModal]=useState(false);
+  const [editingImmovableIndex,setEditingImmovableIndex]=useState<number|null>(null);
 
-    localStorage.setItem('peopleDistributor-problem', JSON.stringify(problem));
-    addNotification({
-      type: 'success',
-      title: 'Saved',
-      message: 'Problem configuration saved successfully',
-    });
+  // New individual constraint modal states
+  const [showRepeatEncounterModal, setShowRepeatEncounterModal] = useState(false);
+  const [showAttributeBalanceModal, setShowAttributeBalanceModal] = useState(false);
+  const [showShouldNotBeTogetherModal, setShowShouldNotBeTogetherModal] = useState(false);
+  const [showMustStayTogetherModal, setShowMustStayTogetherModal] = useState(false);
+  const [editingConstraintIndex, setEditingConstraintIndex] = useState<number | null>(null);
+
+  // Demo data warning modal state
+  const [showDemoWarningModal, setShowDemoWarningModal] = useState(false);
+  const [pendingDemoCaseId, setPendingDemoCaseId] = useState<string | null>(null);
+
+  // New UI state for Constraints tab
+  const SOFT_TYPES = useMemo(() => ['RepeatEncounter', 'AttributeBalance', 'ShouldNotBeTogether'] as const, []);
+  const HARD_TYPES = useMemo(() => ['ImmovablePeople', 'MustStayTogether'] as const, []);
+
+  type ConstraintCategory = 'soft' | 'hard';
+
+  const [constraintCategoryTab, setConstraintCategoryTab] = useState<ConstraintCategory>('soft');
+
+  // Ensure activeConstraintTab is always valid for current category
+  const [activeConstraintTab, setActiveConstraintTab] = useState<string>(SOFT_TYPES[0]);
+
+  useEffect(() => {
+    const validTypes = (constraintCategoryTab === 'soft' ? SOFT_TYPES : HARD_TYPES) as readonly string[];
+    if (!validTypes.includes(activeConstraintTab)) {
+      setActiveConstraintTab(validTypes[0]);
+    }
+  }, [constraintCategoryTab, activeConstraintTab, SOFT_TYPES, HARD_TYPES]);
+  const [showConstraintInfo, setShowConstraintInfo] = useState<boolean>(false);
+  const [showSessionsInfo, setShowSessionsInfo] = useState<boolean>(false);
+  const [showObjectivesInfo, setShowObjectivesInfo] = useState<boolean>(false);
+
+  const handleSaveProblem = () => {
+    if (!problem) return;
+
+    if (currentProblemId) {
+      updateCurrentProblem(currentProblemId, problem);
+      addNotification({ type: 'success', title: 'Saved', message: 'Problem saved.' });
+    } else {
+      const defaultName = 'Untitled Problem';
+      saveProblem(defaultName);
+    }
   };
 
   const handleLoadProblem = () => {
-    const saved = localStorage.getItem('peopleDistributor-problem');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setProblem(parsed);
-        setSessionsCount(parsed.num_sessions || 3);
-        addNotification({
-          type: 'success',
-          title: 'Loaded',
-          message: 'Problem configuration loaded successfully',
-        });
-      } catch (error) {
-        addNotification({
-          type: 'error',
-          title: 'Load Failed',
-          message: 'Failed to load saved problem configuration',
-        });
-      }
+    // Simply open the Problem Manager modal
+    setShowProblemManager(true);
+  };
+
+  const handleDemoCaseClick = (demoCaseId: string, demoCaseName: string) => {
+    // Check if current problem has content
+    const currentProblem = problem;
+    const hasContent = currentProblem && (
+      currentProblem.people.length > 0 || 
+      currentProblem.groups.length > 0 || 
+      currentProblem.constraints.length > 0
+    );
+
+    if (hasContent) {
+      // Show warning modal
+      setPendingDemoCaseId(demoCaseId);
+      setShowDemoWarningModal(true);
     } else {
-      addNotification({
-        type: 'warning',
-        title: 'No Saved Data',
-        message: 'No saved problem configuration found',
-      });
+      // Load directly if no content
+      loadDemoCase(demoCaseId);
     }
   };
 
-  const handleSessionsCountChange = (count: number) => {
-    setSessionsCount(count);
-    
-    const updatedProblem: Problem = {
-      people: problem?.people || [],
-      groups: problem?.groups || [],
-      num_sessions: count,
-      constraints: problem?.constraints || [],
-      settings: problem?.settings || getDefaultSolverSettings()
-    };
+  const handleDemoOverwrite = () => {
+    if (pendingDemoCaseId) {
+      loadDemoCaseOverwrite(pendingDemoCaseId);
+      setShowDemoWarningModal(false);
+      setPendingDemoCaseId(null);
+    }
+  };
 
-    setProblem(updatedProblem);
+  const handleDemoLoadNew = () => {
+    if (pendingDemoCaseId) {
+      loadDemoCaseNewProblem(pendingDemoCaseId);
+      setShowDemoWarningModal(false);
+      setPendingDemoCaseId(null);
+    }
+  };
+
+  const handleDemoCancel = () => {
+    setShowDemoWarningModal(false);
+    setPendingDemoCaseId(null);
+  };
+
+  const handleSessionsCountChange = (count: number | null) => {
+    if (count !== null) {
+      setSessionsCount(count);
+      
+      const updatedProblem: Problem = {
+        people: problem?.people || [],
+        groups: problem?.groups || [],
+        num_sessions: count,
+        constraints: problem?.constraints || [],
+        settings: problem?.settings || getDefaultSolverSettings()
+      };
+
+      setProblem(updatedProblem);
+    }
   };
 
   const handleAddPerson = () => {
@@ -288,7 +386,7 @@ export function ProblemEditor() {
     }
 
     const newPerson: Person = {
-      id: `person_${Date.now()}`,
+      id: generateUniquePersonId(),
       attributes: { ...personForm.attributes },
       sessions: personForm.sessions.length > 0 ? personForm.sessions : undefined
     };
@@ -388,9 +486,21 @@ export function ProblemEditor() {
       return;
     }
 
+    // Validate size from input
+    const sizeValue = groupFormInputs.size || groupForm.size.toString();
+    const size = parseInt(sizeValue);
+    if (isNaN(size) || size < 1) {
+      addNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Please enter a valid group size (1 or greater)',
+      });
+      return;
+    }
+
     const newGroup: Group = {
       id: groupForm.id,
-      size: groupForm.size
+      size: size
     };
 
     const updatedProblem: Problem = {
@@ -403,6 +513,7 @@ export function ProblemEditor() {
 
     setProblem(updatedProblem);
     setGroupForm({ size: 4 });
+    setGroupFormInputs({});
     setShowGroupForm(false);
     
     addNotification({
@@ -418,15 +529,30 @@ export function ProblemEditor() {
       id: group.id,
       size: group.size
     });
+    setGroupFormInputs({
+      size: group.size.toString()
+    });
     setShowGroupForm(true);
   };
 
   const handleUpdateGroup = () => {
     if (!editingGroup || !groupForm.id?.trim()) return;
 
+    // Validate size from input
+    const sizeValue = groupFormInputs.size || groupForm.size.toString();
+    const size = parseInt(sizeValue);
+    if (isNaN(size) || size < 1) {
+      addNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Please enter a valid group size (1 or greater)',
+      });
+      return;
+    }
+
     const updatedGroup: Group = {
       id: groupForm.id,
-      size: groupForm.size
+      size: size
     };
 
     const updatedProblem: Problem = {
@@ -440,6 +566,7 @@ export function ProblemEditor() {
     setProblem(updatedProblem);
     setEditingGroup(null);
     setGroupForm({ size: 4 });
+    setGroupFormInputs({});
     setShowGroupForm(false);
     
     addNotification({
@@ -539,14 +666,17 @@ export function ProblemEditor() {
     try {
       switch (constraintForm.type) {
         case 'RepeatEncounter':
-          if (!constraintForm.max_allowed_encounters || constraintForm.max_allowed_encounters < 0) {
+          if (constraintForm.max_allowed_encounters === null || constraintForm.max_allowed_encounters === undefined || constraintForm.max_allowed_encounters < 0) {
             throw new Error('Please enter a valid maximum allowed encounters');
+          }
+          if (constraintForm.penalty_weight === null || constraintForm.penalty_weight === undefined || constraintForm.penalty_weight <= 0) {
+            throw new Error('Please enter a valid penalty weight');
           }
           newConstraint = {
             type: 'RepeatEncounter',
-            max_allowed_encounters: constraintForm.max_allowed_encounters,
+            max_allowed_encounters: constraintForm.max_allowed_encounters!,
             penalty_function: constraintForm.penalty_function || 'squared',
-            penalty_weight: constraintForm.penalty_weight || 1
+            penalty_weight: constraintForm.penalty_weight!
           };
           break;
 
@@ -564,23 +694,24 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id) {
-            throw new Error('Please fill in all required fields for immovable person');
+        case 'ImmovablePeople': {
+          if (!constraintForm.people?.length || !constraintForm.group_id) {
+            throw new Error('Please select at least one person and a fixed group');
           }
           // If no sessions selected, apply to all sessions
-          const allSessions = Array.from({ length: sessionsCount }, (_, i) => i);
+          const allSessions = Array.from({ length: sessionsCount ?? 3 }, (_, i) => i);
           const immovableSessions = constraintForm.sessions?.length ? constraintForm.sessions : allSessions;
           newConstraint = {
-            type: 'ImmovablePerson',
-            person_id: constraintForm.person_id,
+            type: 'ImmovablePeople',
+            people: constraintForm.people,
             group_id: constraintForm.group_id,
             sessions: immovableSessions
           };
           break;
+        }
 
         case 'MustStayTogether':
-        case 'CannotBeTogether':
+        case 'ShouldNotBeTogether':
           if (!constraintForm.people?.length || constraintForm.people.length < 2) {
             throw new Error('Please select at least 2 people');
           }
@@ -642,17 +773,17 @@ export function ProblemEditor() {
           sessions: constraint.sessions
         });
         break;
-      case 'ImmovablePerson':
+      case 'ImmovablePeople':
         setConstraintForm({
           type: constraint.type,
-          person_id: constraint.person_id,
+          people: constraint.people,
           group_id: constraint.group_id,
           sessions: constraint.sessions,
-          penalty_weight: undefined // ImmovablePerson doesn't have penalty_weight
+          penalty_weight: undefined // ImmovablePeople doesn't have penalty_weight
         });
         break;
       case 'MustStayTogether':
-      case 'CannotBeTogether':
+      case 'ShouldNotBeTogether':
         setConstraintForm({
           type: constraint.type,
           people: constraint.people,
@@ -698,23 +829,24 @@ export function ProblemEditor() {
           };
           break;
 
-        case 'ImmovablePerson':
-          if (!constraintForm.person_id || !constraintForm.group_id) {
-            throw new Error('Please fill in all required fields for immovable person');
+        case 'ImmovablePeople': {
+          if (!constraintForm.people?.length || !constraintForm.group_id) {
+            throw new Error('Please select at least one person and a fixed group');
           }
           // If no sessions selected, apply to all sessions
           const allUpdateSessions = Array.from({ length: sessionsCount }, (_, i) => i);
           const immovableUpdateSessions = constraintForm.sessions?.length ? constraintForm.sessions : allUpdateSessions;
           updatedConstraint = {
-            type: 'ImmovablePerson',
-            person_id: constraintForm.person_id,
+            type: 'ImmovablePeople',
+            people: constraintForm.people,
             group_id: constraintForm.group_id,
             sessions: immovableUpdateSessions
           };
           break;
+        }
 
         case 'MustStayTogether':
-        case 'CannotBeTogether':
+        case 'ShouldNotBeTogether':
           if (!constraintForm.people?.length || constraintForm.people.length < 2) {
             throw new Error('Please select at least 2 people');
           }
@@ -880,7 +1012,7 @@ export function ProblemEditor() {
 
     const sortedPeople = sortPeople(problem.people);
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {sortedPeople.map(renderPersonCard)}
       </div>
     );
@@ -1054,8 +1186,8 @@ export function ProblemEditor() {
     const sessions = Array.from({ length: sessionsCount }, (_, i) => i);
 
     return (
-      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-                  <div className="rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto modal-content">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                  <div className="rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto modal-content">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Person' : 'Add Person'}
@@ -1197,8 +1329,8 @@ export function ProblemEditor() {
     const isEditing = editingGroup !== null;
 
     return (
-      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-                  <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
+      <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+                  <div className="rounded-lg p-4 sm:p-6 w-full max-w-md mx-auto modal-content max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">
               {isEditing ? 'Edit Group' : 'Add Group'}
@@ -1208,6 +1340,7 @@ export function ProblemEditor() {
                 setShowGroupForm(false);
                 setEditingGroup(null);
                 setGroupForm({ size: 4 });
+                setGroupFormInputs({});
               }}
               className="text-gray-400 hover:text-gray-600"
             >
@@ -1241,9 +1374,17 @@ export function ProblemEditor() {
                 type="number"
                 min="1"
                 max="20"
-                value={groupForm.size}
-                onChange={(e) => setGroupForm(prev => ({ ...prev, size: parseInt(e.target.value) || 1 }))}
-                className="input"
+                value={groupFormInputs.size ?? groupForm.size?.toString() ?? ''}
+                onChange={(e) => {
+                  setGroupFormInputs(prev => ({ ...prev, size: e.target.value }));
+                }}
+                className={`input ${(() => {
+                  const inputValue = groupFormInputs.size;
+                  if (inputValue !== undefined) {
+                    return inputValue === '' || isNaN(parseInt(inputValue)) || parseInt(inputValue) < 1;
+                  }
+                  return groupForm.size < 1;
+                })() ? 'border-red-500 focus:border-red-500' : ''}`}
               />
               <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                 Maximum number of people that can be assigned to this group in any single session
@@ -1266,6 +1407,7 @@ export function ProblemEditor() {
                 setShowGroupForm(false);
                 setEditingGroup(null);
                 setGroupForm({ size: 4 });
+                setGroupFormInputs({});
               }}
               className="btn-secondary px-4 py-2 rounded-md"
             >
@@ -1294,7 +1436,8 @@ export function ProblemEditor() {
                 setEditingConstraint(null);
                 setConstraintForm({ type: 'RepeatEncounter', penalty_weight: 1 });
               }}
-              className="text-gray-400 hover:text-gray-600"
+              className="transition-colors p-2 -m-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+              style={{ color: 'var(--text-tertiary)' }}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1318,8 +1461,8 @@ export function ProblemEditor() {
                 <option value="RepeatEncounter">Repeat Encounter Limit</option>
                 <option value="AttributeBalance">Attribute Balance</option>
                 <option value="MustStayTogether">Must Stay Together</option>
-                <option value="CannotBeTogether">Cannot Be Together</option>
-                <option value="ImmovablePerson">Immovable Person</option>
+                <option value="ShouldNotBeTogether">Should Not Be Together</option>
+                <option value="ImmovablePeople">Immovable People</option>
               </select>
               {isEditing && (
                 <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Constraint type cannot be changed when editing</p>
@@ -1337,12 +1480,17 @@ export function ProblemEditor() {
                     type="number"
                     min="0"
                     max="10"
-                    value={constraintForm.max_allowed_encounters || ''}
-                    onChange={(e) => setConstraintForm(prev => ({ 
-                      ...prev, 
-                      max_allowed_encounters: parseInt(e.target.value) || 0 
-                    }))}
-                    className="input"
+                    value={constraintForm.max_allowed_encounters ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*$/.test(value)) {
+                        setConstraintForm(prev => ({ 
+                          ...prev, 
+                          max_allowed_encounters: value === '' ? undefined : parseInt(value)
+                        }));
+                      }
+                    }}
+                    className={`input ${(constraintForm.max_allowed_encounters === undefined || constraintForm.max_allowed_encounters < 0) ? 'border-red-500 focus:border-red-500' : ''}`}
                     placeholder="e.g., 1"
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
@@ -1425,14 +1573,24 @@ export function ProblemEditor() {
                               type="number"
                               min="0"
                               max="20"
-                              value={constraintForm.desired_values?.[value] || ''}
-                              onChange={(e) => setConstraintForm(prev => ({
-                                ...prev,
-                                desired_values: {
-                                  ...prev.desired_values,
-                                  [value]: parseInt(e.target.value) || 0
+                              value={constraintForm.desired_values?.[value] ?? ''}
+                              onChange={(e) => {
+                                const inputValue = e.target.value;
+                                if (inputValue === '' || /^\d*$/.test(inputValue)) {
+                                  setConstraintForm(prev => {
+                                    const newDesiredValues = { ...prev.desired_values };
+                                    if (inputValue === '') {
+                                      delete newDesiredValues[value];
+                                    } else {
+                                      newDesiredValues[value] = parseInt(inputValue);
+                                    }
+                                    return {
+                                      ...prev,
+                                      desired_values: newDesiredValues
+                                    };
+                                  });
                                 }
-                              }))}
+                              }}
                               className="input flex-1"
                               placeholder="0"
                             />
@@ -1485,26 +1643,42 @@ export function ProblemEditor() {
               </>
             )}
 
-            {constraintForm.type === 'ImmovablePerson' && (
+            {constraintForm.type === 'ImmovablePeople' && (
               <>
+                {/* People multi-select */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                    Person *
+                    People * (select at least 1)
                   </label>
-                  <select
-                    value={constraintForm.person_id || ''}
-                    onChange={(e) => setConstraintForm(prev => ({ ...prev, person_id: e.target.value }))}
-                    className="select"
-                  >
-                    <option value="">Select a person</option>
+                  <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2" style={{ borderColor: 'var(--border-secondary)' }}>
                     {problem?.people.map(person => (
-                      <option key={person.id} value={person.id}>
+                      <label key={person.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={constraintForm.people?.includes(person.id) || false}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setConstraintForm(prev => ({
+                                ...prev,
+                                people: [...(prev.people || []), person.id]
+                              }));
+                            } else {
+                              setConstraintForm(prev => ({
+                                ...prev,
+                                people: (prev.people || []).filter(id => id !== person.id)
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 focus:ring-2"
+                          style={{ color: 'var(--color-accent)', accentColor: 'var(--color-accent)' }}
+                        />
                         {person.attributes.name || person.id}
-                      </option>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
+                {/* Fixed group selection */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Fixed Group *
@@ -1521,6 +1695,7 @@ export function ProblemEditor() {
                   </select>
                 </div>
 
+                {/* Sessions checkbox selector */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                     Apply to Sessions (optional)
@@ -1558,7 +1733,7 @@ export function ProblemEditor() {
               </>
             )}
 
-            {(constraintForm.type === 'MustStayTogether' || constraintForm.type === 'CannotBeTogether') && (
+            {(constraintForm.type === 'MustStayTogether' || constraintForm.type === 'ShouldNotBeTogether') && (
               <>
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -1630,7 +1805,7 @@ export function ProblemEditor() {
             )}
 
             {/* Penalty Weight - only for constraints that use it */}
-            {constraintForm.type !== 'ImmovablePerson' && (
+            {constraintForm.type !== 'ImmovablePeople' && (
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Penalty Weight
@@ -1639,12 +1814,15 @@ export function ProblemEditor() {
                   type="number"
                   min="1"
                   max="10000"
-                  value={constraintForm.penalty_weight || ''}
-                  onChange={(e) => setConstraintForm(prev => ({ 
-                    ...prev, 
-                    penalty_weight: parseFloat(e.target.value) || 1 
-                  }))}
-                  className="input"
+                  value={constraintForm.penalty_weight ?? ''}
+                  onChange={(e) => {
+                    const numValue = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                    setConstraintForm(prev => ({ 
+                      ...prev, 
+                      penalty_weight: numValue 
+                    }));
+                  }}
+                  className={`input ${(constraintForm.penalty_weight === undefined || constraintForm.penalty_weight <= 0) ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
                   Higher values make this constraint more important (1-10000). 
@@ -1731,14 +1909,14 @@ export function ProblemEditor() {
       return;
     }
 
-    const newPeople: Person[] = bulkRows.map((row, idx) => {
+    const newPeople: Person[] = bulkRows.map((row) => {
       const personAttrs: Record<string, string> = {};
       bulkHeaders.forEach(h => {
         if (row[h]) personAttrs[h] = row[h];
       });
-      if (!personAttrs.name) personAttrs.name = `Person ${Date.now()}_${idx}`;
+      if (!personAttrs.name) personAttrs.name = `Person ${Date.now()}`;
       return {
-        id: `person_${Date.now()}_${idx}`,
+        id: generateUniquePersonId(),
         attributes: personAttrs,
         sessions: undefined,
       };
@@ -1910,8 +2088,7 @@ export function ProblemEditor() {
   const [groupBulkCsvInput, setGroupBulkCsvInput] = useState('');
   const [groupBulkHeaders, setGroupBulkHeaders] = useState<string[]>([]);
   const [groupBulkRows, setGroupBulkRows] = useState<Record<string, string>[]>([]);
-  const [groupGenCount, setGroupGenCount] = useState(3);
-  const [groupGenSize, setGroupGenSize] = useState(4);
+
 
   // Close group bulk dropdown when clicking outside
   useEffect(() => {
@@ -2159,279 +2336,179 @@ export function ProblemEditor() {
     return [headerLine, ...dataLines].join('\n');
   };
 
-  // ================= Attribute Balance Dashboard =================
-  interface AttributeBalanceConstraint {
-    type: 'AttributeBalance';
-    group_id: string;
-    attribute_key: string;
-    desired_values: Record<string, number>;
-    penalty_weight: number;
-    sessions?: number[];
-  }
-
-  const AttributeBalanceDashboard: React.FC<{ constraints: AttributeBalanceConstraint[] }> = ({ constraints }) => {
-    if (constraints.length === 0 || !problem) return null;
-
-    // === Session filter state ===
-    const [sessionFilter, setSessionFilter] = useState<number>(0); // default to first session
-
-    const filteredConstraints = constraints.filter(c => {
-      // Include if constraint applies to current session
-      return !c.sessions || c.sessions.includes(sessionFilter);
-    });
-
-    if (filteredConstraints.length === 0) return (
-      <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-        No Attribute Balance constraints for selected session.
-      </div>
-    );
-
-    // Build per-attribute metrics including weight-specific counts per value
-    const metrics = filteredConstraints.reduce((acc, c) => {
-      const key = c.attribute_key;
-      if (!acc[key]) {
-        acc[key] = {
-          maxWeight: 1,
-          valueWeightCounts: {} as Record<string, Record<number, number>>, // value -> weight -> count
-        };
-      }
-      acc[key].maxWeight = Math.max(acc[key].maxWeight, c.penalty_weight || 1);
-
-      Object.entries(c.desired_values).forEach(([val, cnt]) => {
-        if (!acc[key].valueWeightCounts[val]) acc[key].valueWeightCounts[val] = {};
-        const w = c.penalty_weight || 1;
-        acc[key].valueWeightCounts[val][w] = (acc[key].valueWeightCounts[val][w] || 0) + cnt;
-      });
-      return acc;
-    }, {} as Record<string, { maxWeight: number; valueWeightCounts: Record<string, Record<number, number>> }>);
-
-    // Helper to interpolate color between red (min) and green (max)
-    const weightToColor = (weight: number, max: number) => {
-      const ratio = max > 1 ? (weight - 1) / (max - 1) : 1; // 0 -> red, 1 -> green
-      const r = Math.round(255 * (1 - ratio));
-      const g = Math.round(128 + (127 * ratio)); // start at dark red -> green
-      const b = Math.round(0);
-      return `rgb(${r},${g},${b})`;
-    };
-
-    // Available counts from people
-    const available: Record<string, Record<string, number>> = {};
-    problem.people.forEach((p) => {
-      Object.entries(p.attributes).forEach(([k, v]) => {
-        if (!available[k]) available[k] = {};
-        const val = String(v);
-        available[k][val] = (available[k][val] || 0) + 1;
-      });
-    });
-
-    return (
-      <div className="rounded-md border p-4 space-y-4" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
-        {/* Session selector */}
-        {problem.num_sessions > 1 && (
-          <div className="flex items-center gap-2 mb-2" onWheel={(e)=>{
-                e.preventDefault();
-                const dir = e.deltaY > 0 ? 1 : -1;
-                setSessionFilter(prev => (prev + dir + problem.num_sessions) % problem.num_sessions);
-              }}>
-            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Session:</span>
-            <select
-              value={sessionFilter}
-              onChange={(e)=>setSessionFilter(parseInt(e.target.value))}
-              className="text-xs px-1 py-0.5 rounded border"
-              style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', borderColor: 'var(--border-secondary)' }}
-            >
-              {Array.from({length: problem.num_sessions},(_,i)=>i).map(s=>(
-                <option key={s} value={s}>{s+1}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {Object.entries(metrics).map(([attr, data]) => {
-          const availForAttr = available[attr] || {};
-          const totalAllocated = Object.values(data.valueWeightCounts).reduce((sum, vw) => sum + Object.values(vw).reduce((a,b)=>a+b,0), 0);
-          const totalAvailable = Object.values(availForAttr).reduce((a, b) => a + b, 0);
-
-          return (
-            <div key={attr} className="space-y-1">
-              <h5 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>
-                {attr}: {totalAllocated} / {totalAvailable || '—'} total
-              </h5>
-
-              {Object.entries(data.valueWeightCounts).map(([val, weightMap]) => {
-                const avail = availForAttr[val] || 0;
-                const totalForVal = Object.values(weightMap).reduce((a,b)=>a+b,0);
-                const segments = Object.entries(weightMap).sort((a,b)=>Number(a[0])-Number(b[0]));
-                return (
-                  <div key={val} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    <span className="capitalize w-20">{val}</span>
-                    <span className="whitespace-nowrap">{totalForVal} / {avail}</span>
-                    <div className="flex-1 h-2 rounded bg-gray-700 overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                      <div className="flex h-full w-full">
-                        {segments.map(([wStr, count]) => {
-                          const segPct = avail ? (count / avail) * 100 : 0;
-                          return (
-                            <div key={wStr} style={{ width: `${segPct}%`, backgroundColor: weightToColor(Number(wStr), data.maxWeight) }} />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Weight legend */}
-              {(() => {
-                const weightSet = new Set<string>();
-                Object.values(data.valueWeightCounts).forEach(wm => Object.keys(wm).forEach(w=>weightSet.add(w)));
-                const weights = Array.from(weightSet).sort((a,b)=>Number(a)-Number(b));
-                return (
-                  <div className="flex flex-wrap gap-2 mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                    {weights.map(w => (
-                      <span key={w} className="inline-flex items-center gap-1">
-                        <span className="w-3 h-3 rounded" style={{ backgroundColor: weightToColor(Number(w), data.maxWeight) }}></span>
-                        weight {w}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          );
-        })}
-      </div>
-    );
+  // === Helper: Generate a unique person ID across all existing people in all problems ===
+  const generateUniquePersonId = (): string => {
+    // Get all person IDs across all problems
+    const allProblems = useAppStore.getState().savedProblems;
+    const allPersonIds = new Set<string>();
+    Object.values(allProblems).forEach(p => p.problem.people.forEach(person => allPersonIds.add(person.id)));
+    // Also include people in the current unsaved problem
+    if (problem?.people) {
+      problem.people.forEach(person => allPersonIds.add(person.id));
+    }
+    let newId: string;
+    do {
+      newId = `person_${Math.random().toString(36).slice(2, 10)}`;
+    } while (allPersonIds.has(newId));
+    return newId;
   };
+
+  // Don't render until loading is complete to avoid creating new problems
+  if (ui.isLoading) {
+    return <div className="animate-fade-in">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Setup</h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Load
-          </button>
-          <button
-            onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            Save
-          </button>
-          <div className="relative" ref={demoDropdownRef}>
+        <div className="w-full overflow-x-auto">
+          <div className="flex flex-row flex-nowrap gap-2 justify-end w-full overflow-visible">
             <button
-              onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-2"
+              onClick={handleLoadProblem}
+              className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+              style={{ outline: 'none', boxShadow: 'none' }}
             >
-              <Zap className="w-4 h-4" />
-              Demo Data
-              <ChevronDown className="w-3 h-3" />
+              <Upload className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="truncate">Load</span>
             </button>
-            
-            {demoDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-80 rounded-md shadow-lg z-10 border overflow-hidden max-h-96 overflow-y-auto" 
-                   style={{ 
-                     backgroundColor: 'var(--bg-primary)', 
-                     borderColor: 'var(--border-primary)' 
-                   }}>
-                {loadingDemoMetrics ? (
-                  <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
-                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: 'var(--color-accent)' }}></div>
-                    <span className="ml-2 text-sm">Loading demo cases...</span>
-                  </div>
-                ) : (
-                  <>
-                    {/* Category groups */}
-                    {(['Simple', 'Intermediate', 'Advanced', 'Benchmark'] as const).map(category => {
-                      const casesInCategory = demoCasesWithMetrics.filter(c => c.category === category);
-                      if (casesInCategory.length === 0) return null;
-                      
-                      return (
-                        <div key={category}>
-                          <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-b"
-                               style={{ 
-                                 backgroundColor: 'var(--bg-tertiary)', 
-                                 borderColor: 'var(--border-primary)',
-                                 color: 'var(--text-tertiary)'
-                               }}>
-                            {category}
-                          </div>
-                          {casesInCategory.map(demoCase => (
-                            <button
-                              key={demoCase.id}
-                              onClick={() => loadDemoCase(demoCase.id)}
-                              className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
-                              style={{ 
-                                color: 'var(--text-primary)',
-                                backgroundColor: 'transparent',
-                                borderColor: 'var(--border-primary)'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{demoCase.name}</span>
-                                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                                  <Users className="w-3 h-3" />
-                                  <span>{demoCase.peopleCount}</span>
-                                  <Hash className="w-3 h-3 ml-1" />
-                                  <span>{demoCase.groupCount}</span>
-                                  <Calendar className="w-3 h-3 ml-1" />
-                                  <span>{demoCase.sessionCount}</span>
-                                </div>
-                              </div>
-                              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                {demoCase.description}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            )}
+            <button
+              onClick={handleSaveProblem}
+              className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+              style={{ outline: 'none', boxShadow: 'none' }}
+            >
+              <Save className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="truncate">Save</span>
+            </button>
+            <div className="relative" ref={demoDropdownRef}>
+              <button
+                onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
+                className="flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-3 py-1.5 rounded-md font-medium transition-colors btn-secondary min-w-0 text-xs sm:text-sm focus-visible:outline-none"
+                style={{ outline: 'none', boxShadow: 'none' }}
+              >
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span>Demo Data</span>
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              </button>
+              {/* Dropdown menu rendered in portal; inline fallback removed */}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* === Demo Data dropdown rendered in a portal so it's not clipped by its parent === */}
+      {demoDropdownOpen && dropdownPosition && createPortal(
+        <div
+          ref={dropdownMenuRef}
+          className="fixed z-50 w-80 rounded-md shadow-lg border overflow-hidden max-h-96 overflow-y-auto"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            backgroundColor: 'var(--bg-primary)',
+            borderColor: 'var(--border-primary)',
+          }}
+        >
+          {loadingDemoMetrics ? (
+            <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
+              <div
+                className="inline-block animate-spin rounded-full h-4 w-4 border-b-2"
+                style={{ borderColor: 'var(--color-accent)' }}
+              ></div>
+              <span className="ml-2 text-sm">Loading demo cases...</span>
+            </div>
+          ) : (
+            <>
+              {(['Simple', 'Intermediate', 'Advanced', 'Benchmark'] as const).map((category) => {
+                const casesInCategory = demoCasesWithMetrics.filter((c) => c.category === category);
+                if (casesInCategory.length === 0) return null;
+
+                return (
+                  <div key={category}>
+                    <div
+                      className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-b"
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderColor: 'var(--border-primary)',
+                        color: 'var(--text-tertiary)',
+                      }}
+                    >
+                      {category}
+                    </div>
+                    {casesInCategory.map((demoCase) => (
+                      <button
+                        key={demoCase.id}
+                        onClick={() => handleDemoCaseClick(demoCase.id, demoCase.name)}
+                        className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
+                        style={{
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'transparent',
+                          borderColor: 'var(--border-primary)',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{demoCase.name}</span>
+                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                            <Users className="w-3 h-3" />
+                            <span>{demoCase.peopleCount}</span>
+                            <Hash className="w-3 h-3 ml-1" />
+                            <span>{demoCase.groupCount}</span>
+                            <Calendar className="w-3 h-3 ml-1" />
+                            <span>{demoCase.sessionCount}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                          {demoCase.description}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
       {/* Navigation */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <nav className="flex space-x-8">
+        {/*
+          Responsive tab bar:
+          - Justified: tabs are distributed evenly to fill each row
+          - Uses CSS grid with auto-fit and minmax
+          - Tabs wrap to new rows as needed, but only if there is not enough space for even one more tab
+          - All icons are the same size at all breakpoints
+        */}
+        <nav
+          className="flex flex-wrap justify-between gap-y-2"
+        >
           {[
-            { id: 'people', label: 'People', icon: Users, count: problem?.people.length },
-            { id: 'groups', label: 'Groups', icon: Hash, count: problem?.groups.length },
-            { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions },
+            { id: 'people', label: 'People', icon: Users, count: (problem?.people ?? []).length },
+            { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
+            { id: 'sessions', label: 'Sessions', icon: Calendar, count: problem?.num_sessions ?? 0 },
             { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
-            { id: 'constraints', label: 'Constraints', icon: Settings, count: problem?.constraints.length },
-          ].map(({ id, label, icon: Icon, count }) => (
-              <NavLink
-              key={id}
-              to={`/app/problem/${id}`}
-              className="flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors"
-              style={({ isActive }) => ({
-                borderBottomColor: isActive ? 'var(--color-accent)' : 'transparent',
-                color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)'
-              })}
+            { id: 'hard', label: 'Hard Constraints', icon: Lock, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
+            { id: 'soft', label: 'Soft Constraints', icon: Zap, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','ShouldNotBeTogether'].includes(c.type as string)).length : 0 },
+          ].map(tab => (
+            <button
+              className={`flex-1 flex flex-row items-center justify-center min-w-[140px] gap-1 px-3 py-1.5 rounded-md font-medium transition-colors ${activeSection === tab.id ? 'bg-[var(--bg-tertiary)] text-[var(--color-accent)]' : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--color-accent)]'}`}
+              key={tab.id}
+              onClick={() => navigate(`/app/problem/${tab.id}`)}
             >
-              <Icon className="w-4 h-4" />
-              {label}
-              {typeof count === 'number' && (
-                <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-0.5 rounded-full text-xs">
-                  {count}
-                </span>
+              <tab.icon className="w-5 h-5" />
+              <span className="whitespace-nowrap">{tab.label}</span>
+              {typeof tab.count === 'number' && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{tab.count}</span>
               )}
-            </NavLink>
+            </button>
           ))}
         </nav>
       </div>
@@ -2440,10 +2517,11 @@ export function ProblemEditor() {
         {activeSection === 'people' && (
           <div className="space-y-4">
             {/* Attributes Section Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => setShowAttributesSection(!showAttributesSection)}
-                className="flex items-center gap-3 text-left transition-colors"
+                className="flex items-center gap-2 text-left transition-colors min-w-0"
+                style={{ flex: '1 1 0%' }}
               >
                 {showAttributesSection ? (
                   <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
@@ -2451,7 +2529,7 @@ export function ProblemEditor() {
                   <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
                 )}
                 <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                <h3 className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+                <h3 className="text-base font-medium truncate" style={{ color: 'var(--text-primary)', maxWidth: '100%', fontSize: 'clamp(0.9rem, 4vw, 1.1rem)' }}>
                   Attribute Definitions ({attributeDefinitions.length})
                 </h3>
               </button>
@@ -2525,11 +2603,11 @@ export function ProblemEditor() {
             {/* People Section */}
             <div className="rounded-lg border transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
               <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)' }}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
                   <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>
                     People ({problem?.people.length || 0})
                   </h3>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     {/* View Toggle */}
                     <div className="flex items-center gap-2">
                       <button
@@ -2742,8 +2820,31 @@ export function ProblemEditor() {
 
       {activeSection === 'sessions' && (
         <div className="space-y-4">
-          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions Configuration</h3>
-          
+          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Sessions</h3>
+          {/* Collapsible info box OUTSIDE the main box */}
+          <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <button
+              className="flex items-center gap-2 w-full p-4 text-left"
+              onClick={() => setShowSessionsInfo(!showSessionsInfo)}
+            >
+              {showSessionsInfo ? (
+                <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              ) : (
+                <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              )}
+              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Sessions work?</h4>
+            </button>
+            {showSessionsInfo && (
+              <div className="p-4 pt-0">
+                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                  <li>• Each session represents a time period (e.g., morning, afternoon, day 1, day 2)</li>
+                  <li>• People are assigned to groups within each session</li>
+                  <li>• The algorithm maximizes unique contacts across all sessions</li>
+                  <li>• People can participate in all sessions or only specific ones</li>
+                </ul>
+              </div>
+            )}
+          </div>
           <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
             <div className="space-y-4">
               <div>
@@ -2754,23 +2855,30 @@ export function ProblemEditor() {
                   type="number"
                   min="1"
                   max="10"
-                  value={sessionsCount}
-                  onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
-                  className="input w-32"
+                  value={sessionsFormInputs.count ?? sessionsCount?.toString() ?? ''}
+                  onChange={(e) => {
+                    setSessionsFormInputs(prev => ({ ...prev, count: e.target.value }));
+                  }}
+                  onBlur={() => {
+                    // Validate and apply the sessions count from input
+                    const countValue = sessionsFormInputs.count || sessionsCount.toString();
+                    const count = parseInt(countValue);
+                    if (!isNaN(count) && count >= 1) {
+                      handleSessionsCountChange(count);
+                      setSessionsFormInputs({});
+                    }
+                  }}
+                  className={`input w-32 ${(() => {
+                    const inputValue = sessionsFormInputs.count;
+                    if (inputValue !== undefined) {
+                      return inputValue === '' || isNaN(parseInt(inputValue)) || parseInt(inputValue) < 1;
+                    }
+                    return sessionsCount < 1;
+                  })() ? 'border-red-500 focus:border-red-500' : ''}`}
                 />
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
                   The algorithm will distribute people into groups across {sessionsCount} sessions. Each person can be assigned to one group per session.
                 </p>
-              </div>
-              
-              <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-                <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>How Sessions Work</h4>
-                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                  <li>• Each session represents a time period (e.g., morning, afternoon, day 1, day 2)</li>
-                  <li>• People are assigned to groups within each session</li>
-                  <li>• The algorithm maximizes unique contacts across all sessions</li>
-                  <li>• People can participate in all sessions or only specific ones</li>
-                </ul>
               </div>
             </div>
           </div>
@@ -2780,28 +2888,118 @@ export function ProblemEditor() {
       {activeSection === 'objectives' && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>Objectives</h3>
-
-          <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
-              weights to create a custom scoring function. Currently the solver supports the
-              <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
-            </p>
+          {/* Collapsible info box OUTSIDE the main box */}
+          <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <button
+              className="flex items-center gap-2 w-full p-4 text-left"
+              onClick={() => setShowObjectivesInfo(!showObjectivesInfo)}
+            >
+              {showObjectivesInfo ? (
+                <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              ) : (
+                <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              )}
+              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>How do Objectives work?</h4>
+            </button>
+            {showObjectivesInfo && (
+              <div className="p-4 pt-0">
+                <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
+                  weights to create a custom scoring function. Currently the solver only supports the
+                  <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
+                </p>
+              </div>
+            )}
           </div>
+          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+            {/* Unique Contacts Objective Editor */}
+            <ObjectiveWeightEditor
+              currentWeight={getCurrentObjectiveWeight()}
+              onCommit={(newWeight) => {
+                if (!problem) return;
+                const newObjectives = [
+                  {
+                    type: 'maximize_unique_contacts',
+                    weight: newWeight,
+                  },
+                ];
+                updateProblem({ objectives: newObjectives });
+              }}
+            />
+          </div>
+        </div>
+      )}
 
-          {/* Unique Contacts Objective Editor */}
-          <ObjectiveWeightEditor
-            currentWeight={getCurrentObjectiveWeight()}
-            onCommit={(newWeight) => {
-              if (!problem) return;
-              const newObjectives = [
-                {
-                  type: 'maximize_unique_contacts',
-                  weight: newWeight,
-                },
-              ];
-              updateProblem({ objectives: newObjectives });
+      {activeSection === 'hard' && (
+        <div className="pt-0">
+          <HardConstraintsPanel
+            onAddConstraint={(type: 'ImmovablePeople'| 'MustStayTogether') => {
+              if(type==='ImmovablePeople'){
+                setEditingImmovableIndex(null);
+                setShowImmovableModal(true);
+              }else if(type==='MustStayTogether'){
+                setEditingConstraintIndex(null);
+                setShowMustStayTogetherModal(true);
+              }else{
+                setConstraintForm((prev) => ({ ...prev, type }));
+                setShowConstraintForm(true);
+              }
             }}
+            onEditConstraint={(c: Constraint, i: number) => {
+               if(c.type==='ImmovablePeople'){
+                   setEditingImmovableIndex(i);
+                   setShowImmovableModal(true);
+               } else if(c.type==='MustStayTogether'){
+                   setEditingConstraintIndex(i);
+                   setShowMustStayTogetherModal(true);
+               } else {
+                   handleEditConstraint(c,i);
+               }
+            }}
+            onDeleteConstraint={(i: number) => handleDeleteConstraint(i)}
+          />
+        </div>
+      )}
+
+      {activeSection === 'soft' && (
+        <div className="pt-0">
+          <SoftConstraintsPanel
+            onAddConstraint={(type: Constraint['type']) => {
+              setEditingConstraintIndex(null);
+              switch (type) {
+                case 'RepeatEncounter':
+                  setShowRepeatEncounterModal(true);
+                  break;
+                case 'AttributeBalance':
+                  setShowAttributeBalanceModal(true);
+                  break;
+                case 'ShouldNotBeTogether':
+                  setShowShouldNotBeTogetherModal(true);
+                  break;
+                default:
+                  // Fallback to legacy modal for any other types
+                  setConstraintForm((prev) => ({ ...prev, type }));
+                  setShowConstraintForm(true);
+              }
+            }}
+            onEditConstraint={(c: Constraint, i: number) => {
+              setEditingConstraintIndex(i);
+              switch (c.type) {
+                case 'RepeatEncounter':
+                  setShowRepeatEncounterModal(true);
+                  break;
+                case 'AttributeBalance':
+                  setShowAttributeBalanceModal(true);
+                  break;
+                case 'ShouldNotBeTogether':
+                  setShowShouldNotBeTogetherModal(true);
+                  break;
+                default:
+                  // Fallback to legacy modal for any other types
+                  handleEditConstraint(c, i);
+              }
+            }}
+            onDeleteConstraint={(i: number) => handleDeleteConstraint(i)}
           />
         </div>
       )}
@@ -2822,160 +3020,250 @@ export function ProblemEditor() {
             </button>
           </div>
           
-          <div className="rounded-md p-4 border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
-            <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>About Constraints</h4>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-              Constraints guide the optimization process by defining rules and preferences:
-            </p>
-            <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-              <li>• <strong>RepeatEncounter:</strong> Limit how often people meet across sessions</li>
-              <li>• <strong>AttributeBalance:</strong> Maintain desired distributions (e.g., gender balance)</li>
-              <li>• <strong>MustStayTogether:</strong> Keep certain people in the same group</li>
-              <li>• <strong>CannotBeTogether:</strong> Prevent certain people from being grouped</li>
-              <li>• <strong>ImmovablePerson:</strong> Fix someone to a specific group in specific sessions</li>
-            </ul>
+          {/* Collapsible "About Constraints" info pane */}
+          <div className="rounded-md border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }}>
+            <button
+              className="flex items-center gap-2 w-full p-4 text-left"
+              onClick={() => setShowConstraintInfo(!showConstraintInfo)}
+            >
+              {showConstraintInfo ? (
+                <ChevronDown className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              ) : (
+                <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+              )}
+              <h4 className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>About Constraints</h4>
+            </button>
+            {showConstraintInfo && (
+              <div className="p-4 pt-0">
+                <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Constraints guide the optimization process by defining rules and preferences:
+                </p>
+                <ul className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                  <li>• <strong>RepeatEncounter:</strong> Limit how often people meet across sessions</li>
+                  <li>• <strong>AttributeBalance:</strong> Maintain desired distributions (e.g., gender balance)</li>
+                  <li>• <strong>MustStayTogether:</strong> Keep certain people in the same group</li>
+                  <li>• <strong>ShouldNotBeTogether:</strong> Prevent certain people from being grouped</li>
+                  <li>• <strong>ImmovablePeople:</strong> Fix someone to a specific group in specific sessions</li>
+                </ul>
+              </div>
+            )}
           </div>
 
-          {problem?.constraints.length ? (
-            <div className="space-y-6">
-              {/* Group constraints by type */}
-              {(() => {
-                const constraintsByType = problem.constraints.reduce((acc, constraint, index) => {
-                  if (!acc[constraint.type]) {
-                    acc[constraint.type] = [];
-                  }
-                  acc[constraint.type].push({ constraint, index });
-                  return acc;
-                }, {} as Record<string, { constraint: Constraint; index: number }[]>);
+          {/* Sub-tabs for individual constraint types */}
+          {(() => {
+            const constraintTypeLabels = {
+              'RepeatEncounter': 'Repeat Encounter Limits',
+              'AttributeBalance': 'Attribute Balance',
+              'ImmovablePeople': 'Immovable People',
+              'MustStayTogether': 'Must Stay Together',
+              'ShouldNotBeTogether': 'Should Not Be Together'
+            } as const;
 
-                const constraintTypeLabels = {
-                  'RepeatEncounter': 'Repeat Encounter Limits',
-                  'AttributeBalance': 'Attribute Balance',
-                  'ImmovablePerson': 'Immovable People',
-                  'MustStayTogether': 'Must Stay Together',
-                  'CannotBeTogether': 'Cannot Be Together'
-                };
+            const constraintsByType = (problem?.constraints || []).reduce((acc: Record<string, { constraint: Constraint; index: number }[]>, constraint, index) => {
+              if (!acc[constraint.type]) {
+                acc[constraint.type] = [];
+              }
+              acc[constraint.type].push({ constraint, index });
+              return acc;
+            }, {});
 
-                return Object.entries(constraintsByType).map(([type, items]) => (
-                  <div key={type} className="space-y-3">
-                    <h4 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }}></div>
-                      {constraintTypeLabels[type as keyof typeof constraintTypeLabels] || type}
-                      <span className="text-sm font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-                        {items.length}
-                      </span>
-                    </h4>
-                    
-                    {/* Dashboard for Attribute Balance */}
-                    {type === 'AttributeBalance' && (
-                      <AttributeBalanceDashboard constraints={items.map(i => i.constraint as any)} />
-                    )}
-                    
-                    <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
-                      {items.map(({ constraint, index }) => (
-                        <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-                                  {constraint.type}
-                                </span>
-                                {constraint.type !== 'ImmovablePerson' && (
-                                  <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>
-                                    Weight: {(constraint as any).penalty_weight}
+            const tabOrder = [...(constraintCategoryTab === 'soft' ? SOFT_TYPES : HARD_TYPES)] as (keyof typeof constraintTypeLabels)[];
+            const selectedItems = constraintsByType[activeConstraintTab] || [];
+
+            return (
+              <>
+                {/* Category tabs */}
+                <div className="flex gap-2 mb-4">
+                  {(['soft', 'hard'] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        setConstraintCategoryTab(cat);
+                        const firstType = cat === 'soft' ? SOFT_TYPES[0] : HARD_TYPES[0];
+                        setActiveConstraintTab(firstType);
+                      }}
+                      className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: constraintCategoryTab === cat ? 'var(--color-accent)' : 'var(--bg-tertiary)',
+                        color: constraintCategoryTab === cat ? 'white' : 'var(--text-secondary)'
+                      }}
+                    >
+                      {cat === 'soft' ? 'Soft Constraints' : 'Hard Constraints'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab list */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {tabOrder.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setActiveConstraintTab(type)}
+                      className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: activeConstraintTab === type ? 'var(--color-accent)' : 'var(--bg-tertiary)',
+                        color: activeConstraintTab === type ? 'white' : 'var(--text-secondary)'
+                      }}
+                    >
+                      {constraintTypeLabels[type]}
+                      <span className="ml-1 text-xs">({constraintsByType[type]?.length || 0})</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Content for selected tab */}
+                {problem?.constraints.length ? (
+                  selectedItems.length ? (
+                    <div className="space-y-3">
+                      <h4 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }}></div>
+                        {constraintTypeLabels[activeConstraintTab as keyof typeof constraintTypeLabels]}
+                        <span className="text-sm font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                          {selectedItems.length}
+                        </span>
+                      </h4>
+
+                      {/* Dashboard for Attribute Balance */}
+                      {activeConstraintTab === 'AttributeBalance' && (
+                        <AttributeBalanceDashboard constraints={selectedItems.map(i => i.constraint as AttributeBalanceConstraint)} problem={problem!} />
+                      )}
+
+                      <div className="grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
+                        {selectedItems.map(({ constraint, index }) => (
+                          <div key={index} className="rounded-lg border p-4 transition-colors hover:shadow-md" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                                    {constraint.type}
                                   </span>
-                                )}
+                                  {constraint.type !== 'ImmovablePeople' && (
+                                    <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>
+                                      Weight: {(constraint as Constraint & { penalty_weight: number }).penalty_weight}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                                  {constraint.type === 'RepeatEncounter' && (
+                                    <>
+                                      <div>Max encounters: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.max_allowed_encounters}</span></div>
+                                      <div>Penalty function: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.penalty_function}</span></div>
+                                    </>
+                                  )}
+                                  
+                                  {constraint.type === 'AttributeBalance' && (
+                                    <>
+                                      <div>Group: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
+                                      <div>Attribute: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
+                                      <div className="break-words">Distribution: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</span></div>
+                                      {constraint.sessions && constraint.sessions.length > 0 ? (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                      ) : (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
+                                      )}
+                                    </>
+                                  )}
+                                  
+                                  {constraint.type === 'ImmovablePeople' && (
+                                    <>
+                                      <div className="break-words flex flex-wrap items-center gap-1">
+                                        <span>People:</span>
+                                        {constraint.people.map((pid, idx) => {
+                                          const per = problem?.people.find(p => p.id === pid);
+                                          return (
+                                            <React.Fragment key={pid}>
+                                              {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
+                                              {idx < constraint.people.length - 1 && <span></span>}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                      </div>
+                                      <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
+                                      {constraint.sessions && constraint.sessions.length > 0 ? (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                      ) : (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
+                                      )}
+                                    </>
+                                  )}
+                                  
+                                  {(constraint.type === 'MustStayTogether' || constraint.type === 'ShouldNotBeTogether') && (
+                                    <>
+                                      <div className="break-words flex flex-wrap items-center gap-1">
+                                        <span>People:</span>
+                                        {constraint.people.map((pid, idx) => {
+                                          const per = problem?.people.find(p => p.id === pid);
+                                          return (
+                                            <React.Fragment key={pid}>
+                                              {per ? <PersonCard person={per} /> : <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{pid}</span>}
+                                              {idx < constraint.people.length - 1 && <span></span>}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                      </div>
+                                      {constraint.sessions && constraint.sessions.length > 0 ? (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
+                                      ) : (
+                                        <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
                               
-                              <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                                {constraint.type === 'RepeatEncounter' && (
-                                  <>
-                                    <div>Max encounters: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.max_allowed_encounters}</span></div>
-                                    <div>Penalty function: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.penalty_function}</span></div>
-                                  </>
-                                )}
-                                
-                                {constraint.type === 'AttributeBalance' && (
-                                  <>
-                                    <div>Group: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
-                                    <div>Attribute: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.attribute_key}</span></div>
-                                    <div className="break-words">Distribution: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{Object.entries(constraint.desired_values || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}</span></div>
-                                    {constraint.sessions && constraint.sessions.length > 0 ? (
-                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
-                                    ) : (
-                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
-                                    )}
-                                  </>
-                                )}
-                                
-                                {constraint.type === 'ImmovablePerson' && (
-                                  <>
-                                    <div>Person: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.person_id}</span></div>
-                                    <div>Fixed to: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.group_id}</span></div>
-                                    <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
-                                  </>
-                                )}
-                                
-                                {(constraint.type === 'MustStayTogether' || constraint.type === 'CannotBeTogether') && (
-                                  <>
-                                    <div className="break-words">People: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.people.join(', ')}</span></div>
-                                    {constraint.sessions && constraint.sessions.length > 0 ? (
-                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{constraint.sessions.map(s => s + 1).join(', ')}</span></div>
-                                    ) : (
-                                      <div>Sessions: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>All sessions</span></div>
-                                    )}
-                                  </>
-                                )}
+                              <div className="flex gap-1 ml-2">
+                                <button
+                                  onClick={() => handleEditConstraint(constraint, index)}
+                                  className="p-1.5 rounded transition-colors"
+                                  style={{ color: 'var(--text-tertiary)' }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = 'var(--color-accent)';
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = 'var(--text-tertiary)';
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteConstraint(index)}
+                                  className="p-1.5 rounded transition-colors"
+                                  style={{ color: 'var(--text-tertiary)' }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = 'var(--color-error-600)';
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = 'var(--text-tertiary)';
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
-                            
-                            <div className="flex gap-1 ml-2">
-                              <button
-                                onClick={() => handleEditConstraint(constraint, index)}
-                                className="p-1.5 rounded transition-colors"
-                                style={{ color: 'var(--text-tertiary)' }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = 'var(--color-accent)';
-                                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--text-tertiary)';
-                                  e.currentTarget.style.backgroundColor = 'transparent';
-                                }}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteConstraint(index)}
-                                className="p-1.5 rounded transition-colors"
-                                style={{ color: 'var(--text-tertiary)' }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = 'var(--color-error-600)';
-                                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--text-tertiary)';
-                                  e.currentTarget.style.backgroundColor = 'transparent';
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
+                  ) : (
+                    <div className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
+                      <p>No {constraintTypeLabels[activeConstraintTab as keyof typeof constraintTypeLabels]} constraints defined yet.</p>
+                    </div>
+                  )
+                ) : (
+                  <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
+                    <Settings className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
+                    <p>No constraints added yet</p>
+                    <p className="text-sm">Add constraints to guide the optimization process</p>
                   </div>
-                ));
-              })()}
-            </div>
-          ) : (
-            <div className="text-center py-12" style={{ color: 'var(--text-secondary)' }}>
-              <Settings className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
-              <p>No constraints added yet</p>
-              <p className="text-sm">Add constraints to guide the optimization process</p>
-            </div>
-          )}
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -2986,7 +3274,7 @@ export function ProblemEditor() {
       
       {showAttributeForm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
+          <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {editingAttribute ? 'Edit Attribute Definition' : 'Add Attribute Definition'}
@@ -3024,7 +3312,7 @@ export function ProblemEditor() {
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Possible Values *
                 </label>
-                <div className="space-y-2">
+                <div className="max-h-48 overflow-y-auto space-y-2 border rounded p-3" style={{ borderColor: 'var(--border-secondary)' }}>
                   {newAttribute.values.map((value, index) => (
                     <div key={index} className="flex gap-2">
                       <input
@@ -3097,6 +3385,151 @@ export function ProblemEditor() {
 
       <input type="file" accept=".csv,text/csv" ref={csvFileInputRef} className="hidden" onChange={handleCsvFileSelected} />
       <input type="file" accept=".csv,text/csv" ref={groupCsvFileInputRef} className="hidden" onChange={handleGroupCsvFileSelected} />
+      {showImmovableModal && (
+        <ImmovablePeopleModal
+           sessionsCount={sessionsCount}
+           initial={editingImmovableIndex!==null ? (GetProblem().constraints[editingImmovableIndex] || null) : null}
+           onCancel={()=>{setShowImmovableModal(false); setEditingImmovableIndex(null);} }
+           onSave={(con)=>{
+              const currentProblem = GetProblem();
+              const updatedConstraints=[...currentProblem.constraints];
+              if(editingImmovableIndex!==null){ 
+                updatedConstraints[editingImmovableIndex]=con; 
+              }
+              else{ 
+                updatedConstraints.push(con);
+              } 
+              
+              setProblem({ 
+                ...currentProblem, 
+                constraints: updatedConstraints 
+              });
+              
+              setShowImmovableModal(false);
+              setEditingImmovableIndex(null);
+           }}
+        />
+      )}
+
+      {/* New individual constraint modals */}
+      {showRepeatEncounterModal && (
+        <RepeatEncounterModal
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowRepeatEncounterModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowRepeatEncounterModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showAttributeBalanceModal && (
+        <AttributeBalanceModal
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowAttributeBalanceModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowAttributeBalanceModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showShouldNotBeTogetherModal && (
+        <ShouldNotBeTogetherModal
+          sessionsCount={sessionsCount}
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowShouldNotBeTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowShouldNotBeTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {showMustStayTogetherModal && (
+        <MustStayTogetherModal
+          sessionsCount={sessionsCount}
+          initial={editingConstraintIndex !== null ? (GetProblem().constraints[editingConstraintIndex] || null) : null}
+          onCancel={() => {
+            setShowMustStayTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+          onSave={(constraint) => {
+            const currentProblem = GetProblem();
+            const updatedConstraints = [...currentProblem.constraints];
+            if (editingConstraintIndex !== null) {
+              updatedConstraints[editingConstraintIndex] = constraint;
+            } else {
+              updatedConstraints.push(constraint);
+            }
+            
+            setProblem({
+              ...currentProblem,
+              constraints: updatedConstraints
+            });
+            
+            setShowMustStayTogetherModal(false);
+            setEditingConstraintIndex(null);
+          }}
+        />
+      )}
+
+      {/* Demo Data Warning Modal */}
+      <DemoDataWarningModal
+        isOpen={showDemoWarningModal}
+        onClose={handleDemoCancel}
+        onOverwrite={handleDemoOverwrite}
+        onLoadNew={handleDemoLoadNew}
+        demoCaseName={pendingDemoCaseId ? demoCasesWithMetrics.find(c => c.id === pendingDemoCaseId)?.name || 'Demo Case' : 'Demo Case'}
+      />
     </div>
   );
 } 

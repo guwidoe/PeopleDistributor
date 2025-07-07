@@ -31,11 +31,19 @@ export interface ImmovablePersonParams {
   sessions: number[]; // Sessions where this person must be in this group
 }
 
+// Add new multi-person immovable constraint params
+export interface ImmovablePeopleParams {
+  people: string[];
+  group_id: string;
+  sessions: number[];
+}
+
 // Constraint union type matching solver-core's tagged enum structure
 export type Constraint =
   | ({ type: "RepeatEncounter" } & RepeatEncounterParams)
   | ({ type: "AttributeBalance" } & AttributeBalanceParams)
   | ({ type: "ImmovablePerson" } & ImmovablePersonParams)
+  | ({ type: "ImmovablePeople" } & ImmovablePeopleParams)
   | {
       type: "MustStayTogether";
       people: string[];
@@ -43,7 +51,7 @@ export type Constraint =
       sessions?: number[]; // Optional: if undefined, applies to all sessions
     }
   | {
-      type: "CannotBeTogether";
+      type: "ShouldNotBeTogether";
       people: string[];
       penalty_weight: number;
       sessions?: number[]; // Optional: if undefined, applies to all sessions

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAppStore } from '../store';
 import { 
   X, 
@@ -105,7 +104,7 @@ export function ResultComparison() {
     <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
       <div className="modal-content rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-6 border-b gap-4 sm:gap-0" style={{ borderColor: 'var(--border-primary)' }}>
           <div>
             <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Result Comparison
@@ -116,7 +115,7 @@ export function ResultComparison() {
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 p-2"
+            className="text-gray-400 hover:text-gray-600 p-2 self-end sm:self-auto"
           >
             <X className="w-6 h-6" />
           </button>
@@ -126,7 +125,7 @@ export function ResultComparison() {
         <div className="overflow-auto max-h-[calc(90vh-120px)]">
           <div className="p-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               <div className="card p-4">
                 <div className="flex items-center mb-2">
                   <Award className="w-5 h-5 text-green-500 mr-2" />

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   Clock, 
   Zap, 
-  TrendingUp, 
   ChevronDown, 
   ChevronUp, 
   Edit3, 
@@ -20,7 +20,8 @@ import {
   Users,
   Layers,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Eye
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
 
@@ -34,7 +35,9 @@ export function ResultsHistory() {
     deleteResult,
     setShowResultComparison,
     solution: currentSolution,
+    setSolution,
   } = useAppStore();
+  const navigate = useNavigate();
 
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,6 +46,7 @@ export function ResultsHistory() {
 
   const currentProblem = currentProblemId ? savedProblems[currentProblemId] : null;
   const results = currentProblem?.results || [];
+  const allResultIds = results.map(r => r.id);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -74,6 +78,20 @@ export function ResultsHistory() {
       ? selectedResultIds.filter(id => id !== resultId)
       : [...selectedResultIds, resultId];
     selectResultsForComparison(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedResultIds.length === allResultIds.length) {
+      selectResultsForComparison([]);
+    } else {
+      selectResultsForComparison(allResultIds);
+    }
+  };
+
+  // Open details tab for this result
+  const handleOpenDetails = (result: ProblemResult) => {
+    setSolution(result.solution);
+    navigate('/app/results');
   };
 
   const handleRename = (result: ProblemResult) => {
@@ -244,6 +262,21 @@ export function ResultsHistory() {
 
   const bestResult = getBestResult();
 
+  // Find the most recent result (by timestamp)
+  const mostRecentResult = results.length > 0 ? results.reduce((a, b) => (a.timestamp > b.timestamp ? a : b)) : null;
+  const mostRecentResultId = mostRecentResult?.id;
+
+  // === Helper: dynamic color class (copied from ResultsView) ===
+  function getColorClass(ratio: number, invert: boolean = false): string {
+    let r = Math.max(0, Math.min(1, ratio));
+    if (invert) r = 1 - r;
+    if (r >= 0.9) return 'text-green-600';
+    if (r >= 0.75) return 'text-lime-600';
+    if (r >= 0.5) return 'text-yellow-600';
+    if (r >= 0.25) return 'text-orange-600';
+    return 'text-red-600';
+  }
+
   if (!currentProblem) {
     return (
       <div className="text-center py-12">
@@ -258,40 +291,50 @@ export function ResultsHistory() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header & Bulk Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Results History</h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
             {results.length} result{results.length !== 1 ? 's' : ''} for "{currentProblem.name}"
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {results.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="btn-secondary text-sm w-full sm:w-auto"
+            >
+              {selectedResultIds.length === allResultIds.length ? 'Clear Selection' : 'Select All'}
+            </button>
+          )}
           {selectedResultIds.length > 0 && (
-            <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <span>{selectedResultIds.length} selected</span>
-              {selectedResultIds.length >= 2 && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm w-full sm:w-auto" style={{ color: 'var(--text-secondary)' }}>
+              <span className="text-center sm:text-left">{selectedResultIds.length} selected</span>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {selectedResultIds.length >= 2 && (
+                  <button
+                    onClick={handleCompareSelected}
+                    className="btn-primary flex items-center justify-center sm:justify-start space-x-2"
+                  >
+                    <GitCompare className="h-4 w-4" />
+                    <span>Compare</span>
+                  </button>
+                )}
                 <button
-                  onClick={handleCompareSelected}
-                  className="btn-primary flex items-center space-x-2"
+                  onClick={handleBulkDelete}
+                  className="btn-danger flex items-center justify-center sm:justify-start space-x-2"
                 >
-                  <GitCompare className="h-4 w-4" />
-                  <span>Compare</span>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete {selectedResultIds.length > 1 ? `${selectedResultIds.length} Results` : 'Result'}</span>
                 </button>
-              )}
-              <button
-                onClick={handleBulkDelete}
-                className="btn-danger flex items-center space-x-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete {selectedResultIds.length > 1 ? `${selectedResultIds.length} Results` : 'Result'}</span>
-              </button>
-              <button
-                onClick={() => selectResultsForComparison([])}
-                className="btn-secondary"
-              >
-                Clear
-              </button>
+                <button
+                  onClick={() => selectResultsForComparison([])}
+                  className="btn-secondary"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -299,9 +342,9 @@ export function ResultsHistory() {
 
       {/* Problem Summary */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-4">
                       <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Problem Overview</h3>
-          <div className="flex items-center space-x-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
             <div className="flex items-center space-x-1">
               <Users className="h-4 w-4" />
               <span>{currentProblem.problem.people.length} people</span>
@@ -323,7 +366,7 @@ export function ResultsHistory() {
               <Target className="h-5 w-5" style={{ color: 'var(--badge-best-text)' }} />
               <span className="font-medium" style={{ color: 'var(--badge-best-text)' }}>Best Result</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div>
                 <span style={{ color: 'var(--badge-best-text)' }}>Score:</span>
                 <span className="ml-2 font-medium" style={{ color: 'var(--badge-best-text)' }}>
@@ -366,25 +409,50 @@ export function ResultsHistory() {
         <div className="space-y-4">
           {results
             .sort((a, b) => b.timestamp - a.timestamp) // Most recent first
-            .map((result, index) => {
+            .map((result) => {
               const isExpanded = expandedResults.has(result.id);
               const isSelected = selectedResultIds.includes(result.id);
               const isBest = result.id === bestResult?.id;
-              const isCurrent = currentSolution && 
-                currentSolution.final_score === result.solution.final_score &&
-                currentSolution.iteration_count === result.solution.iteration_count;
+              // Only the most recent result is 'Current'
+              const isCurrent = result.id === mostRecentResultId;
+
+              // === Derived colors (mirror Result Details panel) ===
+              const peopleCount = currentProblem.problem.people.length || 1;
+              const maxUniqueTotalTheoretical = (peopleCount * (peopleCount - 1)) / 2;
+              const numSessions = currentProblem.problem.num_sessions;
+              const capacityBiggestGroup = Math.max(...currentProblem.problem.groups.map(g => g.size));
+              const altMaxAvgContacts = numSessions * Math.max(0, capacityBiggestGroup - 1);
+              const altMaxUniqueTotal = (altMaxAvgContacts * peopleCount) / 2;
+              const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
+              const uniqueRatio = result.solution.unique_contacts / effectiveMaxUniqueTotal;
+              const uniqueColorClass = getColorClass(uniqueRatio);
+
+              const repPenalty = result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty;
+              const balPenalty = result.solution.attribute_balance_penalty;
+              const conPenalty = result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty;
+
+              const repColorClass = getColorClass(repPenalty === 0 ? 0 : 1, true);
+              const balColorClass = getColorClass(balPenalty === 0 ? 0 : 1, true);
+              const conColorClass = getColorClass(conPenalty === 0 ? 0 : 1, true);
 
               return (
                 <div
                   key={result.id}
-                  className={`card transition-all ${
-                    isSelected ? 'ring-2' : ''
-                  } ${isBest ? 'badge-best' : ''}`}
+                  className={`card transition-all ${isCurrent ? '' : isSelected ? 'ring-2' : ''} ${isBest ? 'badge-best' : ''}`}
                   style={{
-                    ...(isSelected && { 
+                    ...(isCurrent ? {
+                      borderColor: 'var(--text-accent-green)',
+                      boxShadow: `0 0 0 3px var(--text-accent-green)`
+                    } : isSelected ? {
                       borderColor: 'var(--color-accent)',
                       boxShadow: `0 0 0 2px var(--color-accent)`
-                    })
+                    } : {})
+                  }}
+                  onClick={(e) => {
+                    // Ignore clicks on interactive elements to prevent double toggle
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button, a, input, textarea, svg')) return;
+                    toggleResultSelection(result.id);
                   }}
                 >
                   {/* Result Header */}
@@ -445,6 +513,23 @@ export function ResultsHistory() {
                     </div>
 
                     <div className="flex items-center space-x-2">
+                      {isCurrent ? (
+                        <button
+                          onClick={() => handleOpenDetails(result)}
+                          className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View in Result Details
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenDetails(result)}
+                          className="text-gray-400 hover:text-gray-600"
+                          title="Open in Result Details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleExpanded(result.id)}
                         className="text-gray-400 hover:text-gray-600"
@@ -499,27 +584,21 @@ export function ResultsHistory() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Unique Contacts</div>
-                            <div className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                            <div className={`font-medium ${uniqueColorClass}`}>
                               {result.solution.unique_contacts}
                             </div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
-                            <div className="font-medium text-red-600">
-                              {(result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${repColorClass}`}>{repPenalty === 0 ? repPenalty.toFixed(2) : `-${repPenalty.toFixed(2)}`}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Balance Penalty</div>
-                            <div className="font-medium text-orange-600">
-                              {result.solution.attribute_balance_penalty.toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${balColorClass}`}>{balPenalty === 0 ? balPenalty.toFixed(2) : `-${balPenalty.toFixed(2)}`}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</div>
-                            <div className="font-medium text-purple-600">
-                              {(result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)}
-                            </div>
+                            <div className={`font-medium ${conColorClass}`}>{conPenalty === 0 ? conPenalty.toFixed(2) : `-${conPenalty.toFixed(2)}`}</div>
                           </div>
                         </div>
                       </div>

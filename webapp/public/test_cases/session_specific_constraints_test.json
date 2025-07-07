@@ -27,13 +27,13 @@
       {
         "type": "MustStayTogether",
         "people": ["mentor_alice", "trainee_bob"],
-        "penalty_weight": 1000.0,
+        "penalty_weight": 10.0,
         "sessions": [0, 1]
       },
       {
-        "type": "CannotBeTogether", 
+        "type": "ShouldNotBeTogether", 
         "people": ["specialist_carol", "coordinator_dave"],
-        "penalty_weight": 1000.0,
+        "penalty_weight": 10.0,
         "sessions": [1, 2]
       }
     ],

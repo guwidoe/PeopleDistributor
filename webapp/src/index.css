@@ -394,8 +394,37 @@
   .bg-tertiary { background-color: var(--bg-tertiary); }
   
   .border-primary { border-color: var(--border-primary); }
-  .border-secondary { border-color: var(--border-secondary); }
-} 
+    .border-secondary { border-color: var(--border-secondary); }
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 640px) {
+  /* Improve touch targets */
+  button, .btn-primary, .btn-secondary, .btn-success, .btn-warning, .btn-error, .btn-danger {
+    min-height: 44px;
+  }
+  
+  /* Improve form inputs on mobile */
+  .input, .textarea, .select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better spacing for mobile */
+  .space-y-6 > * + * {
+    margin-top: 1.5rem;
+  }
+  
+  /* Improve modal content on mobile */
+  .modal-content {
+    margin: 1rem;
+    max-height: calc(100vh - 2rem);
+  }
+  
+  /* Better table handling on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
 input[type="number"]::-webkit-inner-spin-button {
   background: transparent url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" /></svg>') no-repeat center center;

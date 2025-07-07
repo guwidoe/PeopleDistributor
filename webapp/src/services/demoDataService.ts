@@ -12,6 +12,7 @@ export interface DemoCaseWithMetrics extends DemoCase {
   peopleCount: number;
   groupCount: number;
   sessionCount: number;
+  description: string;
 }
 
 // Dynamically discover test case files
@@ -52,6 +53,7 @@ async function discoverTestCaseFiles(): Promise<string[]> {
 }
 
 // Convert test case format to webapp's Problem format
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function convertTestCaseToProblem(testCase: any): Problem {
   const input = testCase.input;
 
@@ -70,8 +72,18 @@ function convertTestCaseToProblem(testCase: any): Problem {
     logging: input.solver.logging,
   };
 
+  // Ensure every person has a "name" attribute (treat names as attributes)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const peopleWithNames = input.problem.people.map((p: any) => {
+    const attrs = { ...(p.attributes || {}) };
+    if (!attrs.name) {
+      attrs.name = p.id; // Fallback to id if name is missing
+    }
+    return { ...p, attributes: attrs };
+  });
+
   return {
-    people: input.problem.people,
+    people: peopleWithNames,
     groups: input.problem.groups,
     num_sessions: input.problem.num_sessions,
     constraints: input.constraints || [],
@@ -170,6 +182,7 @@ export async function loadDemoCasesWithMetrics(): Promise<
     `Loaded ${demoCases.length} demo cases:`,
     demoCases.map((c) => c.name)
   );
+
   return demoCases;
 }
 
@@ -346,7 +359,7 @@ function createFallbackDemo(): Problem {
       },
       // Charlie and Diana can't be together (personality conflict)
       {
-        type: "CannotBeTogether",
+        type: "ShouldNotBeTogether",
         people: ["charlie", "diana"],
         penalty_weight: 500.0,
       },

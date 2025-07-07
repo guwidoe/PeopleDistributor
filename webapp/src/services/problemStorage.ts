@@ -16,9 +16,13 @@ export class ProblemStorageService {
   private autoSaveTimeout: number | null = null;
   private readonly autoSaveDelay = 2000; // 2 seconds
 
-  // Generate unique IDs
-  private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Generate a globally unique ID
+  private generateGloballyUniqueId(existingIds: Set<string>): string {
+    let newId: string;
+    do {
+      newId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    } while (existingIds.has(newId));
+    return newId;
   }
 
   // Get all saved problems
@@ -79,8 +83,11 @@ export class ProblemStorageService {
     isTemplate = false
   ): SavedProblem {
     const now = Date.now();
+    const allProblems = this.getAllProblems();
+    const allProblemIds = new Set(Object.keys(allProblems));
+    const id = this.generateGloballyUniqueId(allProblemIds);
     const savedProblem: SavedProblem = {
-      id: this.generateId(),
+      id,
       name,
       problem,
       results: [],
@@ -115,9 +122,12 @@ export class ProblemStorageService {
     if (!savedProblem) {
       throw new Error(`Problem with ID ${problemId} not found`);
     }
+    // Collect all result IDs in the current problem
+    const resultIds = new Set<string>(savedProblem.results.map((r) => r.id));
+    const id = this.generateGloballyUniqueId(resultIds);
 
     const result: ProblemResult = {
-      id: this.generateId(),
+      id,
       name: customName || `Result ${savedProblem.results.length + 1}`,
       solution,
       solverSettings,
@@ -189,8 +199,11 @@ export class ProblemStorageService {
     }
 
     const now = Date.now();
+    const allProblems = this.getAllProblems();
+    const allProblemIds = new Set(Object.keys(allProblems));
+    const newProblemId = this.generateGloballyUniqueId(allProblemIds);
     const duplicatedProblem: SavedProblem = {
-      id: this.generateId(),
+      id: newProblemId,
       name: newName,
       problem: JSON.parse(JSON.stringify(originalProblem.problem)), // Deep clone
       results: includeResults
@@ -203,8 +216,14 @@ export class ProblemStorageService {
 
     // Generate new IDs for results if included
     if (includeResults) {
+      const resultIds = new Set<string>();
       duplicatedProblem.results.forEach((result) => {
-        result.id = this.generateId();
+        let newResultId;
+        do {
+          newResultId = this.generateGloballyUniqueId(resultIds);
+        } while (resultIds.has(newResultId));
+        resultIds.add(newResultId);
+        result.id = newResultId;
       });
     }
 
@@ -283,17 +302,26 @@ export class ProblemStorageService {
     }
 
     const now = Date.now();
+    const allProblems = this.getAllProblems();
+    const allProblemIds = new Set(Object.keys(allProblems));
+    const newProblemId = this.generateGloballyUniqueId(allProblemIds);
     const importedProblem: SavedProblem = {
       ...exportedData.problem,
-      id: this.generateId(), // New ID to avoid conflicts
+      id: newProblemId, // New ID to avoid conflicts
       name: newName || `${exportedData.problem.name} (Imported)`,
       createdAt: now,
       updatedAt: now,
     };
 
-    // Generate new IDs for all results to avoid conflicts
+    // Generate new IDs for all results to avoid conflicts (within this problem)
+    const resultIds = new Set<string>();
     importedProblem.results.forEach((result) => {
-      result.id = this.generateId();
+      let newResultId;
+      do {
+        newResultId = this.generateGloballyUniqueId(resultIds);
+      } while (resultIds.has(newResultId));
+      resultIds.add(newResultId);
+      result.id = newResultId;
     });
 
     this.saveProblem(importedProblem);

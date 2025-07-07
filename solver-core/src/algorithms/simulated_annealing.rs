@@ -700,10 +700,11 @@ impl Solver for SimulatedAnnealing {
         }
 
         // Pre-calculate move probabilities for performance
-        let clique_swap_probability = current_state.calculate_clique_swap_probability();
         let transfer_probabilities: Vec<f64> = (0..current_state.num_sessions as usize)
             .map(|day| current_state.calculate_transfer_probability(day))
             .collect();
+
+        let clique_swap_probabilities: Vec<f64> = current_state.calculate_clique_swap_probability();
 
         // Track reheating state
         let mut reheat_count = 0;
@@ -873,6 +874,8 @@ impl Solver for SimulatedAnnealing {
             let transfer_probability = transfer_probabilities[day];
             let move_selector = rng.random::<f64>();
 
+            let clique_swap_probability = clique_swap_probabilities[day];
+
             if move_selector < clique_swap_probability && !current_state.cliques.is_empty() {
                 // === CLIQUE SWAP ===
                 // --- Attempt Clique Swap ---
@@ -948,7 +951,7 @@ impl Solver for SimulatedAnnealing {
                 let transferable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
                     .filter(|&p_idx| current_state.person_participation[p_idx][day])
                     .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
-                    .filter(|&p_idx| current_state.person_to_clique_id[p_idx].is_none())
+                    .filter(|&p_idx| current_state.person_to_clique_id[day][p_idx].is_none())
                     .collect();
 
                 if !transferable_people.is_empty() {
@@ -1000,7 +1003,7 @@ impl Solver for SimulatedAnnealing {
                 // === REGULAR PERSON SWAP ===
                 let swappable_people: Vec<usize> = (0..current_state.person_idx_to_id.len())
                     .filter(|&p_idx| !current_state.immovable_people.contains_key(&(p_idx, day)))
-                    .filter(|&p_idx| current_state.person_to_clique_id[p_idx].is_none())
+                    .filter(|&p_idx| current_state.person_to_clique_id[day][p_idx].is_none())
                     .collect();
 
                 if swappable_people.len() < 2 {

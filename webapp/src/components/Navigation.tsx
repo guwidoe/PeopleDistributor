@@ -1,9 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { Settings, Play, BarChart3, History, FolderOpen } from 'lucide-react';
+import { Settings, Play, BarChart3, History } from 'lucide-react';
 
 export function Navigation() {
-  const { setShowProblemManager, currentProblemId, savedProblems } = useAppStore();
+
 
   const tabs = [
     {
@@ -21,28 +20,28 @@ export function Navigation() {
       description: 'Run the optimization algorithm',
     },
     {
-      id: 'results',
-      path: '/app/results',
-      label: 'Results',
-      icon: BarChart3,
-      description: 'View and analyze solutions',
-    },
-    {
       id: 'manage',
       path: '/app/history',
-      label: 'History',
+      label: 'Results',
       icon: History,
-      description: 'View results history and comparisons',
+      description: 'View and manage all saved results',
+    },
+    {
+      id: 'results',
+      path: '/app/results',
+      label: 'Result Details',
+      icon: BarChart3,
+      description: 'Inspect a single result in depth',
     },
   ];
 
-  const currentProblemName = currentProblemId ? savedProblems[currentProblemId]?.name : null;
+
 
   return (
     <div className="space-y-4">
       {/* Navigation Tabs */}
       <nav className="rounded-lg border p-1 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)', boxShadow: 'var(--shadow)' }}>
-        <div className="flex space-x-1">
+        <div className="flex space-x-1 min-w-0">
           {tabs.map((tab) => {
             const Icon = tab.icon;
 
@@ -51,7 +50,7 @@ export function Navigation() {
                 key={tab.id}
                 to={tab.path}
                 className={({ isActive }) =>
-                  `flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 border ${
+                  `flex-1 flex items-center justify-center space-x-1 sm:space-x-2 px-1 sm:px-2 md:px-4 py-3 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 border min-w-0 ${
                     isActive
                       ? 'shadow-sm'
                       : 'border-transparent hover:bg-opacity-50'
@@ -64,8 +63,8 @@ export function Navigation() {
                 })}
                 title={tab.description}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <Icon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="truncate text-xs sm:text-sm">{tab.label}</span>
               </NavLink>
             );
           })}

@@ -62,7 +62,7 @@ fn main() {
                 penalty_weight: 1000.0,
                 sessions: None,
             },
-            Constraint::CannotBeTogether {
+            Constraint::ShouldNotBeTogether {
                 people: vec!["Eve".to_string(), "Grace".to_string()],
                 penalty_weight: 1000.0,
                 sessions: Some(vec![1]),

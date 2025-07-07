@@ -1,13 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useAppStore } from '../store';
 import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info, BarChart3 } from 'lucide-react';
-import type { SolverSettings, SolverState } from '../types';
+import type { SolverSettings } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
 import { Tooltip } from './Tooltip';
+import { problemStorage } from '../services/problemStorage';
 
 export function SolverPanel() {
-  const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, currentProblemId, updateProblem } = useAppStore();
+  const { solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, updateProblem, ensureProblemExists } = useAppStore();
+  
+  // Get the current problem and currentProblemId from the store reactively
+  const problem = useAppStore((state) => state.problem);
+  const currentProblemId = useAppStore((state) => state.currentProblemId);
   const [showSettings, setShowSettings] = useState(false);
   // Metrics pane expanded state, persisted in localStorage for better UX
   const [showMetrics, setShowMetrics] = useState<boolean>(() => {
@@ -23,7 +28,9 @@ export function SolverPanel() {
       const next = !prev;
       try {
         localStorage.setItem('solverMetricsExpanded', String(next));
-      } catch {}
+      } catch {
+        // Ignore localStorage errors (e.g., in private browsing mode)
+      }
       return next;
     });
   };
@@ -31,9 +38,21 @@ export function SolverPanel() {
   const cancelledRef = useRef(false);
   const solverCompletedRef = useRef(false);
   // Runtime input used for the quick-start (automatic) button
-  const [desiredRuntimeMain, setDesiredRuntimeMain] = useState<number>(3);
+  const [desiredRuntimeMain, setDesiredRuntimeMain] = useState<number | null>(3);
   // Runtime input used inside the settings panel for the Auto-set feature
   const [desiredRuntimeSettings, setDesiredRuntimeSettings] = useState<number>(3);
+  
+  // Input states for allowing empty values during typing (using same pattern as group form)
+  const [solverFormInputs, setSolverFormInputs] = useState<{
+    maxIterations?: string;
+    timeLimit?: string;
+    noImprovement?: string;
+    initialTemp?: string;
+    finalTemp?: string;
+    reheat?: string;
+    desiredRuntimeSettings?: string;
+    desiredRuntimeMain?: string;
+  }>({});
 
   // Holds the settings that were actually used for the currently running / last run
   const [runSettings, setRunSettings] = useState<SolverSettings | null>(null);
@@ -110,16 +129,15 @@ export function SolverPanel() {
   // Starts the solver. If `useRecommended` is true we first fetch automatic settings
   // using `get_recommended_settings` for the specified `desiredRuntime` seconds.
   const handleStartSolver = async (useRecommended: boolean = true) => {
-    if (!problem) {
-      addNotification({
-        type: 'error',
-        title: 'No Problem',
-        message: 'Please configure a problem first',
-      });
-      return;
-    }
-
-    if (!problem.people || problem.people.length === 0) {
+    console.log('[SolverPanel] handleStartSolver called, current problem:', problem);
+    console.log('[SolverPanel] currentProblemId at start:', currentProblemId);
+    
+    // Ensure a problem exists - this will create one if none exists
+    const currentProblem = ensureProblemExists();
+    console.log('[SolverPanel] ensureProblemExists returned:', currentProblem);
+    console.log('[SolverPanel] currentProblemId after ensureProblemExists:', currentProblemId);
+    
+    if (!currentProblem.people || currentProblem.people.length === 0) {
       addNotification({
         type: 'error',
         title: 'No People',
@@ -128,7 +146,7 @@ export function SolverPanel() {
       return;
     }
 
-    if (!problem.groups || problem.groups.length === 0) {
+    if (!currentProblem.groups || currentProblem.groups.length === 0) {
       addNotification({
         type: 'error',
         title: 'No Groups',
@@ -155,12 +173,17 @@ export function SolverPanel() {
       if (useRecommended) {
         try {
           // 1️⃣ Fetch recommended settings from the WASM backend
-          const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain);
+          const rawSettings = await solverWorkerService.get_recommended_settings(currentProblem, desiredRuntimeMain ?? 3);
 
           // 2️⃣ Convert the flattened `solver_params` coming from Rust into the nested UI shape
-          const sp: any = (rawSettings as any).solver_params;
+          const sp = (rawSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
           if (sp && !("SimulatedAnnealing" in sp) && sp.solver_type === "SimulatedAnnealing") {
-            const { initial_temperature, final_temperature, cooling_schedule, reheat_after_no_improvement } = sp as any;
+            const { initial_temperature, final_temperature, cooling_schedule, reheat_after_no_improvement } = sp as {
+              initial_temperature: number;
+              final_temperature: number;
+              cooling_schedule: string;
+              reheat_after_no_improvement: number;
+            };
             selectedSettings = {
               ...rawSettings,
               solver_params: {
@@ -187,7 +210,7 @@ export function SolverPanel() {
 
       // Create the problem with the chosen solver settings
       const problemWithSettings = {
-        ...problem,
+        ...currentProblem,
         settings: selectedSettings,
       };
 
@@ -258,9 +281,9 @@ export function SolverPanel() {
         });
         
         // Log significant score improvements
-        if (progress.best_score < (window as any).lastLoggedBestScore - 50 || !(window as any).lastLoggedBestScore) {
+        if (progress.best_score < ((window as { lastLoggedBestScore?: number }).lastLoggedBestScore ?? 0) - 50 || !(window as { lastLoggedBestScore?: number }).lastLoggedBestScore) {
           console.log(`[SolverPanel] Significant improvement: best_score dropped to ${progress.best_score} at iteration ${progress.iteration}`);
-          (window as any).lastLoggedBestScore = progress.best_score;
+          (window as { lastLoggedBestScore?: number }).lastLoggedBestScore = progress.best_score;
         }
         
         // Check if solver was cancelled
@@ -326,8 +349,22 @@ export function SolverPanel() {
       });
 
       // Automatically save result if there's a current problem
+      console.log('[SolverPanel] About to save result, currentProblemId:', currentProblemId);
+      console.log('[SolverPanel] Problem exists:', !!problem);
       if (currentProblemId) {
+        console.log('[SolverPanel] Saving result to problem:', currentProblemId);
         addResult(solution, selectedSettings);
+      } else {
+        console.log('[SolverPanel] No currentProblemId, result not saved');
+        // If we have a problem but no currentProblemId, we should save it
+        if (problem) {
+          console.log('[SolverPanel] Creating new problem to save result');
+          const newSaved = problemStorage.createProblem("Untitled Problem", problem);
+          problemStorage.setCurrentProblemId(newSaved.id);
+          // Update the store by calling the store's set method
+          useAppStore.setState({ currentProblemId: newSaved.id });
+          addResult(solution, selectedSettings);
+        }
       }
 
     } catch (error) {
@@ -410,20 +447,27 @@ export function SolverPanel() {
   };
 
   const handleAutoSetSettings = async () => {
-    if (!problem) return;
+    // Ensure a problem exists - this will create one if none exists
+    const currentProblem = ensureProblemExists();
+    
     try {
-      const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeSettings);
+      const recommendedSettings = await solverWorkerService.get_recommended_settings(currentProblem, desiredRuntimeSettings);
 
       // Transform solver_params to UI structure if returned in flattened form
-      let uiSettings: SolverSettings = recommendedSettings as any;
-      const sp: any = (recommendedSettings as any).solver_params;
+      let uiSettings: SolverSettings = recommendedSettings as SolverSettings;
+      const sp = (recommendedSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
       if (sp && !('SimulatedAnnealing' in sp) && sp.solver_type === 'SimulatedAnnealing') {
         const {
           initial_temperature,
           final_temperature,
           cooling_schedule,
           reheat_after_no_improvement,
-        } = sp as any;
+        } = sp as {
+          initial_temperature: number;
+          final_temperature: number;
+          cooling_schedule: string;
+          reheat_after_no_improvement: number;
+        };
 
         uiSettings = {
           ...recommendedSettings,
@@ -490,13 +534,21 @@ export function SolverPanel() {
                 <input
                   id="desiredRuntime"
                   type="number"
-                  value={desiredRuntimeSettings}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeSettings(Number(e.target.value))}
+                  value={solverFormInputs.desiredRuntimeSettings ?? desiredRuntimeSettings.toString()}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: e.target.value }))}
+                  onBlur={() => {
+                    const inputValue = solverFormInputs.desiredRuntimeSettings || desiredRuntimeSettings.toString();
+                    const numValue = parseInt(inputValue);
+                    if (!isNaN(numValue) && numValue >= 1) {
+                      setDesiredRuntimeSettings(numValue);
+                      setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: undefined }));
+                    }
+                  }}
                   disabled={solverState.isRunning}
                   className="input w-24 md:w-32"
                 />
               </div>
-              <Tooltip text="Run a short trial to estimate optimal solver parameters for the specified runtime.">
+              <Tooltip content={<span>Run a short trial to estimate optimal solver parameters for the specified runtime.</span>}>
                 <button
                   onClick={handleAutoSetSettings}
                   disabled={solverState.isRunning}
@@ -507,27 +559,35 @@ export function SolverPanel() {
               </Tooltip>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <div className="flex items-center space-x-2 mb-1">
                 <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Max Iterations
                 </label>
-                <Tooltip text="The maximum number of iterations the solver will run.">
+                <Tooltip content="The maximum number of iterations the solver will run.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.max_iterations || 10000}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    max_iterations: parseInt(e.target.value) || 10000
+                value={solverFormInputs.maxIterations ?? (solverSettings.stop_conditions.max_iterations || 10000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, maxIterations: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.maxIterations || (solverSettings.stop_conditions.max_iterations || 10000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 1000) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        max_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, maxIterations: undefined }));
                   }
-                })}
+                }}
                 min="1000"
                 max="100000"
               />
@@ -537,21 +597,29 @@ export function SolverPanel() {
                 <label htmlFor="timeLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Time Limit (seconds)
                 </label>
-                <Tooltip text="The maximum time the solver will run in seconds.">
+                <Tooltip content="The maximum time the solver will run in seconds.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.time_limit_seconds || 30}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    time_limit_seconds: parseInt(e.target.value) || 30
+                value={solverFormInputs.timeLimit ?? (solverSettings.stop_conditions.time_limit_seconds || 30).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, timeLimit: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.timeLimit || (solverSettings.stop_conditions.time_limit_seconds || 30).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 10) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        time_limit_seconds: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, timeLimit: undefined }));
                   }
-                })}
+                }}
                 min="10"
                 max="300"
               />
@@ -561,21 +629,29 @@ export function SolverPanel() {
                 <label htmlFor="noImprovementLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   No Improvement Limit
                 </label>
-                <Tooltip text="Stop after this many iterations without improvement.">
+                <Tooltip content="Stop after this many iterations without improvement.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.stop_conditions.no_improvement_iterations || 5000}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  stop_conditions: {
-                    ...solverSettings.stop_conditions,
-                    no_improvement_iterations: parseInt(e.target.value) || 5000
+                value={solverFormInputs.noImprovement ?? (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, noImprovement: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.noImprovement || (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 100) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        no_improvement_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, noImprovement: undefined }));
                   }
-                })}
+                }}
                 min="100"
                 max="50000"
                 placeholder="Iterations without improvement before stopping"
@@ -586,24 +662,32 @@ export function SolverPanel() {
                 <label htmlFor="initialTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Initial Temperature
                 </label>
-                <Tooltip text="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
+                <Tooltip content="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      initial_temperature: parseFloat(e.target.value) || 1.0
-                    }
+                value={solverFormInputs.initialTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, initialTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.initialTemp || (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.1) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          initial_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, initialTemp: undefined }));
                   }
-                })}
+                }}
                 step="0.1"
                 min="0.1"
                 max="10.0"
@@ -614,24 +698,32 @@ export function SolverPanel() {
                 <label htmlFor="finalTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Final Temperature
                 </label>
-                <Tooltip text="The temperature at which the algorithm will stop.">
+                <Tooltip content="The temperature at which the algorithm will stop.">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      final_temperature: parseFloat(e.target.value) || 0.01
-                    }
+                value={solverFormInputs.finalTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, finalTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.finalTemp || (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.001) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          final_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, finalTemp: undefined }));
                   }
-                })}
+                }}
                 step="0.001"
                 min="0.001"
                 max="1.0"
@@ -642,24 +734,32 @@ export function SolverPanel() {
                 <label htmlFor="reheatAfterNoImprovement" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                   Reheat After No Improvement
                 </label>
-                <Tooltip text="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
+                <Tooltip content="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
                   <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
                 </Tooltip>
               </div>
               <input
                 type="number"
                 className="input"
-                value={solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSettingsChange({
-                  ...solverSettings,
-                  solver_params: {
-                    ...solverSettings.solver_params,
-                    SimulatedAnnealing: {
-                      ...solverSettings.solver_params.SimulatedAnnealing!,
-                      reheat_after_no_improvement: parseInt(e.target.value) || 0
-                    }
+                value={solverFormInputs.reheat ?? (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, reheat: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.reheat || (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          reheat_after_no_improvement: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, reheat: undefined }));
                   }
-                })}
+                }}
                 min="0"
                 max="50000"
                 placeholder="0 = disabled"
@@ -753,32 +853,37 @@ export function SolverPanel() {
         </div>
 
         {/* Basic Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="text-center p-4 bg-primary-50 rounded-lg">
-            <Activity className="h-8 w-8 text-primary-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-primary-600">
+        <div className="flex flex-row gap-2 sm:gap-4 mb-6 overflow-x-auto">
+          <div className="text-center p-3 sm:p-4 bg-primary-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-primary-600">
               {solverState.currentIteration.toLocaleString()}
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Iterations</div>
+            <div className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>Iterations</div>
           </div>
-          <div className="text-center p-4 bg-success-50 rounded-lg">
-            <TrendingUp className="h-8 w-8 text-success-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-success-600">
+          <div className="text-center p-3 sm:p-4 bg-success-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-success-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-success-600">
               {solverState.bestScore.toFixed(2)}
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Best Score</div>
+            <div className="text-xs sm:text-sm flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+              <span className="truncate">Best Cost Score</span>
+              <Tooltip content={<span>Cost Score = (Weighted max possible contacts − weighted current contacts) + weighted constraint penalties. The solver is trying to minimize this score. <b>Lower is better.</b></span>}>
+                <Info className="h-3 w-3 flex-shrink-0" />
+              </Tooltip>
+            </div>
           </div>
-          <div className="text-center p-4 bg-warning-50 rounded-lg">
-            <Clock className="h-8 w-8 text-warning-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-warning-600">
+          <div className="text-center p-3 sm:p-4 bg-warning-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
+            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-warning-600 mx-auto mb-2" />
+            <div className="text-lg sm:text-2xl font-bold text-warning-600">
               {(solverState.elapsedTime / 1000).toFixed(1)}s
             </div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
+            <div className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
         </div>
 
         {/* Control Buttons */}
-        <div className="flex items-center space-x-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
           {/* Runtime (s) */}
           <div className="flex flex-col items-start">
             <label className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -786,18 +891,29 @@ export function SolverPanel() {
             </label>
             <input
               type="number"
-              value={desiredRuntimeMain}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDesiredRuntimeMain(Number(e.target.value))}
+              value={solverFormInputs.desiredRuntimeMain ?? (desiredRuntimeMain?.toString() || '')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: e.target.value }))}
+              onBlur={() => {
+                const inputValue = solverFormInputs.desiredRuntimeMain || (desiredRuntimeMain?.toString() || '');
+                const numValue = inputValue === '' ? null : Number(inputValue);
+                if (numValue === null || (!isNaN(numValue) && numValue >= 1)) {
+                  setDesiredRuntimeMain(numValue);
+                  setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: undefined }));
+                }
+              }}
               disabled={solverState.isRunning}
-              className="input w-28"
+              className="input w-full sm:w-28"
               min="1"
             />
           </div>
           {!solverState.isRunning ? (
             <button
-              onClick={() => handleStartSolver(true)}
+              onClick={() => {
+                console.log('[SolverPanel] Start Solver button clicked');
+                handleStartSolver(true);
+              }}
               className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem || !problem.people?.length || !problem.groups?.length}
+              disabled={!problem}
             >
               <Play className="h-4 w-4" />
               <span>Start Solver</span>
@@ -814,7 +930,7 @@ export function SolverPanel() {
           
           <button
             onClick={handleResetSolver}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center justify-center space-x-2"
             disabled={solverState.isRunning}
           >
             <RotateCcw className="h-4 w-4" />
@@ -842,11 +958,11 @@ export function SolverPanel() {
           {showMetrics && (
             <>
               {/* Temperature and Progress */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Temperature</span>
-                    <Tooltip text="Current temperature of the simulated annealing algorithm.">
+                    <Tooltip content="Current temperature of the simulated annealing algorithm.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -857,7 +973,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Cooling Progress</span>
-                    <Tooltip text="Percentage of the way through the cooling schedule.">
+                    <Tooltip content="Percentage of the way through the cooling schedule.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -868,7 +984,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Acceptance Rate</span>
-                    <Tooltip text="Overall percentage of proposed moves that have been accepted.">
+                    <Tooltip content="Overall percentage of proposed moves that have been accepted.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -879,7 +995,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Recent Acceptance</span>
-                    <Tooltip text="Percentage of proposed moves accepted over the last 1000 iterations.">
+                    <Tooltip content="Percentage of proposed moves accepted over the last 1000 iterations.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -894,7 +1010,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-indigo)' }}>
                     <span>Clique Swaps</span>
-                    <Tooltip text="Swapping two entire groups of people who are incompatible with their current groups but compatible with each other's.">
+                    <Tooltip content="Swapping two entire groups of people who are incompatible with their current groups but compatible with each other's.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -917,7 +1033,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-teal)' }}>
                     <span>Transfers</span>
-                    <Tooltip text="Moving a single person from one group to another.">
+                    <Tooltip content="Moving a single person from one group to another.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -940,7 +1056,7 @@ export function SolverPanel() {
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <h5 className="font-medium mb-2 flex items-center space-x-2" style={{ color: 'var(--text-accent-cyan)' }}>
                     <span>Regular Swaps</span>
-                    <Tooltip text="Swapping two people from different groups.">
+                    <Tooltip content="Swapping two people from different groups.">
                       <Info className="h-4 w-4" />
                     </Tooltip>
                   </h5>
@@ -966,7 +1082,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Local Optima Escapes</span>
-                    <Tooltip text="Number of times the algorithm accepted a move that resulted in a worse score to escape a local optimum.">
+                    <Tooltip content="Number of times the algorithm accepted a move that resulted in a worse score to escape a local optimum.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -977,7 +1093,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Reheats Performed</span>
-                    <Tooltip text="Number of times the temperature was reset to its initial value.">
+                    <Tooltip content="Number of times the temperature was reset to its initial value.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -988,7 +1104,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Time/Iteration</span>
-                    <Tooltip text="Average time taken to complete one iteration in milliseconds.">
+                    <Tooltip content="Average time taken to complete one iteration in milliseconds.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -999,7 +1115,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Search Efficiency</span>
-                    <Tooltip text="A measure of how effectively the search is exploring the solution space.">
+                    <Tooltip content="A measure of how effectively the search is exploring the solution space.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1014,7 +1130,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Attempted Delta</span>
-                    <Tooltip text="Average change in score for all proposed moves.">
+                    <Tooltip content="Average change in score for all proposed moves.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1025,7 +1141,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Avg Accepted Delta</span>
-                    <Tooltip text="Average change in score for all accepted moves.">
+                    <Tooltip content="Average change in score for all accepted moves.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1036,7 +1152,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Max Attempted Delta</span>
-                    <Tooltip text="Largest score increase from an attempted move.">
+                    <Tooltip content="Largest score increase from an attempted move.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1047,7 +1163,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Max Accepted Delta</span>
-                    <Tooltip text="Largest score increase from an accepted move (local optima escape).">
+                    <Tooltip content="Largest score increase from an accepted move (local optima escape).">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1058,7 +1174,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Score Variance</span>
-                    <Tooltip text="Statistical variance of the score over time.">
+                    <Tooltip content="Statistical variance of the score over time.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1073,7 +1189,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                   <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Repetition Penalty</span>
-                    <Tooltip text="Penalty applied for people who have been in groups together previously.">
+                    <Tooltip content="Penalty applied for people who have been in groups together previously.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1084,7 +1200,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Balance Penalty</span>
-                    <Tooltip text="Penalty applied for imbalance in group sizes or attribute distribution.">
+                    <Tooltip content="Penalty applied for imbalance in group sizes or attribute distribution.">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>
@@ -1095,7 +1211,7 @@ export function SolverPanel() {
                 <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--background-secondary)', border: '1px solid var(--border-secondary)' }}>
                    <div className="flex items-center space-x-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <span>Current Constraint Penalty</span>
-                    <Tooltip text="Penalty applied for violating hard constraints (e.g., people who must or must not be together).">
+                    <Tooltip content="Penalty applied for violating hard constraints (e.g., people who must or must not be together).">
                       <Info className="h-3 w-3" />
                     </Tooltip>
                   </div>

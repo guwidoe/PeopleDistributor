@@ -86,6 +86,7 @@ export const useThemeStore = create<ThemeState>()(
 if (typeof window !== "undefined") {
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   mediaQuery.addEventListener("change", (e) => {
     const { theme, setTheme } = useThemeStore.getState();
     if (theme === "system") {

@@ -55,6 +55,8 @@ interface AppStore extends AppState {
   setProblem: (problem: Problem) => void;
   updateProblem: (updates: Partial<Problem>) => void;
   updateCurrentProblem: (problemId: string, problem: Problem) => void;
+  GetProblem: () => Problem;
+  ensureProblemExists: () => Problem;
 
   // Solution management
   setSolution: (solution: Solution | null) => void;
@@ -105,6 +107,8 @@ interface AppStore extends AppState {
   reset: () => void;
   generateDemoData: () => Promise<void>;
   loadDemoCase: (demoCaseId: string) => Promise<void>;
+  loadDemoCaseOverwrite: (demoCaseId: string) => Promise<void>;
+  loadDemoCaseNewProblem: (demoCaseId: string) => Promise<void>;
   initializeApp: () => void;
 
   // Demo data dropdown state
@@ -134,7 +138,7 @@ const initialState: AppState = {
   selectedResultIds: [],
   ui: {
     activeTab: "problem",
-    isLoading: false,
+    isLoading: true, // Start with loading true
     notifications: [],
     showProblemManager: false,
     showResultComparison: false,
@@ -165,6 +169,199 @@ export const useAppStore = create<AppStore>()(
         } catch (error) {
           console.error("Failed to update problem:", error);
         }
+      },
+
+      GetProblem: () => {
+        const currentProblem = get().problem;
+        if (currentProblem) {
+          return currentProblem;
+        }
+
+        // Check if we have a current problem ID that should be loaded
+        const { currentProblemId, savedProblems } = get();
+        if (currentProblemId && savedProblems[currentProblemId]) {
+          const savedProblem = savedProblems[currentProblemId];
+          set({ problem: savedProblem.problem });
+          return savedProblem.problem;
+        }
+
+        // Check if there are any saved problems we can load
+        const allProblems = Object.values(savedProblems);
+        if (allProblems.length > 0) {
+          const firstProblem = allProblems[0];
+          problemStorage.setCurrentProblemId(firstProblem.id);
+          set({
+            problem: firstProblem.problem,
+            currentProblemId: firstProblem.id,
+          });
+          return firstProblem.problem;
+        }
+
+        // Only create a new problem if there are truly no problems available
+        // and we're not in a loading state
+        const { ui } = get();
+        if (ui.isLoading) {
+          // Still loading, return a minimal problem temporarily
+          const tempProblem: Problem = {
+            people: [],
+            groups: [],
+            num_sessions: 3,
+            constraints: [],
+            settings: {
+              solver_type: "SimulatedAnnealing",
+              stop_conditions: {
+                max_iterations: 10000,
+                time_limit_seconds: 30,
+                no_improvement_iterations: 5000,
+              },
+              solver_params: {
+                SimulatedAnnealing: {
+                  initial_temperature: 1.0,
+                  final_temperature: 0.01,
+                  cooling_schedule: "geometric",
+                  reheat_after_no_improvement: 0,
+                },
+              },
+            },
+          };
+          return tempProblem;
+        }
+
+        const defaultSettings = {
+          solver_type: "SimulatedAnnealing",
+          stop_conditions: {
+            max_iterations: 10000,
+            time_limit_seconds: 30,
+            no_improvement_iterations: 5000,
+          },
+          solver_params: {
+            SimulatedAnnealing: {
+              initial_temperature: 1.0,
+              final_temperature: 0.01,
+              cooling_schedule: "geometric",
+              reheat_after_no_improvement: 0,
+            },
+          },
+        } as SolverSettings;
+
+        const emptyProblem: Problem = {
+          people: [],
+          groups: [],
+          num_sessions: 3,
+          constraints: [],
+          settings: defaultSettings,
+        };
+
+        // Create and save the new problem
+        const newSaved = problemStorage.createProblem(
+          "Untitled Problem",
+          emptyProblem
+        );
+        problemStorage.setCurrentProblemId(newSaved.id);
+
+        // Update the store state
+        set((state) => ({
+          problem: emptyProblem,
+          currentProblemId: newSaved.id,
+          savedProblems: {
+            ...state.savedProblems,
+            [newSaved.id]: newSaved,
+          },
+        }));
+
+        return emptyProblem;
+      },
+
+      ensureProblemExists: () => {
+        console.log("[Store] ensureProblemExists called");
+        const currentProblem = get().problem;
+        console.log("[Store] current problem:", currentProblem);
+        if (currentProblem) {
+          console.log("[Store] returning existing problem");
+          return currentProblem;
+        }
+
+        // Check if we have a current problem ID that should be loaded
+        const { currentProblemId, savedProblems } = get();
+        if (currentProblemId && savedProblems[currentProblemId]) {
+          const savedProblem = savedProblems[currentProblemId];
+          set({ problem: savedProblem.problem });
+          return savedProblem.problem;
+        }
+
+        // Check if there are any saved problems we can load
+        const allProblems = Object.values(savedProblems);
+        if (allProblems.length > 0) {
+          const firstProblem = allProblems[0];
+          problemStorage.setCurrentProblemId(firstProblem.id);
+          set({
+            problem: firstProblem.problem,
+            currentProblemId: firstProblem.id,
+          });
+          return firstProblem.problem;
+        }
+
+        console.log("[Store] No problem exists, creating new one");
+
+        // Create a new problem if none exists
+        const defaultSettings = {
+          solver_type: "SimulatedAnnealing",
+          stop_conditions: {
+            max_iterations: 10000,
+            time_limit_seconds: 30,
+            no_improvement_iterations: 5000,
+          },
+          solver_params: {
+            SimulatedAnnealing: {
+              initial_temperature: 1.0,
+              final_temperature: 0.01,
+              cooling_schedule: "geometric",
+              reheat_after_no_improvement: 0,
+            },
+          },
+        } as SolverSettings;
+
+        const emptyProblem: Problem = {
+          people: [],
+          groups: [],
+          num_sessions: 3,
+          constraints: [],
+          settings: defaultSettings,
+        };
+
+        console.log("[Store] Creating new problem:", emptyProblem);
+
+        // Create and save the new problem
+        const newSaved = problemStorage.createProblem(
+          "Untitled Problem",
+          emptyProblem
+        );
+        problemStorage.setCurrentProblemId(newSaved.id);
+
+        console.log("[Store] New problem saved with ID:", newSaved.id);
+
+        // Update the store state
+        set((state) => ({
+          problem: emptyProblem,
+          currentProblemId: newSaved.id,
+          savedProblems: {
+            ...state.savedProblems,
+            [newSaved.id]: newSaved,
+          },
+        }));
+
+        console.log("[Store] Store state updated");
+
+        // Notify user that a new problem was created
+        get().addNotification({
+          type: "info",
+          title: "New Problem Created",
+          message:
+            "A new untitled problem has been created for you to work with.",
+        });
+
+        console.log("[Store] Notification sent, returning problem");
+        return emptyProblem;
       },
 
       // Solution management
@@ -264,13 +461,22 @@ export const useAppStore = create<AppStore>()(
       // Problem Management actions
       loadSavedProblems: () => {
         const savedProblems = problemStorage.getAllProblems();
-        const currentProblemId = problemStorage.getCurrentProblemId();
+
+        const currentProblemId =
+          problemStorage.getCurrentProblemId() || Object.keys(savedProblems)[0];
+        if (currentProblemId) {
+          problemStorage.setCurrentProblemId(currentProblemId);
+        }
         set({ savedProblems, currentProblemId });
 
-        // Load current problem if it exists
         if (currentProblemId && savedProblems[currentProblemId]) {
           set({ problem: savedProblems[currentProblemId].problem });
         }
+
+        // Set loading to false after loading is complete
+        set((state) => ({
+          ui: { ...state.ui, isLoading: false },
+        }));
       },
 
       createNewProblem: (name, isTemplate = false) => {
@@ -509,7 +715,17 @@ export const useAppStore = create<AppStore>()(
       },
 
       addResult: (solution, solverSettings, customName) => {
-        const { currentProblemId } = get();
+        const { currentProblemId, savedProblems } = get();
+        console.log(
+          "[Store] addResult called with currentProblemId:",
+          currentProblemId
+        );
+        console.log("[Store] savedProblems keys:", Object.keys(savedProblems));
+        console.log(
+          "[Store] current problem in savedProblems:",
+          currentProblemId ? savedProblems[currentProblemId] : null
+        );
+
         if (!currentProblemId) {
           get().addNotification({
             type: "error",
@@ -518,6 +734,23 @@ export const useAppStore = create<AppStore>()(
               "Please save the current problem first before adding results.",
           });
           return;
+        }
+
+        if (currentProblemId && !savedProblems[currentProblemId]) {
+          console.log(
+            "[Store] Problem not found in savedProblems, reloading..."
+          );
+          get().loadSavedProblems();
+          // Try again after reloading
+          const { savedProblems: reloadedProblems } = get();
+          if (currentProblemId && !reloadedProblems[currentProblemId]) {
+            get().addNotification({
+              type: "error",
+              title: "Save Result Failed",
+              message: "Problem not found in saved problems.",
+            });
+            return;
+          }
         }
 
         try {
@@ -529,18 +762,24 @@ export const useAppStore = create<AppStore>()(
           );
 
           // Update the store with the new result
-          set((state) => ({
-            savedProblems: {
-              ...state.savedProblems,
-              [currentProblemId]: {
-                ...state.savedProblems[currentProblemId],
-                results: [
-                  ...state.savedProblems[currentProblemId].results,
-                  result,
-                ],
+          set((state) => {
+            const currentProblem = state.savedProblems[currentProblemId];
+            console.log("[Store] Current problem in state:", currentProblem);
+            console.log(
+              "[Store] Current problem results:",
+              currentProblem?.results
+            );
+
+            return {
+              savedProblems: {
+                ...state.savedProblems,
+                [currentProblemId]: {
+                  ...currentProblem,
+                  results: [...(currentProblem?.results || []), result],
+                },
               },
-            },
-          }));
+            };
+          });
 
           get().addNotification({
             type: "success",
@@ -759,6 +998,7 @@ export const useAppStore = create<AppStore>()(
             updatedProblem = {
               ...updatedProblem,
               people: updatedProblem.people.map((p) => {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { [key]: _removed, ...restAttrs } = p.attributes || {};
                 return { ...p, attributes: { ...restAttrs } } as Person;
               }),
@@ -915,7 +1155,7 @@ export const useAppStore = create<AppStore>()(
               },
               // Charlie and Diana can't be together (personality conflict)
               {
-                type: "CannotBeTogether",
+                type: "ShouldNotBeTogether",
                 people: ["charlie", "diana"],
                 penalty_weight: 500.0,
               },
@@ -1039,6 +1279,150 @@ export const useAppStore = create<AppStore>()(
           console.error("Failed to load demo case:", error);
           set({ demoDropdownOpen: false });
 
+          get().addNotification({
+            type: "error",
+            title: "Demo Case Load Failed",
+            message:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      },
+
+      loadDemoCaseOverwrite: async (demoCaseId) => {
+        try {
+          const {
+            loadDemoCase,
+            extractAttributesFromProblem,
+            mergeAttributeDefinitions,
+          } = await import("../services/demoDataService");
+
+          const problem = await loadDemoCase(demoCaseId);
+
+          // Extract attributes from the loaded problem
+          const extractedAttributes = extractAttributesFromProblem(problem);
+
+          // Merge with existing attribute definitions
+          const currentAttributes = get().attributeDefinitions;
+          const mergedAttributes = mergeAttributeDefinitions(
+            currentAttributes,
+            extractedAttributes
+          );
+
+          // Update the store with both the problem and the merged attributes
+          set({
+            problem,
+            attributeDefinitions: mergedAttributes,
+          });
+
+          // Check if any new attributes were added
+          const newAttributeKeys = extractedAttributes
+            .filter(
+              (extracted) =>
+                !currentAttributes.find(
+                  (current) => current.key === extracted.key
+                )
+            )
+            .map((attr) => attr.key);
+
+          let message = `Overwrote current problem with demo case: ${problem.people.length} people and ${problem.groups.length} groups`;
+          if (newAttributeKeys.length > 0) {
+            message += `. Added new attributes: ${newAttributeKeys.join(", ")}`;
+          }
+
+          get().addNotification({
+            type: "success",
+            title: "Demo Case Loaded",
+            message,
+          });
+        } catch (error) {
+          console.error("Failed to load demo case:", error);
+          get().addNotification({
+            type: "error",
+            title: "Demo Case Load Failed",
+            message:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      },
+
+      loadDemoCaseNewProblem: async (demoCaseId) => {
+        try {
+          const {
+            loadDemoCase,
+            extractAttributesFromProblem,
+            mergeAttributeDefinitions,
+          } = await import("../services/demoDataService");
+
+          const problem = await loadDemoCase(demoCaseId);
+
+          // Extract attributes from the loaded problem
+          const extractedAttributes = extractAttributesFromProblem(problem);
+
+          // Merge with existing attribute definitions
+          const currentAttributes = get().attributeDefinitions;
+          const mergedAttributes = mergeAttributeDefinitions(
+            currentAttributes,
+            extractedAttributes
+          );
+
+          // Save current problem if it has content
+          const currentProblem = get().problem;
+          if (
+            currentProblem &&
+            (currentProblem.people.length > 0 ||
+              currentProblem.groups.length > 0)
+          ) {
+            try {
+              const savedProblem = problemStorage.createProblem(
+                "Previous Problem",
+                currentProblem
+              );
+              set((state) => ({
+                savedProblems: {
+                  ...state.savedProblems,
+                  [savedProblem.id]: savedProblem,
+                },
+              }));
+            } catch (error) {
+              console.error("Failed to save current problem:", error);
+            }
+          }
+
+          // Update the store with both the problem and the merged attributes
+          set({
+            problem,
+            attributeDefinitions: mergedAttributes,
+          });
+
+          // Check if any new attributes were added
+          const newAttributeKeys = extractedAttributes
+            .filter(
+              (extracted) =>
+                !currentAttributes.find(
+                  (current) => current.key === extracted.key
+                )
+            )
+            .map((attr) => attr.key);
+
+          let message = `Loaded demo case in new problem: ${problem.people.length} people and ${problem.groups.length} groups`;
+          if (newAttributeKeys.length > 0) {
+            message += `. Added new attributes: ${newAttributeKeys.join(", ")}`;
+          }
+          if (
+            currentProblem &&
+            (currentProblem.people.length > 0 ||
+              currentProblem.groups.length > 0)
+          ) {
+            message += `. Previous problem saved as "Previous Problem"`;
+          }
+
+          get().addNotification({
+            type: "success",
+            title: "Demo Case Loaded",
+            message,
+          });
+        } catch (error) {
+          console.error("Failed to load demo case:", error);
           get().addNotification({
             type: "error",
             title: "Demo Case Load Failed",

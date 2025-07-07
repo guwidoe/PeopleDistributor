@@ -1,0 +1,12 @@
+# Generated files
+.vite/
+dist/
+node_modules/
+public/solver_wasm_bg.wasm.d.ts
+
+# Build outputs
+*.min.js
+*.min.css
+
+# Generated TypeScript declaration files
+*.d.ts 

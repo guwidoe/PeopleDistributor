@@ -1,6 +1,7 @@
 // Web Worker for running the WASM solver off the main thread
 let wasmModule = null;
 let isInitializing = false;
+let lastProblemJson = null; // store latest JSON for error reporting
 
 // Initialize the WASM module
 async function initWasm() {
@@ -44,6 +45,51 @@ async function initWasm() {
   }
 }
 
+// // ========= Forward worker console logs to the main thread =========
+// const _origLog = console.log.bind(console);
+// const _origWarn = console.warn.bind(console);
+// const _origError = console.error.bind(console);
+// const _origDebug = console.debug ? console.debug.bind(console) : _origLog;
+
+// function sendLog(level, args) {
+//   try {
+//     self.postMessage({ type: "LOG", data: { level, args: args.map(serializeForPostMessage) } });
+//   } catch {
+//     // Silent – avoid infinite loops if postMessage fails
+//   }
+// }
+
+// function serializeForPostMessage(val) {
+//   if (val instanceof Error) {
+//     return { message: val.message, stack: val.stack, name: val.name };
+//   }
+//   try {
+//     return JSON.parse(JSON.stringify(val));
+//   } catch {
+//     // Fallback to string when circular refs etc.
+//     return String(val);
+//   }
+// }
+
+// console.log = (...args) => {
+//   _origLog(...args);
+//   sendLog("log", args);
+// };
+// console.warn = (...args) => {
+//   _origWarn(...args);
+//   sendLog("warn", args);
+// };
+// console.error = (...args) => {
+//   _origError(...args);
+//   sendLog("error", args);
+// };
+// console.debug = (...args) => {
+//   _origDebug(...args);
+//   sendLog("debug", args);
+// };
+
+// ================================================================
+
 // Handle messages from the main thread
 self.onmessage = async function(e) {
   const { type, id, data } = e.data;
@@ -57,6 +103,14 @@ self.onmessage = async function(e) {
         
       case 'SOLVE':
         const { problemJson, useProgress } = data;
+        lastProblemJson = problemJson;
+        
+        // // Forward the raw problem JSON to the main thread for easier debugging
+        // self.postMessage({
+        //   type: 'PROBLEM_JSON',
+        //   id,
+        //   data: { problemJson },
+        // });
         
         if (!wasmModule) {
           await initWasm(); // Try to initialize if not already done
@@ -165,7 +219,8 @@ self.onmessage = async function(e) {
       id, 
       data: { 
         error: errorString,
-        stack: error && error.stack ? error.stack : undefined 
+        stack: error && error.stack ? error.stack : undefined,
+        problemJson: lastProblemJson
       } 
     });
   }
