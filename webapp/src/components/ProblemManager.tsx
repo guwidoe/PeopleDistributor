@@ -214,81 +214,157 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
     <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
       <div className="rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col modal-content">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 border-b gap-4 sm:gap-0">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Manager</h2>
-            <p className="mt-1 text-sm sm:text-base" style={{ color: 'var(--text-secondary)' }}>Manage your saved problems and results</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
-            {currentProblem && (
-              <button
-                onClick={handleSaveCurrentProblem}
-                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm"
-              >
-                <Save className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Save Current</span>
-                <span className="xs:hidden">Save</span>
-              </button>
-            )}
-            <div className="relative" ref={newDropdownRef}>
-              <button
-                onClick={() => setNewDropdownOpen(!newDropdownOpen)}
-                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm w-full sm:w-auto"
-              >
-                <FolderPlus className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">New Problem</span>
-                <span className="xs:hidden">New</span>
-                <ChevronDown className="w-2 h-2 sm:w-3 sm:h-3" />
-              </button>
-              {newDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-48 sm:w-56 rounded-md shadow-lg z-10 border overflow-hidden"
-                     style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-                  <button
-                    onClick={() => {
-                      setNewProblemMode('empty');
-                      setShowCreateDialog(true);
-                      setNewDropdownOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
-                    style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    <FolderPlus className="h-4 w-4" />
-                    Blank Problem
-                  </button>
-                  <button
-                    onClick={() => {
-                      setNewProblemMode('duplicate');
-                      setShowCreateDialog(true);
-                      setNewDropdownOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
-                    style={{ color: 'var(--text-primary)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    <Copy className="h-4 w-4" />
-                    Duplicate Current
-                  </button>
-                </div>
-              )}
+        <div className="relative border-b" style={{ borderColor: 'var(--border-primary)' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 gap-4 sm:gap-0">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Problem Manager</h2>
+              <p className="mt-1 text-sm sm:text-base" style={{ color: 'var(--text-secondary)' }}>Manage your saved problems and results</p>
             </div>
-            <button
-              onClick={handleImport}
-              className="btn-secondary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm"
-            >
-              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Import</span>
-              <span className="xs:hidden">Import</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="btn-secondary p-1.5 sm:p-2"
-            >
-              <X className="h-3 w-3 sm:h-4 sm:w-4" />
-            </button>
+            {/* Desktop button group (unchanged) */}
+            <div className="hidden sm:flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
+              {currentProblem && (
+                <button
+                  onClick={handleSaveCurrentProblem}
+                  className="btn-primary flex items-center justify-center space-x-2 px-4 py-2 text-sm"
+                  aria-label="Save Current Problem"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save Current</span>
+                </button>
+              )}
+              <div className="relative" ref={newDropdownRef}>
+                <button
+                  onClick={() => setNewDropdownOpen(!newDropdownOpen)}
+                  className="btn-primary flex items-center justify-center space-x-2 px-4 py-2 text-sm w-full sm:w-auto"
+                  aria-label="New Problem"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                  <span>New Problem</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {newDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 rounded-md shadow-lg z-10 border overflow-hidden"
+                       style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                    <button
+                      onClick={() => {
+                        setNewProblemMode('empty');
+                        setShowCreateDialog(true);
+                        setNewDropdownOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors border-b last:border-b-0"
+                      style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      Blank Problem
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNewProblemMode('duplicate');
+                        setShowCreateDialog(true);
+                        setNewDropdownOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors"
+                      style={{ color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Duplicate Current
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleImport}
+                className="btn-secondary flex items-center justify-center space-x-2 px-4 py-2 text-sm"
+                aria-label="Import Problem"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Import</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="btn-secondary p-2"
+                aria-label="Close Problem Manager"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {/* Mobile button row */}
+            <div className="flex sm:hidden items-center gap-1 absolute right-4 top-4 z-10">
+              {currentProblem && (
+                <button
+                  onClick={handleSaveCurrentProblem}
+                  className="btn-primary flex flex-col items-center justify-center px-2 py-1 text-xs"
+                  aria-label="Save"
+                >
+                  <Save className="h-4 w-4 mb-0.5" />
+                  <span>Save</span>
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setNewDropdownOpen(!newDropdownOpen)}
+                  className="btn-primary flex flex-col items-center justify-center px-2 py-1 text-xs"
+                  aria-label="New"
+                >
+                  <FolderPlus className="h-4 w-4 mb-0.5" />
+                  <span>New</span>
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </button>
+                {newDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-40 rounded-md shadow-lg z-20 border overflow-hidden"
+                       style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
+                    <button
+                      onClick={() => {
+                        setNewProblemMode('empty');
+                        setShowCreateDialog(true);
+                        setNewDropdownOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left transition-colors border-b last:border-b-0"
+                      style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      Blank
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNewProblemMode('duplicate');
+                        setShowCreateDialog(true);
+                        setNewDropdownOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left transition-colors"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Duplicate
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleImport}
+                className="btn-secondary flex flex-col items-center justify-center px-2 py-1 text-xs"
+                aria-label="Import"
+              >
+                <Upload className="h-4 w-4 mb-0.5" />
+                <span>Import</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="btn-secondary flex flex-col items-center justify-center px-2 py-1 text-xs border-l border-gray-300 ml-1"
+                aria-label="Close"
+                style={{ borderColor: 'var(--border-secondary)' }}
+              >
+                <X className="h-4 w-4 mb-0.5" />
+                <span>Close</span>
+              </button>
+            </div>
           </div>
+          {/* Divider for mobile */}
+          <div className="sm:hidden border-b" style={{ borderColor: 'var(--border-secondary)' }}></div>
         </div>
 
         {/* Search and Filter */}
