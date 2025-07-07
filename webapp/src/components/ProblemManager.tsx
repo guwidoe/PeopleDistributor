@@ -9,7 +9,6 @@ import {
   Trash2, 
   Edit3, 
   Star, 
-  StarOff,
   Calendar,
   Users,
   Layers,
@@ -18,7 +17,6 @@ import {
   Filter,
   X,
   Save,
-  AlertTriangle,
   ChevronDown
 } from 'lucide-react';
 import type { ProblemSummary } from '../types';
@@ -225,23 +223,25 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
             {currentProblem && (
               <button
                 onClick={handleSaveCurrentProblem}
-                className="btn-primary flex items-center justify-center space-x-2 px-4 py-2 text-sm"
+                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm"
               >
-                <Save className="h-4 w-4" />
-                <span>Save Current</span>
+                <Save className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Save Current</span>
+                <span className="xs:hidden">Save</span>
               </button>
             )}
             <div className="relative" ref={newDropdownRef}>
               <button
                 onClick={() => setNewDropdownOpen(!newDropdownOpen)}
-                className="btn-primary flex items-center justify-center space-x-2 px-4 py-2 text-sm w-full sm:w-auto"
+                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm w-full sm:w-auto"
               >
-                <FolderPlus className="h-4 w-4" />
-                <span>New Problem</span>
-                <ChevronDown className="w-3 h-3" />
+                <FolderPlus className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">New Problem</span>
+                <span className="xs:hidden">New</span>
+                <ChevronDown className="w-2 h-2 sm:w-3 sm:h-3" />
               </button>
               {newDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-56 rounded-md shadow-lg z-10 border overflow-hidden"
+                <div className="absolute right-0 mt-1 w-48 sm:w-56 rounded-md shadow-lg z-10 border overflow-hidden"
                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
                   <button
                     onClick={() => {
@@ -276,16 +276,17 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
             </div>
             <button
               onClick={handleImport}
-              className="btn-secondary flex items-center justify-center space-x-2 px-4 py-2 text-sm"
+              className="btn-secondary flex items-center justify-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-xs sm:text-sm"
             >
-              <Upload className="h-4 w-4" />
-              <span>Import</span>
+              <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Import</span>
+              <span className="xs:hidden">Import</span>
             </button>
             <button
               onClick={onClose}
-              className="btn-secondary p-2"
+              className="btn-secondary p-1.5 sm:p-2"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3 w-3 sm:h-4 sm:w-4" />
             </button>
           </div>
         </div>

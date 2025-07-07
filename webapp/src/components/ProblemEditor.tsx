@@ -2281,29 +2281,30 @@ export function ProblemEditor() {
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex flex-row gap-2 min-w-0">
+        <div className="flex flex-row gap-1 sm:gap-2 min-w-0">
           <button
             onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-2 sm:px-4"
+            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
           >
-            <Upload className="w-4 h-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Load</span>
+            <Upload className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden xs:inline">Load</span>
           </button>
           <button
             onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-2 sm:px-4"
+            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
           >
-            <Save className="w-4 h-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Save</span>
+            <Save className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+            <span className="hidden xs:inline">Save</span>
           </button>
           <div className="relative flex-shrink-0" ref={demoDropdownRef}>
             <button
               onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4"
+              className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
             >
-              <Zap className="w-4 h-4 flex-shrink-0" />
-              <span>Demo Data</span>
-              <ChevronDown className="w-3 h-3 flex-shrink-0" />
+              <Zap className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="hidden xs:inline">Demo Data</span>
+              <span className="xs:hidden">Demo</span>
+              <ChevronDown className="w-2 h-2 sm:w-3 sm:h-3 flex-shrink-0" />
             </button>
             
             {demoDropdownOpen && (
@@ -3167,7 +3168,7 @@ export function ProblemEditor() {
       
       {showAttributeForm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content">
+          <div className="rounded-lg p-6 w-full max-w-md mx-4 modal-content max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {editingAttribute ? 'Edit Attribute Definition' : 'Add Attribute Definition'}
@@ -3205,7 +3206,7 @@ export function ProblemEditor() {
                 <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Possible Values *
                 </label>
-                <div className="space-y-2">
+                <div className="max-h-48 overflow-y-auto space-y-2 border rounded p-3" style={{ borderColor: 'var(--border-secondary)' }}>
                   {newAttribute.values.map((value, index) => (
                     <div key={index} className="flex gap-2">
                       <input
