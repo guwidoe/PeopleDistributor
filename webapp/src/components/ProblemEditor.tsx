@@ -2300,29 +2300,29 @@ export function ProblemEditor() {
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex flex-row gap-2 min-w-0">
+        <div className="flex flex-row flex-nowrap gap-2 w-full overflow-x-auto">
           <button
             onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-2 justify-center flex-shrink-0 px-3 md:px-4 py-2"
+            className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
           >
-            <Upload className="w-4 h-4 flex-shrink-0" />
-            <span>Load</span>
+            <Upload className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span className="truncate text-sm sm:text-base">Load</span>
           </button>
           <button
             onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-2 justify-center flex-shrink-0 px-3 md:px-4 py-2"
+            className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
           >
-            <Save className="w-4 h-4 flex-shrink-0" />
-            <span>Save</span>
+            <Save className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span className="truncate text-sm sm:text-base">Save</span>
           </button>
-          <div className="relative flex-shrink-0" ref={demoDropdownRef}>
+          <div className="relative" ref={demoDropdownRef}>
             <button
               onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-2 justify-center px-3 md:px-4 py-2"
+              className="flex items-center gap-1 sm:gap-2 justify-center px-2 sm:px-4 py-2 rounded-md font-medium transition-colors btn-secondary min-w-0"
             >
-              <Zap className="w-4 h-4 flex-shrink-0" />
-              <span>Demo Data</span>
-              <ChevronDown className="w-3 h-3 flex-shrink-0" />
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="text-sm sm:text-base">Demo Data</span>
+              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
             </button>
             
             {demoDropdownOpen && (
