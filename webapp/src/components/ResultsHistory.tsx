@@ -262,6 +262,10 @@ export function ResultsHistory() {
 
   const bestResult = getBestResult();
 
+  // Find the most recent result (by timestamp)
+  const mostRecentResult = results.length > 0 ? results.reduce((a, b) => (a.timestamp > b.timestamp ? a : b)) : null;
+  const mostRecentResultId = mostRecentResult?.id;
+
   // === Helper: dynamic color class (copied from ResultsView) ===
   function getColorClass(ratio: number, invert: boolean = false): string {
     let r = Math.max(0, Math.min(1, ratio));
@@ -409,9 +413,8 @@ export function ResultsHistory() {
               const isExpanded = expandedResults.has(result.id);
               const isSelected = selectedResultIds.includes(result.id);
               const isBest = result.id === bestResult?.id;
-              const isCurrent = currentSolution && 
-                currentSolution.final_score === result.solution.final_score &&
-                currentSolution.iteration_count === result.solution.iteration_count;
+              // Only the most recent result is 'Current'
+              const isCurrent = result.id === mostRecentResultId;
 
               // === Derived colors (mirror Result Details panel) ===
               const peopleCount = currentProblem.problem.people.length || 1;

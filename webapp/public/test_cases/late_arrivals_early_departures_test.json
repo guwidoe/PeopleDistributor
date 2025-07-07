@@ -34,12 +34,12 @@
       {
         "type": "MustStayTogether",
         "people": ["alice", "bob"],
-        "penalty_weight": 1000.0
+        "penalty_weight": 10.0
       },
       {
         "type": "ShouldNotBeTogether",
         "people": ["charlie", "diana"],
-        "penalty_weight": 1000.0,
+        "penalty_weight": 10.0,
         "sessions": [0, 2]
       },
       {
