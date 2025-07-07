@@ -24,6 +24,7 @@ import AttributeBalanceModal from './modals/AttributeBalanceModal';
 import ShouldNotBeTogetherModal from './modals/ShouldNotBeTogetherModal';
 import MustStayTogetherModal from './modals/MustStayTogetherModal';
 import AttributeBalanceDashboard from './AttributeBalanceDashboard';
+import { DemoDataWarningModal } from './modals/DemoDataWarningModal';
 
 const getDefaultSolverSettings = (): SolverSettings => ({
   solver_type: "SimulatedAnnealing",
@@ -101,6 +102,8 @@ export function ProblemEditor() {
     GetProblem,
     addNotification, 
     loadDemoCase,
+    loadDemoCaseOverwrite,
+    loadDemoCaseNewProblem,
     demoDropdownOpen,
     setDemoDropdownOpen,
     attributeDefinitions,
@@ -274,6 +277,10 @@ export function ProblemEditor() {
   const [showMustStayTogetherModal, setShowMustStayTogetherModal] = useState(false);
   const [editingConstraintIndex, setEditingConstraintIndex] = useState<number | null>(null);
 
+  // Demo data warning modal state
+  const [showDemoWarningModal, setShowDemoWarningModal] = useState(false);
+  const [pendingDemoCaseId, setPendingDemoCaseId] = useState<string | null>(null);
+
   // New UI state for Constraints tab
   const SOFT_TYPES = useMemo(() => ['RepeatEncounter', 'AttributeBalance', 'ShouldNotBeTogether'] as const, []);
   const HARD_TYPES = useMemo(() => ['ImmovablePeople', 'MustStayTogether'] as const, []);
@@ -310,6 +317,46 @@ export function ProblemEditor() {
   const handleLoadProblem = () => {
     // Simply open the Problem Manager modal
     setShowProblemManager(true);
+  };
+
+  const handleDemoCaseClick = (demoCaseId: string, demoCaseName: string) => {
+    // Check if current problem has content
+    const currentProblem = problem;
+    const hasContent = currentProblem && (
+      currentProblem.people.length > 0 || 
+      currentProblem.groups.length > 0 || 
+      currentProblem.constraints.length > 0
+    );
+
+    if (hasContent) {
+      // Show warning modal
+      setPendingDemoCaseId(demoCaseId);
+      setShowDemoWarningModal(true);
+    } else {
+      // Load directly if no content
+      loadDemoCase(demoCaseId);
+    }
+  };
+
+  const handleDemoOverwrite = () => {
+    if (pendingDemoCaseId) {
+      loadDemoCaseOverwrite(pendingDemoCaseId);
+      setShowDemoWarningModal(false);
+      setPendingDemoCaseId(null);
+    }
+  };
+
+  const handleDemoLoadNew = () => {
+    if (pendingDemoCaseId) {
+      loadDemoCaseNewProblem(pendingDemoCaseId);
+      setShowDemoWarningModal(false);
+      setPendingDemoCaseId(null);
+    }
+  };
+
+  const handleDemoCancel = () => {
+    setShowDemoWarningModal(false);
+    setPendingDemoCaseId(null);
   };
 
   const handleSessionsCountChange = (count: number | null) => {
@@ -2396,7 +2443,7 @@ export function ProblemEditor() {
                     {casesInCategory.map((demoCase) => (
                       <button
                         key={demoCase.id}
-                        onClick={() => loadDemoCase(demoCase.id)}
+                        onClick={() => handleDemoCaseClick(demoCase.id, demoCase.name)}
                         className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
                         style={{
                           color: 'var(--text-primary)',
@@ -3474,6 +3521,15 @@ export function ProblemEditor() {
           }}
         />
       )}
+
+      {/* Demo Data Warning Modal */}
+      <DemoDataWarningModal
+        isOpen={showDemoWarningModal}
+        onClose={handleDemoCancel}
+        onOverwrite={handleDemoOverwrite}
+        onLoadNew={handleDemoLoadNew}
+        demoCaseName={pendingDemoCaseId ? demoCasesWithMetrics.find(c => c.id === pendingDemoCaseId)?.name || 'Demo Case' : 'Demo Case'}
+      />
     </div>
   );
 } 

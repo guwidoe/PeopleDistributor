@@ -107,6 +107,8 @@ interface AppStore extends AppState {
   reset: () => void;
   generateDemoData: () => Promise<void>;
   loadDemoCase: (demoCaseId: string) => Promise<void>;
+  loadDemoCaseOverwrite: (demoCaseId: string) => Promise<void>;
+  loadDemoCaseNewProblem: (demoCaseId: string) => Promise<void>;
   initializeApp: () => void;
 
   // Demo data dropdown state
@@ -1277,6 +1279,150 @@ export const useAppStore = create<AppStore>()(
           console.error("Failed to load demo case:", error);
           set({ demoDropdownOpen: false });
 
+          get().addNotification({
+            type: "error",
+            title: "Demo Case Load Failed",
+            message:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      },
+
+      loadDemoCaseOverwrite: async (demoCaseId) => {
+        try {
+          const {
+            loadDemoCase,
+            extractAttributesFromProblem,
+            mergeAttributeDefinitions,
+          } = await import("../services/demoDataService");
+
+          const problem = await loadDemoCase(demoCaseId);
+
+          // Extract attributes from the loaded problem
+          const extractedAttributes = extractAttributesFromProblem(problem);
+
+          // Merge with existing attribute definitions
+          const currentAttributes = get().attributeDefinitions;
+          const mergedAttributes = mergeAttributeDefinitions(
+            currentAttributes,
+            extractedAttributes
+          );
+
+          // Update the store with both the problem and the merged attributes
+          set({
+            problem,
+            attributeDefinitions: mergedAttributes,
+          });
+
+          // Check if any new attributes were added
+          const newAttributeKeys = extractedAttributes
+            .filter(
+              (extracted) =>
+                !currentAttributes.find(
+                  (current) => current.key === extracted.key
+                )
+            )
+            .map((attr) => attr.key);
+
+          let message = `Overwrote current problem with demo case: ${problem.people.length} people and ${problem.groups.length} groups`;
+          if (newAttributeKeys.length > 0) {
+            message += `. Added new attributes: ${newAttributeKeys.join(", ")}`;
+          }
+
+          get().addNotification({
+            type: "success",
+            title: "Demo Case Loaded",
+            message,
+          });
+        } catch (error) {
+          console.error("Failed to load demo case:", error);
+          get().addNotification({
+            type: "error",
+            title: "Demo Case Load Failed",
+            message:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          });
+        }
+      },
+
+      loadDemoCaseNewProblem: async (demoCaseId) => {
+        try {
+          const {
+            loadDemoCase,
+            extractAttributesFromProblem,
+            mergeAttributeDefinitions,
+          } = await import("../services/demoDataService");
+
+          const problem = await loadDemoCase(demoCaseId);
+
+          // Extract attributes from the loaded problem
+          const extractedAttributes = extractAttributesFromProblem(problem);
+
+          // Merge with existing attribute definitions
+          const currentAttributes = get().attributeDefinitions;
+          const mergedAttributes = mergeAttributeDefinitions(
+            currentAttributes,
+            extractedAttributes
+          );
+
+          // Save current problem if it has content
+          const currentProblem = get().problem;
+          if (
+            currentProblem &&
+            (currentProblem.people.length > 0 ||
+              currentProblem.groups.length > 0)
+          ) {
+            try {
+              const savedProblem = problemStorage.createProblem(
+                "Previous Problem",
+                currentProblem
+              );
+              set((state) => ({
+                savedProblems: {
+                  ...state.savedProblems,
+                  [savedProblem.id]: savedProblem,
+                },
+              }));
+            } catch (error) {
+              console.error("Failed to save current problem:", error);
+            }
+          }
+
+          // Update the store with both the problem and the merged attributes
+          set({
+            problem,
+            attributeDefinitions: mergedAttributes,
+          });
+
+          // Check if any new attributes were added
+          const newAttributeKeys = extractedAttributes
+            .filter(
+              (extracted) =>
+                !currentAttributes.find(
+                  (current) => current.key === extracted.key
+                )
+            )
+            .map((attr) => attr.key);
+
+          let message = `Loaded demo case in new problem: ${problem.people.length} people and ${problem.groups.length} groups`;
+          if (newAttributeKeys.length > 0) {
+            message += `. Added new attributes: ${newAttributeKeys.join(", ")}`;
+          }
+          if (
+            currentProblem &&
+            (currentProblem.people.length > 0 ||
+              currentProblem.groups.length > 0)
+          ) {
+            message += `. Previous problem saved as "Previous Problem"`;
+          }
+
+          get().addNotification({
+            type: "success",
+            title: "Demo Case Loaded",
+            message,
+          });
+        } catch (error) {
+          console.error("Failed to load demo case:", error);
           get().addNotification({
             type: "error",
             title: "Demo Case Load Failed",
