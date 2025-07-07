@@ -413,8 +413,15 @@ impl State {
 
         // Calculate baseline score to prevent negative scores from unique contacts metric
         // Maximum possible unique contacts = (n * (n-1)) / 2, multiplied by objective weight
+        // or (num_sessions * (max_group_size - 1) * n) / 2, depending on which is smaller
         let max_possible_unique_contacts = if people_count >= 2 {
-            (people_count * (people_count - 1)) / 2
+            std::cmp::min(
+                (people_count * (people_count - 1)) / 2,
+                (people_count
+                    * input.problem.num_sessions as usize
+                    * (group_capacities.iter().max().unwrap_or(&1) - 1))
+                    / 2,
+            )
         } else {
             0
         };

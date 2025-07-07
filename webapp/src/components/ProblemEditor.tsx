@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, NavLink } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Users, Calendar, Settings, Plus, Save, Upload, Trash2, Edit, X, Zap, Hash, Clock, ChevronDown, ChevronRight, Tag, BarChart3, ArrowUpDown, Table, Lock } from 'lucide-react';
 import type { Person, Group, Constraint, Problem, PersonFormData, GroupFormData, AttributeDefinition, SolverSettings } from '../types';
@@ -115,6 +115,7 @@ export function ProblemEditor() {
   
   const { section } = useParams<{ section: string }>();
   const activeSection = section || 'people';
+  const navigate = useNavigate();
 
   const [showAttributesSection, setShowAttributesSection] = useState(false);
   const [peopleViewMode, setPeopleViewMode] = useState<'grid' | 'list'>('grid');
@@ -460,15 +461,30 @@ export function ProblemEditor() {
       id: group.id,
       size: group.size
     });
+    setGroupFormInputs({
+      size: group.size.toString()
+    });
     setShowGroupForm(true);
   };
 
   const handleUpdateGroup = () => {
     if (!editingGroup || !groupForm.id?.trim()) return;
 
+    // Validate size from input
+    const sizeValue = groupFormInputs.size || groupForm.size.toString();
+    const size = parseInt(sizeValue);
+    if (isNaN(size) || size < 1) {
+      addNotification({
+        type: 'error',
+        title: 'Invalid Input',
+        message: 'Please enter a valid group size (1 or greater)',
+      });
+      return;
+    }
+
     const updatedGroup: Group = {
       id: groupForm.id,
-      size: groupForm.size
+      size: size
     };
 
     const updatedProblem: Problem = {
@@ -482,6 +498,7 @@ export function ProblemEditor() {
     setProblem(updatedProblem);
     setEditingGroup(null);
     setGroupForm({ size: 4 });
+    setGroupFormInputs({});
     setShowGroupForm(false);
     
     addNotification({
@@ -1255,6 +1272,7 @@ export function ProblemEditor() {
                 setShowGroupForm(false);
                 setEditingGroup(null);
                 setGroupForm({ size: 4 });
+                setGroupFormInputs({});
               }}
               className="text-gray-400 hover:text-gray-600"
             >
@@ -1321,6 +1339,7 @@ export function ProblemEditor() {
                 setShowGroupForm(false);
                 setEditingGroup(null);
                 setGroupForm({ size: 4 });
+                setGroupFormInputs({});
               }}
               className="btn-secondary px-4 py-2 rounded-md"
             >
@@ -2281,30 +2300,29 @@ export function ProblemEditor() {
             Configure people, groups, and constraints for optimization
           </p>
         </div>
-        <div className="flex flex-row gap-1 sm:gap-2 min-w-0">
+        <div className="flex flex-row gap-2 min-w-0">
           <button
             onClick={handleLoadProblem}
-            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
+            className="btn-secondary flex items-center gap-2 justify-center flex-shrink-0 px-3 md:px-4 py-2"
           >
-            <Upload className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-            <span className="hidden xs:inline">Load</span>
+            <Upload className="w-4 h-4 flex-shrink-0" />
+            <span>Load</span>
           </button>
           <button
             onClick={handleSaveProblem}
-            className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center flex-shrink-0 px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
+            className="btn-secondary flex items-center gap-2 justify-center flex-shrink-0 px-3 md:px-4 py-2"
           >
-            <Save className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-            <span className="hidden xs:inline">Save</span>
+            <Save className="w-4 h-4 flex-shrink-0" />
+            <span>Save</span>
           </button>
           <div className="relative flex-shrink-0" ref={demoDropdownRef}>
             <button
               onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-              className="btn-secondary flex items-center gap-1 sm:gap-2 justify-center px-1.5 sm:px-2 md:px-4 py-1.5 sm:py-2"
+              className="btn-secondary flex items-center gap-2 justify-center px-3 md:px-4 py-2"
             >
-              <Zap className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="hidden xs:inline">Demo Data</span>
-              <span className="xs:hidden">Demo</span>
-              <ChevronDown className="w-2 h-2 sm:w-3 sm:h-3 flex-shrink-0" />
+              <Zap className="w-4 h-4 flex-shrink-0" />
+              <span>Demo Data</span>
+              <ChevronDown className="w-3 h-3 flex-shrink-0" />
             </button>
             
             {demoDropdownOpen && (
@@ -2377,7 +2395,16 @@ export function ProblemEditor() {
 
       {/* Navigation */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <nav className="flex flex-wrap gap-1 sm:gap-2 md:gap-8 overflow-x-auto">
+        {/*
+          Responsive tab bar:
+          - Justified: tabs are distributed evenly to fill each row
+          - Uses CSS grid with auto-fit and minmax
+          - Tabs wrap to new rows as needed, but only if there is not enough space for even one more tab
+          - All icons are the same size at all breakpoints
+        */}
+        <nav
+          className="flex flex-wrap justify-between gap-y-2"
+        >
           {[
             { id: 'people', label: 'People', icon: Users, count: (problem?.people ?? []).length },
             { id: 'groups', label: 'Groups', icon: Hash, count: (problem?.groups ?? []).length },
@@ -2385,25 +2412,18 @@ export function ProblemEditor() {
             { id: 'objectives', label: 'Objectives', icon: BarChart3, count: objectiveCount > 0 ? objectiveCount : undefined },
             { id: 'hard', label: 'Hard Constraints', icon: Lock, count: problem?.constraints ? problem.constraints.filter(c=>['ImmovablePeople','MustStayTogether'].includes(c.type as string)).length : 0 },
             { id: 'soft', label: 'Soft Constraints', icon: Zap, count: problem?.constraints ? problem.constraints.filter(c=>['RepeatEncounter','AttributeBalance','ShouldNotBeTogether'].includes(c.type as string)).length : 0 },
-          ].map(({ id, label, icon: Icon, count }) => (
-              <NavLink
-              key={id}
-              to={`/app/problem/${id}`}
-              className="flex items-center gap-1 sm:gap-2 py-2 px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0"
-              style={({ isActive }) => ({
-                borderBottomColor: isActive ? 'var(--color-accent)' : 'transparent',
-                color: isActive ? 'var(--color-accent)' : 'var(--text-secondary)'
-              })}
+          ].map(tab => (
+            <button
+              className={`flex-1 flex flex-row items-center justify-center min-w-[140px] gap-1 px-3 py-1.5 rounded-md font-medium transition-colors ${activeSection === tab.id ? 'bg-[var(--bg-tertiary)] text-[var(--color-accent)]' : 'bg-transparent text-[var(--text-secondary)] hover:text-[var(--color-accent)]'}`}
+              key={tab.id}
+              onClick={() => navigate(`/app/problem/${tab.id}`)}
             >
-              <Icon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="hidden xs:inline">{label}</span>
-              <span className="xs:hidden">{label.split(' ')[0]}</span>
-              {typeof count === 'number' && (
-                <span style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-1 sm:px-2 py-0.5 rounded-full text-xs">
-                  {count}
-                </span>
+              <tab.icon className="w-5 h-5" />
+              <span className="whitespace-nowrap">{tab.label}</span>
+              {typeof tab.count === 'number' && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{tab.count}</span>
               )}
-            </NavLink>
+            </button>
           ))}
         </nav>
       </div>
@@ -2412,10 +2432,11 @@ export function ProblemEditor() {
         {activeSection === 'people' && (
           <div className="space-y-4">
             {/* Attributes Section Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => setShowAttributesSection(!showAttributesSection)}
-                className="flex items-center gap-3 text-left transition-colors"
+                className="flex items-center gap-2 text-left transition-colors min-w-0"
+                style={{ flex: '1 1 0%' }}
               >
                 {showAttributesSection ? (
                   <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
@@ -2423,7 +2444,7 @@ export function ProblemEditor() {
                   <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
                 )}
                 <Tag className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                <h3 className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+                <h3 className="text-base font-medium truncate" style={{ color: 'var(--text-primary)', maxWidth: '100%', fontSize: 'clamp(0.9rem, 4vw, 1.1rem)' }}>
                   Attribute Definitions ({attributeDefinitions.length})
                 </h3>
               </button>
