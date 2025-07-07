@@ -15,7 +15,7 @@ export function Header() {
             <div className="flex items-center space-x-2">
               <Users className="h-8 w-8 transition-colors" style={{ color: 'var(--color-accent)' }} />
               <h1 className="text-2xl font-bold transition-colors" style={{ color: 'var(--text-primary)' }}>
-                Group Mixer
+                GroupMixer
               </h1>
             </div>
           </Link>
