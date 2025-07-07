@@ -8,6 +8,17 @@ interface ThemeToggleProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+// Helper function to predict theme appearance without causing re-renders
+const calculateIsDark = (theme: Theme): boolean => {
+  if (theme === 'system') {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false; // Default for server-side rendering or environments without window
+  }
+  return theme === 'dark';
+};
+
 export function ThemeToggle({ showLabel = false, size = 'md' }: ThemeToggleProps) {
   const { theme, setTheme } = useThemeStore();
 
@@ -63,9 +74,15 @@ export function ThemeToggle({ showLabel = false, size = 'md' }: ThemeToggleProps
   return (
     <button
       onClick={() => {
-        // Cycle through themes: system -> light -> dark -> system
         const currentIndex = themes.findIndex(t => t.value === theme);
-        const nextIndex = (currentIndex + 1) % themes.length;
+        let nextIndex = (currentIndex + 1) % themes.length;
+
+        // If the next theme in the cycle has the same appearance, skip it.
+        // This prevents "dead clicks" where the theme name changes but the UI doesn't.
+        if (calculateIsDark(themes[nextIndex].value) === isDark) {
+          nextIndex = (nextIndex + 1) % themes.length;
+        }
+        
         setTheme(themes[nextIndex].value);
       }}
       className={`
