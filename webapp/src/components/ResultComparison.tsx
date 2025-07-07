@@ -54,6 +54,16 @@ export function ResultComparison() {
     return 'text-gray-600';
   };
 
+  function getColorClass(ratio: number, invert: boolean = false): string {
+    let r = Math.max(0, Math.min(1, ratio));
+    if (invert) r = 1 - r;
+    if (r >= 0.9) return 'text-green-600';
+    if (r >= 0.75) return 'text-lime-600';
+    if (r >= 0.5) return 'text-yellow-600';
+    if (r >= 0.25) return 'text-orange-600';
+    return 'text-red-600';
+  }
+
   const getBestResult = () => {
     if (selectedResults.length === 0) return null;
     return selectedResults.reduce((best, current) => 
@@ -274,13 +284,15 @@ export function ResultComparison() {
                         <span>Repetition Penalty</span>
                       </div>
                     </td>
-                    {selectedResults.map((result) => (
-                      <td key={result.id} className="p-4">
-                        <span className="text-red-600 font-semibold">
-                          {(result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty).toFixed(2)}
-                        </span>
-                      </td>
-                    ))}
+                    {selectedResults.map((result) => {
+                      const repPenalty = result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty;
+                      const repColorClass = getColorClass(repPenalty === 0 ? 0 : 1, true);
+                      return (
+                        <td key={result.id} className="p-4">
+                          <span className={`font-semibold ${repColorClass}`}>{repPenalty.toFixed(2)}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* Attribute Balance Penalty */}
@@ -291,13 +303,15 @@ export function ResultComparison() {
                         <span>Balance Penalty</span>
                       </div>
                     </td>
-                    {selectedResults.map((result) => (
-                      <td key={result.id} className="p-4">
-                        <span className="text-orange-600 font-semibold">
-                          {result.solution.attribute_balance_penalty.toFixed(2)}
-                        </span>
-                      </td>
-                    ))}
+                    {selectedResults.map((result) => {
+                      const balPenalty = result.solution.attribute_balance_penalty;
+                      const balColorClass = getColorClass(balPenalty === 0 ? 0 : 1, true);
+                      return (
+                        <td key={result.id} className="p-4">
+                          <span className={`font-semibold ${balColorClass}`}>{balPenalty.toFixed(2)}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* Constraint Penalty */}
@@ -308,13 +322,15 @@ export function ResultComparison() {
                         <span>Constraint Penalty</span>
                       </div>
                     </td>
-                    {selectedResults.map((result) => (
-                      <td key={result.id} className="p-4">
-                        <span className="text-purple-600 font-semibold">
-                          {(result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty).toFixed(2)}
-                        </span>
-                      </td>
-                    ))}
+                    {selectedResults.map((result) => {
+                      const conPenalty = result.solution.weighted_constraint_penalty ?? result.solution.constraint_penalty;
+                      const conColorClass = getColorClass(conPenalty === 0 ? 0 : 1, true);
+                      return (
+                        <td key={result.id} className="p-4">
+                          <span className={`font-semibold ${conColorClass}`}>{conPenalty.toFixed(2)}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* Solver Settings */}
