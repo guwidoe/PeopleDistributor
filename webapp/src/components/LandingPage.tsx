@@ -1,67 +1,96 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { HeaderThemeToggle } from './ThemeToggle';
-import { Users, Shuffle, Settings, Zap, Target, Clock, CheckCircle, ArrowRight, Star, Globe, Lightbulb } from 'lucide-react';
+import { Users, Shuffle, Zap, Clock, CheckCircle, ArrowRight, Star, Globe, Lightbulb, Calendar, GitBranch, ListChecks } from 'lucide-react';
+import GraphBackground from './GraphBackground';
 
 const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-secondary">
       {/* Header */}
-      <header className="relative bg-secondary">
-        <div className="absolute top-4 right-4 z-10">
+      <header className="relative bg-secondary overflow-hidden">
+        {/* Animated graph/network background */}
+        <GraphBackground />
+
+        <div className="absolute top-4 right-4 z-20">
           <HeaderThemeToggle />
         </div>
         
         {/* Hero Section */}
-        <section className="flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 min-h-screen">
-          <div className="max-w-4xl w-full text-center">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-primary mb-4">
-              Group Mixer
-            </h1>
-            <p className="text-lg sm:text-xl md:text-2xl text-secondary mb-8">
-              The intelligent scheduler for creating optimal group assignments and maximizing meaningful connections.
-            </p>
-
-            <div className="card p-6 sm:p-8 md:p-10 mb-8 text-left">
-              <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-4 text-center">
-                Automate Your Group Scheduling
-              </h2>
-              <p className="text-secondary mb-6 text-center">
-                Group Mixer is a powerful optimization tool for anyone who runs workshops, conferences, team-building events, or social mixers. 
-                If you need to split people into smaller groups, especially over multiple sessions, this tool will save you hours of manual effort and complex spreadsheet juggling.
-              </p>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-secondary p-4 rounded-lg">
-                  <div className="flex items-center mb-3">
-                    <Target className="w-6 h-6 text-accent mr-2" />
-                    <h3 className="text-xl font-semibold text-primary">Maximize Connections</h3>
-                  </div>
-                  <p className="text-secondary">
-                    Generate schedules that maximize unique interactions. Ensure participants meet as many new people as possible, 
-                    preventing stale groups and encouraging networking.
-                  </p>
-                </div>
-                <div className="bg-secondary p-4 rounded-lg">
-                  <div className="flex items-center mb-3">
-                    <Settings className="w-6 h-6 text-accent mr-2" />
-                    <h3 className="text-xl font-semibold text-primary">Handle Complex Constraints</h3>
-                  </div>
-                  <p className="text-secondary">
-                    Keep certain people together or apart, balance groups by attributes like skill or department, 
-                    and handle late arrivals or early departures with ease.
+        <section className="relative z-10 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 min-h-screen">
+          <div className="relative inline-block text-center">
+            <div className="relative p-6 sm:p-8 md:p-12 max-w-4xl w-full">
+              <div className="relative inline-block text-center mb-3">
+                <div className="absolute inset-0 rounded-2xl backdrop-blur-[2px]" style={{ backgroundColor: 'var(--bg-backdrop)' }}></div>
+                <div className="relative px-4 sm:px-6 py-3 sm:py-4 max-w-xl mx-auto">
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-primary mb-2">
+                    GroupMixer
+                  </h1>
+                  <p className="text-lg sm:text-xl md:text-2xl text-secondary">
+                    Make every meeting count.
                   </p>
                 </div>
               </div>
-            </div>
 
-            <div className="text-center mb-12">
-              <Link to="/app">
-                <button className="btn-primary text-xl sm:text-2xl px-8 sm:px-12 py-3 sm:py-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 inline-flex items-center gap-2">
-                  Get Started <ArrowRight className="w-6 h-6" />
-                </button>
-              </Link>
-              <p className="text-tertiary text-sm mt-2">Free to use • No signup required • Works in your browser</p>
+              {/* Description Section */}
+              <div className="mb-4 space-y-4 text-left max-w-2xl mx-auto">
+                {/* Paragraph 1 */}
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-2xl backdrop-blur-[2px]" style={{ backgroundColor: 'var(--bg-backdrop)' }}></div>
+                  <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
+                    <Calendar className="w-8 h-8 text-accent flex-shrink-0" />
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                        Automate Group Scheduling
+                      </h2>
+                      <p className="text-secondary">
+                        GroupMixer generates group schedules for multi-session events. Designed for workshops, conferences, and social mixers, it removes the need for manual planning and spreadsheet juggling.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Paragraph 2 */}
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-2xl backdrop-blur-[2px]" style={{ backgroundColor: 'var(--bg-backdrop)' }}></div>
+                  <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
+                    <GitBranch className="w-8 h-8 text-accent flex-shrink-0" />
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                        Maximize Encounters, Minimize Repeats
+                      </h2>
+                      <p className="text-secondary">
+                        The algorithm prioritizes unique interactions by reducing repeated encounters across sessions, helping participants meet as many new people as possible.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Paragraph 3 */}
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-2xl backdrop-blur-[2px]" style={{ backgroundColor: 'var(--bg-backdrop)' }}></div>
+                  <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
+                    <ListChecks className="w-8 h-8 text-accent flex-shrink-0" />
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                        Built for Real-World Constraints
+                      </h2>
+                      <p className="text-secondary">
+                        GroupMixer supports constraints such as grouping or separating specific participants, balancing by attributes like gender or speciality, and handling partial attendance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center mt-1 mb-3">
+                <Link to="/app">
+                  <button className="btn-primary text-xl sm:text-2xl px-8 sm:px-12 py-3 sm:py-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 inline-flex items-center gap-2">
+                    Get Started <ArrowRight className="w-6 h-6" />
+                  </button>
+                </Link>
+                <p className="text-tertiary text-sm mt-2">Free to use • No signup required • Works in your browser</p>
+              </div>
             </div>
           </div>
         </section>
@@ -75,7 +104,7 @@ const LandingPage: React.FC = () => {
           </h2>
           <p className="text-xl text-tertiary text-center mb-12 max-w-3xl mx-auto">
             From simple team rotations to complex multi-session conferences with hundreds of participants, 
-            Group Mixer handles it all with advanced optimization algorithms.
+            GroupMixer handles it all with advanced optimization algorithms.
           </p>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -155,7 +184,7 @@ const LandingPage: React.FC = () => {
             Perfect for Any Group-Based Event
           </h2>
           <p className="text-xl text-secondary text-center mb-12 max-w-3xl mx-auto">
-            Whether you're organizing a small workshop or a large conference, Group Mixer adapts to your needs.
+            Whether you're organizing a small workshop or a large conference, GroupMixer adapts to your needs.
           </p>
 
           <div className="grid md:grid-cols-2 gap-8">
@@ -257,7 +286,7 @@ const LandingPage: React.FC = () => {
             Built with Advanced Technology
           </h2>
           <p className="text-xl text-tertiary text-center mb-12 max-w-3xl mx-auto">
-            Group Mixer leverages cutting-edge optimization algorithms and modern web technologies 
+            GroupMixer leverages cutting-edge optimization algorithms and modern web technologies 
             to deliver fast, reliable results for even the most complex scheduling challenges.
           </p>
 
@@ -268,7 +297,7 @@ const LandingPage: React.FC = () => {
                 <h3 className="text-2xl font-semibold text-primary">The Social Golfer Problem</h3>
               </div>
               <p className="text-secondary mb-4">
-                Group Mixer solves a classic problem in combinatorial optimization known as the "Social Golfer Problem." 
+                GroupMixer solves a classic problem in combinatorial optimization known as the "Social Golfer Problem." 
                 This involves arranging people into groups across multiple sessions to maximize unique pairings.
               </p>
               <p className="text-secondary">
@@ -296,7 +325,7 @@ const LandingPage: React.FC = () => {
           <div className="mt-12 card p-8 text-center">
             <h3 className="text-2xl font-semibold text-primary mb-4">Open Source & Privacy-First</h3>
             <p className="text-secondary mb-6 max-w-3xl mx-auto">
-              Group Mixer is completely open source and runs entirely in your browser. 
+              GroupMixer is completely open source and runs entirely in your browser. 
               No data is sent to our servers - your participant information and group assignments remain completely private. 
               The entire optimization process happens locally on your device.
             </p>
@@ -317,7 +346,7 @@ const LandingPage: React.FC = () => {
             Ready to Optimize Your Group Scheduling?
           </h2>
           <p className="text-xl text-secondary mb-8 max-w-2xl mx-auto">
-            Join thousands of event organizers, educators, and team leaders who trust Group Mixer 
+            Join thousands of event organizers, educators, and team leaders who trust GroupMixer 
             to create better group experiences.
           </p>
           
