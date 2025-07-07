@@ -56,6 +56,7 @@ interface AppStore extends AppState {
   updateProblem: (updates: Partial<Problem>) => void;
   updateCurrentProblem: (problemId: string, problem: Problem) => void;
   GetProblem: () => Problem;
+  ensureProblemExists: () => Problem;
 
   // Solution management
   setSolution: (solution: Solution | null) => void;
@@ -266,6 +267,98 @@ export const useAppStore = create<AppStore>()(
           },
         }));
 
+        return emptyProblem;
+      },
+
+      ensureProblemExists: () => {
+        console.log("[Store] ensureProblemExists called");
+        const currentProblem = get().problem;
+        console.log("[Store] current problem:", currentProblem);
+        if (currentProblem) {
+          console.log("[Store] returning existing problem");
+          return currentProblem;
+        }
+
+        // Check if we have a current problem ID that should be loaded
+        const { currentProblemId, savedProblems } = get();
+        if (currentProblemId && savedProblems[currentProblemId]) {
+          const savedProblem = savedProblems[currentProblemId];
+          set({ problem: savedProblem.problem });
+          return savedProblem.problem;
+        }
+
+        // Check if there are any saved problems we can load
+        const allProblems = Object.values(savedProblems);
+        if (allProblems.length > 0) {
+          const firstProblem = allProblems[0];
+          problemStorage.setCurrentProblemId(firstProblem.id);
+          set({
+            problem: firstProblem.problem,
+            currentProblemId: firstProblem.id,
+          });
+          return firstProblem.problem;
+        }
+
+        console.log("[Store] No problem exists, creating new one");
+
+        // Create a new problem if none exists
+        const defaultSettings = {
+          solver_type: "SimulatedAnnealing",
+          stop_conditions: {
+            max_iterations: 10000,
+            time_limit_seconds: 30,
+            no_improvement_iterations: 5000,
+          },
+          solver_params: {
+            SimulatedAnnealing: {
+              initial_temperature: 1.0,
+              final_temperature: 0.01,
+              cooling_schedule: "geometric",
+              reheat_after_no_improvement: 0,
+            },
+          },
+        } as SolverSettings;
+
+        const emptyProblem: Problem = {
+          people: [],
+          groups: [],
+          num_sessions: 3,
+          constraints: [],
+          settings: defaultSettings,
+        };
+
+        console.log("[Store] Creating new problem:", emptyProblem);
+
+        // Create and save the new problem
+        const newSaved = problemStorage.createProblem(
+          "Untitled Problem",
+          emptyProblem
+        );
+        problemStorage.setCurrentProblemId(newSaved.id);
+
+        console.log("[Store] New problem saved with ID:", newSaved.id);
+
+        // Update the store state
+        set((state) => ({
+          problem: emptyProblem,
+          currentProblemId: newSaved.id,
+          savedProblems: {
+            ...state.savedProblems,
+            [newSaved.id]: newSaved,
+          },
+        }));
+
+        console.log("[Store] Store state updated");
+
+        // Notify user that a new problem was created
+        get().addNotification({
+          type: "info",
+          title: "New Problem Created",
+          message:
+            "A new untitled problem has been created for you to work with.",
+        });
+
+        console.log("[Store] Notification sent, returning problem");
         return emptyProblem;
       },
 
@@ -620,7 +713,17 @@ export const useAppStore = create<AppStore>()(
       },
 
       addResult: (solution, solverSettings, customName) => {
-        const { currentProblemId } = get();
+        const { currentProblemId, savedProblems } = get();
+        console.log(
+          "[Store] addResult called with currentProblemId:",
+          currentProblemId
+        );
+        console.log("[Store] savedProblems keys:", Object.keys(savedProblems));
+        console.log(
+          "[Store] current problem in savedProblems:",
+          currentProblemId ? savedProblems[currentProblemId] : null
+        );
+
         if (!currentProblemId) {
           get().addNotification({
             type: "error",
@@ -629,6 +732,23 @@ export const useAppStore = create<AppStore>()(
               "Please save the current problem first before adding results.",
           });
           return;
+        }
+
+        if (currentProblemId && !savedProblems[currentProblemId]) {
+          console.log(
+            "[Store] Problem not found in savedProblems, reloading..."
+          );
+          get().loadSavedProblems();
+          // Try again after reloading
+          const { savedProblems: reloadedProblems } = get();
+          if (currentProblemId && !reloadedProblems[currentProblemId]) {
+            get().addNotification({
+              type: "error",
+              title: "Save Result Failed",
+              message: "Problem not found in saved problems.",
+            });
+            return;
+          }
         }
 
         try {
@@ -640,18 +760,24 @@ export const useAppStore = create<AppStore>()(
           );
 
           // Update the store with the new result
-          set((state) => ({
-            savedProblems: {
-              ...state.savedProblems,
-              [currentProblemId]: {
-                ...state.savedProblems[currentProblemId],
-                results: [
-                  ...state.savedProblems[currentProblemId].results,
-                  result,
-                ],
+          set((state) => {
+            const currentProblem = state.savedProblems[currentProblemId];
+            console.log("[Store] Current problem in state:", currentProblem);
+            console.log(
+              "[Store] Current problem results:",
+              currentProblem?.results
+            );
+
+            return {
+              savedProblems: {
+                ...state.savedProblems,
+                [currentProblemId]: {
+                  ...currentProblem,
+                  results: [...(currentProblem?.results || []), result],
+                },
               },
-            },
-          }));
+            };
+          });
 
           get().addNotification({
             type: "success",

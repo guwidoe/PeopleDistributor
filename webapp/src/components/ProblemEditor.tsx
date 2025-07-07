@@ -2858,7 +2858,7 @@ export function ProblemEditor() {
               <div className="p-4 pt-0">
                 <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
                   Objectives tell the solver what to optimize for. Multiple objectives can be combined with different
-                  weights to create a custom scoring function. Currently the solver supports the
+                  weights to create a custom scoring function. Currently the solver only supports the
                   <strong> &nbsp;Maximize Unique Contacts&nbsp;</strong> objective.
                 </p>
               </div>

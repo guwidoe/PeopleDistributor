@@ -5,9 +5,14 @@ import type { SolverSettings } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';
 import { Tooltip } from './Tooltip';
+import { problemStorage } from '../services/problemStorage';
 
 export function SolverPanel() {
-  const { problem, solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, currentProblemId, updateProblem } = useAppStore();
+  const { solverState, startSolver, stopSolver, resetSolver, setSolverState, setSolution, addNotification, addResult, updateProblem, ensureProblemExists } = useAppStore();
+  
+  // Get the current problem and currentProblemId from the store reactively
+  const problem = useAppStore((state) => state.problem);
+  const currentProblemId = useAppStore((state) => state.currentProblemId);
   const [showSettings, setShowSettings] = useState(false);
   // Metrics pane expanded state, persisted in localStorage for better UX
   const [showMetrics, setShowMetrics] = useState<boolean>(() => {
@@ -124,16 +129,15 @@ export function SolverPanel() {
   // Starts the solver. If `useRecommended` is true we first fetch automatic settings
   // using `get_recommended_settings` for the specified `desiredRuntime` seconds.
   const handleStartSolver = async (useRecommended: boolean = true) => {
-    if (!problem) {
-      addNotification({
-        type: 'error',
-        title: 'No Problem',
-        message: 'Please configure a problem first',
-      });
-      return;
-    }
-
-    if (!problem.people || problem.people.length === 0) {
+    console.log('[SolverPanel] handleStartSolver called, current problem:', problem);
+    console.log('[SolverPanel] currentProblemId at start:', currentProblemId);
+    
+    // Ensure a problem exists - this will create one if none exists
+    const currentProblem = ensureProblemExists();
+    console.log('[SolverPanel] ensureProblemExists returned:', currentProblem);
+    console.log('[SolverPanel] currentProblemId after ensureProblemExists:', currentProblemId);
+    
+    if (!currentProblem.people || currentProblem.people.length === 0) {
       addNotification({
         type: 'error',
         title: 'No People',
@@ -142,7 +146,7 @@ export function SolverPanel() {
       return;
     }
 
-    if (!problem.groups || problem.groups.length === 0) {
+    if (!currentProblem.groups || currentProblem.groups.length === 0) {
       addNotification({
         type: 'error',
         title: 'No Groups',
@@ -169,7 +173,7 @@ export function SolverPanel() {
       if (useRecommended) {
         try {
           // 1️⃣ Fetch recommended settings from the WASM backend
-          const rawSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeMain ?? 3);
+          const rawSettings = await solverWorkerService.get_recommended_settings(currentProblem, desiredRuntimeMain ?? 3);
 
           // 2️⃣ Convert the flattened `solver_params` coming from Rust into the nested UI shape
           const sp = (rawSettings as SolverSettings & { solver_params: Record<string, unknown> }).solver_params;
@@ -206,7 +210,7 @@ export function SolverPanel() {
 
       // Create the problem with the chosen solver settings
       const problemWithSettings = {
-        ...problem,
+        ...currentProblem,
         settings: selectedSettings,
       };
 
@@ -345,8 +349,22 @@ export function SolverPanel() {
       });
 
       // Automatically save result if there's a current problem
+      console.log('[SolverPanel] About to save result, currentProblemId:', currentProblemId);
+      console.log('[SolverPanel] Problem exists:', !!problem);
       if (currentProblemId) {
+        console.log('[SolverPanel] Saving result to problem:', currentProblemId);
         addResult(solution, selectedSettings);
+      } else {
+        console.log('[SolverPanel] No currentProblemId, result not saved');
+        // If we have a problem but no currentProblemId, we should save it
+        if (problem) {
+          console.log('[SolverPanel] Creating new problem to save result');
+          const newSaved = problemStorage.createProblem("Untitled Problem", problem);
+          problemStorage.setCurrentProblemId(newSaved.id);
+          // Update the store by calling the store's set method
+          useAppStore.setState({ currentProblemId: newSaved.id });
+          addResult(solution, selectedSettings);
+        }
       }
 
     } catch (error) {
@@ -429,9 +447,11 @@ export function SolverPanel() {
   };
 
   const handleAutoSetSettings = async () => {
-    if (!problem) return;
+    // Ensure a problem exists - this will create one if none exists
+    const currentProblem = ensureProblemExists();
+    
     try {
-      const recommendedSettings = await solverWorkerService.get_recommended_settings(problem, desiredRuntimeSettings);
+      const recommendedSettings = await solverWorkerService.get_recommended_settings(currentProblem, desiredRuntimeSettings);
 
       // Transform solver_params to UI structure if returned in flattened form
       let uiSettings: SolverSettings = recommendedSettings as SolverSettings;
@@ -888,9 +908,12 @@ export function SolverPanel() {
           </div>
           {!solverState.isRunning ? (
             <button
-              onClick={() => handleStartSolver(true)}
+              onClick={() => {
+                console.log('[SolverPanel] Start Solver button clicked');
+                handleStartSolver(true);
+              }}
               className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem || !problem.people?.length || !problem.groups?.length}
+              disabled={!problem}
             >
               <Play className="h-4 w-4" />
               <span>Start Solver</span>
