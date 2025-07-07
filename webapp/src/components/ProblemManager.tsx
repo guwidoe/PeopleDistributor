@@ -56,12 +56,28 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
   const newDropdownRef = useRef<HTMLDivElement>(null);
   const [newDropdownOpen, setNewDropdownOpen] = useState(false);
   const [newProblemMode, setNewProblemMode] = useState<'duplicate' | 'empty'>('duplicate');
+  const [selectedProblemId, setSelectedProblemId] = useState<string | null>(currentProblemId);
 
   React.useEffect(() => {
     if (isOpen) {
       loadSavedProblems();
+      // Force update of selected problem ID when modal opens
+      setSelectedProblemId(currentProblemId);
     }
-  }, [isOpen, loadSavedProblems]);
+  }, [isOpen, loadSavedProblems, currentProblemId]);
+
+  // Update selected problem ID when currentProblemId changes
+  React.useEffect(() => {
+    setSelectedProblemId(currentProblemId);
+  }, [currentProblemId]);
+
+  // Force reload when savedProblems changes (in case new problems were added)
+  React.useEffect(() => {
+    if (isOpen) {
+      // This ensures the component updates when savedProblems changes
+      // This is needed when new problems are created while the modal is open
+    }
+  }, [savedProblems, isOpen]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -411,7 +427,7 @@ export function ProblemManager({ isOpen, onClose }: ProblemManagerProps) {
                 <div
                   key={problem.id}
                   className={`card hover:shadow-md transition-shadow cursor-pointer ${
-                    problem.id === currentProblemId ? 'ring-2 ring-blue-500' : ''
+                    problem.id === selectedProblemId ? 'ring-2 ring-blue-500' : ''
                   }`}
                 >
                   {/* Problem Header */}

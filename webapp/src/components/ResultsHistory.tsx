@@ -590,15 +590,15 @@ export function ResultsHistory() {
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
-                            <div className={`font-medium ${repColorClass}`}>{repPenalty === 0 ? repPenalty.toFixed(2) : `-${repPenalty.toFixed(2)}`}</div>
+                            <div className={`font-medium ${repColorClass}`}>{repPenalty.toFixed(2)}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Balance Penalty</div>
-                            <div className={`font-medium ${balColorClass}`}>{balPenalty === 0 ? balPenalty.toFixed(2) : `-${balPenalty.toFixed(2)}`}</div>
+                            <div className={`font-medium ${balColorClass}`}>{balPenalty.toFixed(2)}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</div>
-                            <div className={`font-medium ${conColorClass}`}>{conPenalty === 0 ? conPenalty.toFixed(2) : `-${conPenalty.toFixed(2)}`}</div>
+                            <div className={`font-medium ${conColorClass}`}>{conPenalty.toFixed(2)}</div>
                           </div>
                         </div>
                       </div>

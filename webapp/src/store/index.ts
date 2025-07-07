@@ -1353,10 +1353,10 @@ export const useAppStore = create<AppStore>()(
             mergeAttributeDefinitions,
           } = await import("../services/demoDataService");
 
-          const problem = await loadDemoCase(demoCaseId);
+          const demoProblem = await loadDemoCase(demoCaseId);
 
           // Extract attributes from the loaded problem
-          const extractedAttributes = extractAttributesFromProblem(problem);
+          const extractedAttributes = extractAttributesFromProblem(demoProblem);
 
           // Merge with existing attribute definitions
           const currentAttributes = get().attributeDefinitions;
@@ -1365,33 +1365,53 @@ export const useAppStore = create<AppStore>()(
             extractedAttributes
           );
 
-          // Save current problem if it has content
+          // Save current problem if it has content (keep its existing name)
           const currentProblem = get().problem;
+          const currentProblemId = get().currentProblemId;
           if (
             currentProblem &&
             (currentProblem.people.length > 0 ||
               currentProblem.groups.length > 0)
           ) {
             try {
-              const savedProblem = problemStorage.createProblem(
-                "Previous Problem",
-                currentProblem
-              );
-              set((state) => ({
-                savedProblems: {
-                  ...state.savedProblems,
-                  [savedProblem.id]: savedProblem,
-                },
-              }));
+              // If current problem is already saved, just update it
+              if (currentProblemId) {
+                get().updateCurrentProblem(currentProblemId, currentProblem);
+              } else {
+                // If not saved, create a new saved problem with a generic name
+                const savedProblem = problemStorage.createProblem(
+                  "Untitled Problem",
+                  currentProblem
+                );
+                set((state) => ({
+                  savedProblems: {
+                    ...state.savedProblems,
+                    [savedProblem.id]: savedProblem,
+                  },
+                }));
+              }
             } catch (error) {
               console.error("Failed to save current problem:", error);
             }
           }
 
-          // Update the store with both the problem and the merged attributes
+          // Create a new problem with the demo data
+          const newSavedProblem = problemStorage.createProblem(
+            "Unnamed Problem",
+            demoProblem
+          );
+
+          // Update the store with the new problem and merged attributes
+          const updatedSavedProblems = {
+            ...get().savedProblems,
+            [newSavedProblem.id]: newSavedProblem,
+          };
+
           set({
-            problem,
+            problem: demoProblem,
+            currentProblemId: newSavedProblem.id,
             attributeDefinitions: mergedAttributes,
+            savedProblems: updatedSavedProblems,
           });
 
           // Check if any new attributes were added
@@ -1404,7 +1424,7 @@ export const useAppStore = create<AppStore>()(
             )
             .map((attr) => attr.key);
 
-          let message = `Loaded demo case in new problem: ${problem.people.length} people and ${problem.groups.length} groups`;
+          let message = `Loaded demo case in new problem: ${demoProblem.people.length} people and ${demoProblem.groups.length} groups`;
           if (newAttributeKeys.length > 0) {
             message += `. Added new attributes: ${newAttributeKeys.join(", ")}`;
           }
@@ -1413,7 +1433,11 @@ export const useAppStore = create<AppStore>()(
             (currentProblem.people.length > 0 ||
               currentProblem.groups.length > 0)
           ) {
-            message += `. Previous problem saved as "Previous Problem"`;
+            if (currentProblemId) {
+              message += `. Current problem "${currentProblemId}" has been saved`;
+            } else {
+              message += `. Current problem saved as "Untitled Problem"`;
+            }
           }
 
           get().addNotification({
