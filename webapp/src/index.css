@@ -70,7 +70,8 @@
   --badge-best-bg: #e0f2fe; /* Light blue for best badge in light mode */
   --color-accent-hover: #1d4ed8;
   --number-input-spinner-color: #374151; /* Gray for light mode */
-  --bg-backdrop: rgba(255, 255, 255, 0.8); /* Translucent white for light mode */
+  --bg-backdrop-rgb: 255, 255, 255;
+  --bg-backdrop: rgba(var(--bg-backdrop-rgb), 0.8); /* Translucent white for light mode */
   }
 
   /* Dark theme variables */
@@ -92,7 +93,8 @@
     --badge-best-text: #6ee7b7;
     --color-accent-hover: #3b82f6;
     --number-input-spinner-color: #bfc7d5; /* Lighter gray for dark mode */
-    --bg-backdrop: rgba(0, 0, 0, 0.6); /* Translucent black for dark mode */
+    --bg-backdrop-rgb: 0, 0, 0;
+    --bg-backdrop: rgba(var(--bg-backdrop-rgb), 0.6); /* Translucent black for dark mode */
   }
 
   .dark .label {

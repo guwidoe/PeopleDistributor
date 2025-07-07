@@ -8,6 +8,7 @@ interface Dot {
   progress: number; // 0..1
   cx: number; // control point for quadratic Bézier curve
   cy: number;
+  path: { x: number; y: number }[]; // Stores recent points for trail drawing
 }
 
 const NUM_CIRCLES = 11;
@@ -17,14 +18,12 @@ const DOT_COLORS = Array.from({ length: 84 }, (_, i) => {
   return `hsl(${hue}, 90%, 55%)`;
 });
 const MOVE_DURATION = 4000; // ms
-
-const FADE_ALPHA = 0.042; // ~16% faster fade (tails last ~1/6 less time)
+const MAX_TRAIL_LENGTH = 80; // Trails linger 20% less
 
 const GraphBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
-  // no need to track cycle phase anymore
   const dotsRef = useRef<Dot[]>([]);
 
   useEffect(() => {
@@ -40,12 +39,11 @@ const GraphBackground: React.FC = () => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Precompute circle centres
     const circles: { x: number; y: number; r: number }[] = [];
     const computeCircles = () => {
       circles.length = 0;
       const { width, height } = canvas;
-      const R = Math.min(width, height) * 0.45; // wider spread radius
+      const R = Math.min(width, height) * 0.45;
       const centerX = width / 2;
       const centerY = height / 2;
       const smallRadius = Math.min(width, height) * 0.05;
@@ -59,16 +57,13 @@ const GraphBackground: React.FC = () => {
     computeCircles();
 
     const randomControlPoint = (p0: { x: number; y: number }, p1: { x: number; y: number }) => {
-      // Choose a control point somewhere near the midpoint, offset perpendicular
       const mx = (p0.x + p1.x) / 2;
       const my = (p0.y + p1.y) / 2;
-      // perpendicular vector
       const dx = p1.y - p0.y;
       const dy = -(p1.x - p0.x);
       const len = Math.hypot(dx, dy) || 1;
       const normX = dx / len;
       const normY = dy / len;
-      // random magnitude up to 30% of distance between circles
       const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
       const magnitude = (Math.random() * 0.3 + 0.1) * dist;
       return { cx: mx + normX * magnitude, cy: my + normY * magnitude };
@@ -79,7 +74,7 @@ const GraphBackground: React.FC = () => {
       const currentCircle = idx % NUM_CIRCLES;
       const targetCircle = (currentCircle + 1) % NUM_CIRCLES;
       const { cx, cy } = randomControlPoint(circles[currentCircle], circles[targetCircle]);
-      return { color, currentCircle, targetCircle, progress: 0, cx, cy };
+      return { color, currentCircle, targetCircle, progress: 0, cx, cy, path: [] };
     };
 
     dotsRef.current = Array.from({ length: DOT_COLORS.length }).map((_, idx) => initDot(idx));
@@ -94,14 +89,12 @@ const GraphBackground: React.FC = () => {
       const dt = ts - lastTimeRef.current;
       lastTimeRef.current = ts;
 
-      // Get current theme state directly in the animation loop to avoid re-renders
       const isDarkNow = useThemeStore.getState().isDark;
 
-      const fadeRGB = isDarkNow ? '0,0,0' : '255,255,255';
-      ctx.fillStyle = `rgba(${fadeRGB},${FADE_ALPHA})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Clear the entire canvas each frame to prevent residue
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw circle outlines adapting to theme
+      // Draw circle outlines
       ctx.strokeStyle = isDarkNow ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
       ctx.lineWidth = 2;
       circles.forEach(({ x, y, r }) => {
@@ -117,7 +110,6 @@ const GraphBackground: React.FC = () => {
           dot.currentCircle = dot.targetCircle;
           dot.targetCircle = pickNewTarget(dot.currentCircle);
           dot.progress = 0;
-          // new control point
           const cp = randomControlPoint(circles[dot.currentCircle], circles[dot.targetCircle]);
           dot.cx = cp.cx;
           dot.cy = cp.cy;
@@ -126,14 +118,36 @@ const GraphBackground: React.FC = () => {
         const start = circles[dot.currentCircle];
         const end = circles[dot.targetCircle];
         const t = dot.progress;
-        // quadratic Bézier interpolation
         const oneMinusT = 1 - t;
         const x = oneMinusT * oneMinusT * start.x + 2 * oneMinusT * t * dot.cx + t * t * end.x;
         const y = oneMinusT * oneMinusT * start.y + 2 * oneMinusT * t * dot.cy + t * t * end.y;
 
+        // Add current position to path and trim if too long
+        dot.path.push({ x, y });
+        if (dot.path.length > MAX_TRAIL_LENGTH) {
+          dot.path.shift();
+        }
+
+        // Draw the trail from the stored path
+        if (dot.path.length > 1) {
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          for (let i = 1; i < dot.path.length; i++) {
+            const segmentAlpha = Math.pow(i / MAX_TRAIL_LENGTH, 2);
+            const trailColor = dot.color.replace('hsl(', 'hsla(').replace(')', `, ${segmentAlpha})`);
+            ctx.strokeStyle = trailColor;
+            ctx.lineWidth = 7; // A tiny bit bigger
+            ctx.beginPath();
+            ctx.moveTo(dot.path[i - 1].x, dot.path[i - 1].y);
+            ctx.lineTo(dot.path[i].x, dot.path[i].y);
+            ctx.stroke();
+          }
+        }
+
+        // Draw the head of the dot
         ctx.fillStyle = dot.color;
         ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2); // A tiny bit bigger
         ctx.fill();
       });
 
