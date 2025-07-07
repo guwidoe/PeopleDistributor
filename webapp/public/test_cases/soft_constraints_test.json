@@ -40,7 +40,7 @@
         "penalty_weight": 5.0
       },
       {
-        "type": "CannotBeTogether",
+        "type": "ShouldNotBeTogether",
         "people": ["maya", "ethan"],
         "penalty_weight": 10.0
       }

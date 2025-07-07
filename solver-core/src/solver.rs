@@ -2503,7 +2503,7 @@ impl State {
             if violation_count > 0 {
                 let weight = self.forbidden_pair_weights[pair_idx];
                 breakdown.push_str(&format!(
-                    "\n  CannotBeTogether[{}]: {} (weight: {:.1})",
+                    "\n  ShouldNotBeTogether[{}]: {} (weight: {:.1})",
                     pair_idx, violation_count, weight
                 ));
                 has_constraints = true;
@@ -2738,7 +2738,7 @@ impl State {
             .collect();
         new_to_members.extend_from_slice(clique);
 
-        // Check CannotBeTogether constraints
+        // Check ShouldNotBeTogether constraints
         for (pair_idx, &(person1, person2)) in self.forbidden_pairs.iter().enumerate() {
             let pair_weight = self.forbidden_pair_weights[pair_idx];
 

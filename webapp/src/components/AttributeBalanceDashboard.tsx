@@ -100,7 +100,7 @@ const AttributeBalanceDashboard: React.FC<Props> = ({ constraints, problem }) =>
         return (
           <div key={attr} className="space-y-1">
             <h5 className="font-medium capitalize" style={{ color: 'var(--text-primary)' }}>
-              {attr}: {totalAllocated} / {totalAvailable || '—'} total
+              {attr}: {totalAllocated} / {totalAvailable || '0'} allocated
             </h5>
 
             {Object.entries(data.valueWeightCounts).map(([val, weightMap]) => {

@@ -37,7 +37,7 @@
         "penalty_weight": 1000.0
       },
       {
-        "type": "CannotBeTogether",
+        "type": "ShouldNotBeTogether",
         "people": ["charlie", "diana"],
         "penalty_weight": 1000.0,
         "sessions": [0, 2]
