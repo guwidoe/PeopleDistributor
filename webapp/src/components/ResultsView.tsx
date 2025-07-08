@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../store';
 import { 
   BarChart3, 
@@ -6,14 +6,15 @@ import {
   Target, 
   AlertTriangle, 
   Hash,
-  Eye,
-  EyeOff,
   Download,
   RefreshCw,
   PieChart,
   CheckCircle,
   XCircle,
-  Info
+  Info,
+  ChevronDown,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Constraint, Person } from '../types';
 import { Tooltip } from './Tooltip';
@@ -22,7 +23,22 @@ import PersonCard from './PersonCard';
 export function ResultsView() {
   const { problem, solution, solverState, currentProblemId, savedProblems } = useAppStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showDetails, setShowDetails] = useState(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setExportDropdownOpen(false);
+      }
+    };
+
+    if (exportDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [exportDropdownOpen]);
 
   // Derive the name of the currently displayed result (if any)
   const resultName = useMemo(() => {
@@ -193,25 +209,97 @@ export function ResultsView() {
     );
   }
 
-  const handleExportResults = () => {
-    const exportData = {
-      problem,
-      solution,
-      timestamp: new Date().toISOString(),
-    };
-    
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-    
+  const downloadFile = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `optimization-results-${Date.now()}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const generateCSV = () => {
+    if (!problem || !solution) return '';
+    
+    const headers = [
+      'Person ID',
+      'Group ID', 
+      'Session',
+      'Person Name',
+      'Person Attributes'
+    ];
+
+    const rows = solution.assignments.map(assignment => {
+      const person = problem.people.find(p => p.id === assignment.person_id);
+      const personName = person?.attributes.name || assignment.person_id;
+      const personAttrs = person ? Object.entries(person.attributes)
+        .filter(([key]) => key !== 'name')
+        .map(([key, value]) => `${key}:${value}`)
+        .join('; ') : '';
+
+      return [
+        assignment.person_id,
+        assignment.group_id,
+        assignment.session_id + 1, // Convert to 1-based for user display
+        personName,
+        personAttrs
+      ];
+    });
+
+    // Add metadata at the top
+    const metadata = [
+      ['Result Name', resultName || 'Current Result'],
+      ['Export Date', new Date().toISOString()],
+      ['Final Score', solution.final_score.toFixed(2)],
+      ['Unique Contacts', solution.unique_contacts.toString()],
+      ['Iterations', solution.iteration_count.toLocaleString()],
+      ['Repetition Penalty', (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(2)],
+      ['Balance Penalty', solution.attribute_balance_penalty.toFixed(2)],
+      ['Constraint Penalty', (solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(2)],
+      [], // Empty row
+      headers
+    ];
+
+    const allRows = [...metadata, ...rows];
+    
+    return allRows.map(row => 
+      row.map(cell => 
+        typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+          ? `"${cell.replace(/"/g, '""')}"` 
+          : cell
+      ).join(',')
+    ).join('\n');
+  };
+
+  const handleExportResult = (format: 'json' | 'csv' | 'excel') => {
+    if (!problem || !solution) return;
+    
+    const fileName = (resultName || 'result').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    
+    if (format === 'json') {
+      const exportData = {
+        problem,
+        solution,
+        exportedAt: Date.now(),
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
+      });
+      downloadFile(blob, `${fileName}.json`);
+    } else if (format === 'csv') {
+      const csvData = generateCSV();
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      downloadFile(blob, `${fileName}.csv`);
+    } else if (format === 'excel') {
+      const csvData = generateCSV();
+      const blob = new Blob([csvData], { type: 'application/vnd.ms-excel' });
+      downloadFile(blob, `${fileName}.xls`);
+    }
+    
+    setExportDropdownOpen(false);
   };
 
   // Group assignments by session for display
@@ -447,20 +535,64 @@ export function ResultsView() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
-          >
-            {showDetails ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {showDetails ? 'Hide' : 'Show'} Details
-          </button>
-          <button
-            onClick={handleExportResults}
-            className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+              className="btn-secondary flex items-center gap-2 justify-center sm:justify-start"
+            >
+              <Download className="h-4 w-4" />
+              <span>Export</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            
+            {exportDropdownOpen && (
+              <div className="absolute right-0 mt-1 w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
+                   style={{ 
+                     backgroundColor: 'var(--bg-primary)', 
+                     borderColor: 'var(--border-primary)' 
+                   }}>
+                <button
+                  onClick={() => handleExportResult('json')}
+                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                  style={{ 
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <span>Export as JSON</span>
+                </button>
+                <button
+                  onClick={() => handleExportResult('csv')}
+                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                  style={{ 
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <span>Export as CSV</span>
+                </button>
+                <button
+                  onClick={() => handleExportResult('excel')}
+                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                  style={{ 
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                  <span>Export as Excel</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -472,63 +604,6 @@ export function ResultsView() {
         {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, getColorClass((solution.weighted_repetition_penalty ?? solution.repetition_penalty) / ((solverState.currentRepetitionPenalty ?? (solution.weighted_repetition_penalty ?? solution.repetition_penalty)) || 1), true))}
         {renderMetricCard("Constraint Penalty", finalConstraintPenalty.toFixed(1), AlertTriangle, constraintColorClass)}
       </div>
-
-      {/* Detailed Breakdown */}
-      {showDetails && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-            <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text-primary)' }}>Score Breakdown</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Unique Contacts</span>
-                <span className="font-medium text-green-600">+{solution.unique_contacts}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</span>
-                <span className="font-medium text-orange-600">-{(solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Attribute Balance Penalty</span>
-                <span className="font-medium text-purple-600">-{solution.attribute_balance_penalty}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraint Penalty</span>
-                <span className="font-medium text-red-600">-{(solution.weighted_constraint_penalty ?? solution.constraint_penalty).toFixed(2)}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between items-center">
-                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Final Score</span>
-                <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>{solution.final_score.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
-            <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text-primary)' }}>Problem Summary</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total People</span>
-                <span className="font-medium">{problem?.people.length || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Groups</span>
-                <span className="font-medium">{problem?.groups.length || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sessions</span>
-                <span className="font-medium">{problem?.num_sessions || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraints</span>
-                <span className="font-medium">{problem?.constraints.length || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Assignments</span>
-                <span className="font-medium">{solution.assignments.length}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Constraint Compliance */}
       <div className="rounded-lg border p-6 transition-colors" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}>
