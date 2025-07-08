@@ -3,6 +3,7 @@ import type {
   Problem,
   ProblemResult,
   ProblemSummary,
+  ProblemSnapshot,
   ExportedProblem,
   SolverSettings,
   Solution,
@@ -11,6 +12,89 @@ import type {
 const STORAGE_KEY = "people-distributor-problems";
 const CURRENT_PROBLEM_KEY = "people-distributor-current-problem";
 const VERSION = "1.0.0";
+
+// Utility function to compare problem configurations
+export interface ProblemConfigDifference {
+  isDifferent: boolean;
+  changes: {
+    people?: boolean;
+    groups?: boolean;
+    num_sessions?: boolean;
+    objectives?: boolean;
+    constraints?: boolean;
+  };
+  details: {
+    people?: string;
+    groups?: string;
+    num_sessions?: string;
+    objectives?: string;
+    constraints?: string;
+  };
+}
+
+export function compareProblemConfigurations(
+  current: Problem,
+  snapshot: ProblemSnapshot | undefined
+): ProblemConfigDifference {
+  if (!snapshot) {
+    return {
+      isDifferent: true,
+      changes: {},
+      details: {
+        people: "No configuration saved with this result",
+        groups: "No configuration saved with this result",
+        num_sessions: "No configuration saved with this result",
+        objectives: "No configuration saved with this result",
+        constraints: "No configuration saved with this result",
+      },
+    };
+  }
+
+  const changes: ProblemConfigDifference["changes"] = {};
+  const details: ProblemConfigDifference["details"] = {};
+
+  // Compare people
+  if (JSON.stringify(current.people) !== JSON.stringify(snapshot.people)) {
+    changes.people = true;
+    details.people = `People configuration changed (${current.people.length} now vs ${snapshot.people.length} when result was created)`;
+  }
+
+  // Compare groups
+  if (JSON.stringify(current.groups) !== JSON.stringify(snapshot.groups)) {
+    changes.groups = true;
+    details.groups = `Groups configuration changed (${current.groups.length} now vs ${snapshot.groups.length} when result was created)`;
+  }
+
+  // Compare num_sessions
+  if (current.num_sessions !== snapshot.num_sessions) {
+    changes.num_sessions = true;
+    details.num_sessions = `Number of sessions changed (${current.num_sessions} now vs ${snapshot.num_sessions} when result was created)`;
+  }
+
+  // Compare objectives
+  if (
+    JSON.stringify(current.objectives) !== JSON.stringify(snapshot.objectives)
+  ) {
+    changes.objectives = true;
+    details.objectives = "Objectives configuration changed";
+  }
+
+  // Compare constraints
+  if (
+    JSON.stringify(current.constraints) !== JSON.stringify(snapshot.constraints)
+  ) {
+    changes.constraints = true;
+    details.constraints = `Constraints changed (${current.constraints.length} now vs ${snapshot.constraints.length} when result was created)`;
+  }
+
+  const isDifferent = Object.keys(changes).length > 0;
+
+  return {
+    isDifferent,
+    changes,
+    details,
+  };
+}
 
 export class ProblemStorageService {
   private autoSaveTimeout: number | null = null;
@@ -116,7 +200,8 @@ export class ProblemStorageService {
     problemId: string,
     solution: Solution,
     solverSettings: SolverSettings,
-    customName?: string
+    customName?: string,
+    currentProblemState?: Problem // Optional: pass current problem state to avoid stale data
   ): ProblemResult {
     const savedProblem = this.getProblem(problemId);
     if (!savedProblem) {
@@ -126,11 +211,24 @@ export class ProblemStorageService {
     const resultIds = new Set<string>(savedProblem.results.map((r) => r.id));
     const id = this.generateGloballyUniqueId(resultIds);
 
+    // Use the current problem state if provided, otherwise fall back to saved state
+    const problemToSnapshot = currentProblemState || savedProblem.problem;
+
+    // Capture the current problem configuration as a snapshot
+    const problemSnapshot = {
+      people: problemToSnapshot.people,
+      groups: problemToSnapshot.groups,
+      num_sessions: problemToSnapshot.num_sessions,
+      objectives: problemToSnapshot.objectives,
+      constraints: problemToSnapshot.constraints,
+    };
+
     const result: ProblemResult = {
       id,
       name: customName || `Result ${savedProblem.results.length + 1}`,
       solution,
       solverSettings,
+      problemSnapshot,
       timestamp: Date.now(),
       duration: solution.elapsed_time_ms,
     };
@@ -344,6 +442,44 @@ export class ProblemStorageService {
   clearAllData(): void {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(CURRENT_PROBLEM_KEY);
+  }
+
+  // Migration utility: populate problemSnapshot for existing results
+  // This uses the current problem configuration as a fallback for old results
+  // Note: This is not perfect since we don't know the exact configuration when old results were created
+  migrateResultsAddProblemSnapshot(problemId: string): void {
+    const savedProblem = this.getProblem(problemId);
+    if (!savedProblem) {
+      throw new Error(`Problem with ID ${problemId} not found`);
+    }
+
+    let hasChanges = false;
+
+    // Add problemSnapshot to results that don't have it
+    savedProblem.results.forEach((result) => {
+      if (!result.problemSnapshot) {
+        result.problemSnapshot = {
+          people: savedProblem.problem.people,
+          groups: savedProblem.problem.groups,
+          num_sessions: savedProblem.problem.num_sessions,
+          objectives: savedProblem.problem.objectives,
+          constraints: savedProblem.problem.constraints,
+        };
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      this.saveProblem(savedProblem);
+    }
+  }
+
+  // Migration utility: migrate all problems to add problemSnapshot to results
+  migrateAllProblemsAddProblemSnapshot(): void {
+    const allProblems = this.getAllProblems();
+    Object.keys(allProblems).forEach((problemId) => {
+      this.migrateResultsAddProblemSnapshot(problemId);
+    });
   }
 }
 

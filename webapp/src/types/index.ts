@@ -188,11 +188,23 @@ export interface SolverState {
 }
 
 // Problem Management types
+
+// Snapshot of problem configuration when result was created
+export interface ProblemSnapshot {
+  people: Person[];
+  groups: Group[];
+  num_sessions: number;
+  objectives?: Objective[];
+  constraints: Constraint[];
+  // Note: settings are already stored separately in ProblemResult.solverSettings
+}
+
 export interface ProblemResult {
   id: string;
   name?: string; // Custom name or auto-generated
   solution: Solution;
   solverSettings: SolverSettings;
+  problemSnapshot?: ProblemSnapshot; // Optional for backwards compatibility
   timestamp: number; // Unix timestamp when result was created
   duration: number; // Actual solve time in milliseconds
 }

@@ -460,6 +460,14 @@ export const useAppStore = create<AppStore>()(
 
       // Problem Management actions
       loadSavedProblems: () => {
+        // Migrate existing results to add problemSnapshot if needed
+        try {
+          problemStorage.migrateAllProblemsAddProblemSnapshot();
+        } catch (error) {
+          console.warn("Failed to migrate problem snapshots:", error);
+        }
+
+        // Load problems after migration
         const savedProblems = problemStorage.getAllProblems();
 
         const currentProblemId =
@@ -715,7 +723,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       addResult: (solution, solverSettings, customName) => {
-        const { currentProblemId, savedProblems } = get();
+        const { currentProblemId, savedProblems, problem } = get();
         console.log(
           "[Store] addResult called with currentProblemId:",
           currentProblemId
@@ -754,14 +762,16 @@ export const useAppStore = create<AppStore>()(
         }
 
         try {
+          // Pass the current problem state to ensure we capture the latest configuration
           const result = problemStorage.addResult(
             currentProblemId,
             solution,
             solverSettings,
-            customName
+            customName,
+            problem || undefined // Pass current problem state to avoid stale data
           );
 
-          // Update the store with the new result
+          // Update the store with the new result and ensure problem state is synced
           set((state) => {
             const currentProblem = state.savedProblems[currentProblemId];
             console.log("[Store] Current problem in state:", currentProblem);
@@ -775,6 +785,7 @@ export const useAppStore = create<AppStore>()(
                 ...state.savedProblems,
                 [currentProblemId]: {
                   ...currentProblem,
+                  problem: problem || currentProblem.problem, // Ensure problem state is current
                   results: [...(currentProblem?.results || []), result],
                 },
               },

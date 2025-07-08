@@ -21,9 +21,13 @@ import {
   Layers,
   FileText,
   FileSpreadsheet,
-  Eye
+  Eye,
+  AlertTriangle,
+  Info,
+  ChevronRight
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
+import { compareProblemConfigurations } from '../services/problemStorage';
 
 export function ResultsHistory() {
   const {
@@ -43,6 +47,7 @@ export function ResultsHistory() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
+  const [configDetailsOpen, setConfigDetailsOpen] = useState<string | null>(null);
 
   const currentProblem = currentProblemId ? savedProblems[currentProblemId] : null;
   const results = currentProblem?.results || [];
@@ -62,6 +67,21 @@ export function ResultsHistory() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [exportDropdownOpen]);
+
+  // Close config details when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.config-details-badge') && !target.closest('.relative')) {
+        setConfigDetailsOpen(null);
+      }
+    };
+
+    if (configDetailsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [configDetailsOpen]);
 
   const toggleExpanded = (resultId: string) => {
     const newExpanded = new Set(expandedResults);
@@ -144,7 +164,8 @@ export function ResultsHistory() {
     if (format === 'json') {
       const exportData = {
         result,
-        problem: currentProblem?.problem,
+        currentProblem: currentProblem?.problem, // Current problem configuration
+        problemSnapshot: result.problemSnapshot, // Problem configuration when result was created
         exportedAt: Date.now(),
       };
       
@@ -435,6 +456,12 @@ export function ResultsHistory() {
               const balColorClass = getColorClass(balPenalty === 0 ? 0 : 1, true);
               const conColorClass = getColorClass(conPenalty === 0 ? 0 : 1, true);
 
+              // Check if problem configuration has changed since result was created
+              const configDiff = currentProblem ? compareProblemConfigurations(
+                currentProblem.problem,
+                result.problemSnapshot
+              ) : null;
+
               return (
                 <div
                   key={result.id}
@@ -507,6 +534,57 @@ export function ResultsHistory() {
                             {isCurrent && (
                               <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Current</span>
                             )}
+                            {configDiff && configDiff.isDifferent && (
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
+                                  }}
+                                  className="config-details-badge px-2 py-1 text-xs rounded-full border flex items-center gap-1 transition-colors hover:bg-red-50"
+                                  style={{ 
+                                    backgroundColor: 'var(--bg-secondary)', 
+                                    color: '#dc2626', 
+                                    borderColor: '#dc2626' 
+                                  }}
+                                  title="Different Problem Configuration - Click to see details"
+                                >
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>Different Config</span>
+                                  <ChevronRight className={`h-3 w-3 transition-transform ${configDetailsOpen === result.id ? 'rotate-90' : ''}`} />
+                                </button>
+                                
+                                {/* Expanded Badge Details */}
+                                {configDetailsOpen === result.id && (
+                                  <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
+                                       style={{ 
+                                         backgroundColor: 'var(--bg-primary)', 
+                                         borderColor: '#dc2626',
+                                         color: 'var(--text-primary)'
+                                       }}>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center space-x-2 mb-2">
+                                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                                        <span className="font-medium text-red-600">Different Problem Configuration</span>
+                                      </div>
+                                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                        This result was created with a different problem setup than the most recent result and may not be directly comparable with the current configuration.
+                                      </p>
+                                      <div className="mt-2 space-y-1">
+                                        {Object.entries(configDiff.details).map(([key, detail]) => (
+                                          detail && (
+                                            <div key={key} className="flex items-start space-x-2 text-xs">
+                                              <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                                              <span style={{ color: 'var(--text-secondary)' }}>{detail}</span>
+                                            </div>
+                                          )
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -574,6 +652,8 @@ export function ResultsHistory() {
                       </span>
                     </div>
                   </div>
+
+
 
                   {/* Expanded Details */}
                   {isExpanded && (
@@ -741,8 +821,10 @@ export function ResultsHistory() {
                 </div>
               );
             })}
-        </div>
-      )}
-    </div>
-  );
-} 
+          </div>
+        )}
+
+
+      </div>
+    );
+  } 
