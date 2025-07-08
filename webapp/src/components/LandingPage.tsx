@@ -89,17 +89,20 @@ const LandingPage: React.FC = () => {
             <div className="relative p-6 sm:p-8 md:p-12 max-w-4xl w-full">
               <div className="relative inline-block text-center mb-3">
                 <div
-                  className="absolute inset-0 rounded-2xl backdrop-blur-[2px]"
+                  className="absolute landing-backdrop-soft"
                   style={{
-                    backgroundImage:
-                      'radial-gradient(ellipse at center, rgba(var(--bg-backdrop-rgb), 0.8) 40%, rgba(var(--bg-backdrop-rgb), 0) 80%)',
+                    top: '-5%',
+                    left: '-5%',
+                    right: '-5%',
+                    bottom: '-5%',
+                    backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
                   }}
                 ></div>
                 <div className="relative px-4 sm:px-6 py-3 sm:py-4 max-w-xl mx-auto">
-                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-primary mb-2">
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-primary mb-2 landing-text">
                     GroupMixer
                   </h1>
-                  <p className="text-lg sm:text-xl md:text-2xl text-secondary">
+                  <p className="text-lg sm:text-xl md:text-2xl text-secondary landing-text">
                     Make every meeting count.
                   </p>
                 </div>
@@ -110,19 +113,22 @@ const LandingPage: React.FC = () => {
                 {/* Paragraph 1 */}
                 <div className="relative">
                   <div
-                    className="absolute inset-0 rounded-2xl backdrop-blur-[2px]"
+                    className="absolute landing-backdrop-soft"
                     style={{
-                      backgroundImage:
-                        'radial-gradient(ellipse at center, rgba(var(--bg-backdrop-rgb), 0.8) 40%, rgba(var(--bg-backdrop-rgb), 0) 80%)',
+                      top: '-5%',
+                      left: '-5%',
+                      right: '-5%',
+                      bottom: '-5%',
+                      backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
                     }}
                   ></div>
                   <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
                     <Calendar className="w-8 h-8 text-accent flex-shrink-0" />
                     <div>
-                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2 landing-text">
                         Automate Group Scheduling
                       </h2>
-                      <p className="text-secondary">
+                      <p className="text-secondary landing-text">
                         GroupMixer generates group schedules for multi-session
                         events. Designed for workshops, conferences, and social
                         mixers, it removes the need for manual planning and
@@ -135,19 +141,22 @@ const LandingPage: React.FC = () => {
                 {/* Paragraph 2 */}
                 <div className="relative">
                   <div
-                    className="absolute inset-0 rounded-2xl backdrop-blur-[2px]"
+                    className="absolute landing-backdrop-soft"
                     style={{
-                      backgroundImage:
-                        'radial-gradient(ellipse at center, rgba(var(--bg-backdrop-rgb), 0.8) 40%, rgba(var(--bg-backdrop-rgb), 0) 80%)',
+                      top: '-5%',
+                      left: '-5%',
+                      right: '-5%',
+                      bottom: '-5%',
+                      backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
                     }}
                   ></div>
                   <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
                     <GitBranch className="w-8 h-8 text-accent flex-shrink-0" />
                     <div>
-                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2 landing-text">
                         Maximize Encounters, Minimize Repeats
                       </h2>
-                      <p className="text-secondary">
+                      <p className="text-secondary landing-text">
                         The algorithm prioritizes unique interactions by
                         reducing repeated encounters across sessions, helping
                         participants meet as many new people as possible.
@@ -159,19 +168,22 @@ const LandingPage: React.FC = () => {
                 {/* Paragraph 3 */}
                 <div className="relative">
                   <div
-                    className="absolute inset-0 rounded-2xl backdrop-blur-[2px]"
+                    className="absolute landing-backdrop-soft"
                     style={{
-                      backgroundImage:
-                        'radial-gradient(ellipse at center, rgba(var(--bg-backdrop-rgb), 0.8) 40%, rgba(var(--bg-backdrop-rgb), 0) 80%)',
+                      top: '-5%',
+                      left: '-5%',
+                      right: '-5%',
+                      bottom: '-5%',
+                      backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
                     }}
                   ></div>
                   <div className="relative flex items-start gap-4 p-4 max-w-[40rem] mx-auto">
                     <ListChecks className="w-8 h-8 text-accent flex-shrink-0" />
                     <div>
-                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2">
+                      <h2 className="text-2xl sm:text-3xl font-semibold text-primary mb-2 landing-text">
                         Built for Real-World Constraints
                       </h2>
-                      <p className="text-secondary">
+                      <p className="text-secondary landing-text">
                         GroupMixer supports constraints such as grouping or
                         separating specific participants, balancing by
                         attributes like gender or speciality, and handling
@@ -188,9 +200,23 @@ const LandingPage: React.FC = () => {
                     Get Started <ArrowRight className="w-6 h-6" />
                   </button>
                 </Link>
-                <p className="text-tertiary text-sm mt-2">
-                  Free to use • No signup required • Works in your browser
-                </p>
+                <div className="w-full flex justify-center mt-2">
+                  <div className="relative inline-block">
+                    <div
+                      className="absolute landing-backdrop-soft"
+                      style={{
+                        top: '-10%',
+                        left: '-10%',
+                        right: '-10%',
+                        bottom: '-10%',
+                        backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
+                      }}
+                    ></div>
+                    <p className="relative text-tertiary text-sm">
+                      Free to use • No signup required • Works in your browser
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -202,7 +228,20 @@ const LandingPage: React.FC = () => {
           className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center text-tertiary text-sm cursor-pointer hover:text-primary transition-colors animate-bounce"
           aria-label="Scroll to features"
         >
-          <span>Find out more</span>
+          <span className="relative inline-block">
+            <span className="relative">Find out more</span>
+            <span
+              className="absolute landing-backdrop-soft"
+              style={{
+                top: '-10%',
+                left: '-10%',
+                right: '-10%',
+                bottom: '-10%',
+                backgroundColor: `rgba(var(--landing-backdrop-rgb), var(--landing-backdrop-opacity))`,
+                zIndex: -1,
+              }}
+            ></span>
+          </span>
           <ArrowDown className="w-5 h-5" />
         </a>
       </header>
