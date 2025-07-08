@@ -12,6 +12,11 @@ interface Dot {
 }
 
 const NUM_CIRCLES = 11;
+// Assign 11 distinct bright colors for the circles
+const CIRCLE_COLORS = Array.from({ length: NUM_CIRCLES }, (_, i) => {
+  const hue = (360 / NUM_CIRCLES) * i;
+  return `hsl(${hue}, 90%, 55%)`;
+});
 // Generate 84 distinct bright colors evenly spaced around the hue wheel
 const DOT_COLORS = Array.from({ length: 84 }, (_, i) => {
   const hue = (360 / 84) * i;
@@ -70,8 +75,9 @@ const GraphBackground: React.FC = () => {
     };
 
     const initDot = (idx: number): Dot => {
-      const color = DOT_COLORS[idx];
+      // Each dot starts at a specific circle, and gets that circle's color
       const currentCircle = idx % NUM_CIRCLES;
+      const color = CIRCLE_COLORS[currentCircle];
       const targetCircle = (currentCircle + 1) % NUM_CIRCLES;
       const { cx, cy } = randomControlPoint(circles[currentCircle], circles[targetCircle]);
       return { color, currentCircle, targetCircle, progress: 0, cx, cy, path: [] };
@@ -94,10 +100,10 @@ const GraphBackground: React.FC = () => {
       // Clear the entire canvas each frame to prevent residue
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw circle outlines
-      ctx.strokeStyle = isDarkNow ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
-      ctx.lineWidth = 2;
-      circles.forEach(({ x, y, r }) => {
+      // Draw circle outlines (now in their assigned color)
+      circles.forEach(({ x, y, r }, i) => {
+        ctx.strokeStyle = CIRCLE_COLORS[i];
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.stroke();
