@@ -23,10 +23,12 @@ import {
   FileSpreadsheet,
   Eye,
   AlertTriangle,
-  ChevronRight
+  ChevronRight,
+  PieChart
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
 import { compareProblemConfigurations } from '../services/problemStorage';
+import { calculateMetrics, getColorClass } from '../utils/metricCalculations';
 
 export function ResultsHistory() {
   const {
@@ -263,13 +265,24 @@ export function ResultsHistory() {
     return `${(ms / 60000).toFixed(1)}m`;
   };
 
-  const getScoreColor = (score: number) => {
-    // Lower scores are better (penalties)
-    if (score <= -50000) return 'text-red-600';
-    if (score <= -10000) return 'text-orange-600';
-    if (score <= -1000) return 'text-yellow-600';
-    if (score <= 0) return 'text-green-600';
-    return 'text-gray-600';
+  // Improved: Lower scores (better) are green, higher scores (worse) are red, relative to min/max in results
+  const getScoreColor = (score: number, result: ProblemResult) => {
+    if (!results.length) return 'text-gray-600';
+    // Only use results with the same config for coloring
+    const comparableResults = results.filter(r => isSameConfig(r, result));
+    if (comparableResults.length <= 1) return 'text-gray-600';
+    // If this result is not comparable to the latest, gray
+    if (!isSameConfig(result, mostRecentResult)) return 'text-gray-600';
+    const scores = comparableResults.map(r => r.solution.final_score);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    if (min === max) return 'text-green-600';
+    const ratio = (score - min) / (max - min);
+    if (ratio <= 0.15) return 'text-green-600';
+    if (ratio <= 0.35) return 'text-lime-600';
+    if (ratio <= 0.6) return 'text-yellow-600';
+    if (ratio <= 0.85) return 'text-orange-600';
+    return 'text-red-600';
   };
 
   // Find the most recent result (by timestamp)
@@ -299,16 +312,7 @@ export function ResultsHistory() {
 
   const bestResult = getBestResult();
 
-  // === Helper: dynamic color class (copied from ResultsView) ===
-  function getColorClass(ratio: number, invert: boolean = false): string {
-    let r = Math.max(0, Math.min(1, ratio));
-    if (invert) r = 1 - r;
-    if (r >= 0.9) return 'text-green-600';
-    if (r >= 0.75) return 'text-lime-600';
-    if (r >= 0.5) return 'text-yellow-600';
-    if (r >= 0.25) return 'text-orange-600';
-    return 'text-red-600';
-  }
+
 
   if (!currentProblem) {
     return (
@@ -449,16 +453,12 @@ export function ResultsHistory() {
               // Only the most recent result is 'Current'
               const isCurrent = result.id === mostRecentResultId;
 
-              // === Derived colors (mirror Result Details panel) ===
-              const peopleCount = currentProblem.problem.people.length || 1;
-              const maxUniqueTotalTheoretical = (peopleCount * (peopleCount - 1)) / 2;
-              const numSessions = currentProblem.problem.num_sessions;
-              const capacityBiggestGroup = Math.max(...currentProblem.problem.groups.map(g => g.size));
-              const altMaxAvgContacts = numSessions * Math.max(0, capacityBiggestGroup - 1);
-              const altMaxUniqueTotal = (altMaxAvgContacts * peopleCount) / 2;
-              const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
-              const uniqueRatio = result.solution.unique_contacts / effectiveMaxUniqueTotal;
-              const uniqueColorClass = getColorClass(uniqueRatio);
+              // === Derived metrics using cached configuration ===
+              const metrics = (() => {
+                // Use the result's problemSnapshot for metric calculations, fallback to current problem
+                const problemConfig = result.problemSnapshot || currentProblem.problem;
+                return calculateMetrics(problemConfig, result.solution);
+              })();
 
               const repPenalty = result.solution.weighted_repetition_penalty ?? result.solution.repetition_penalty;
               const balPenalty = result.solution.attribute_balance_penalty;
@@ -603,13 +603,13 @@ export function ResultsHistory() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleOpenDetails(result)}
-                        className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View in Result Details
-                      </button>
+                        <button
+                          onClick={() => handleOpenDetails(result)}
+                          className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View in Result Details
+                        </button>
                       <button
                         onClick={() => toggleExpanded(result.id)}
                         className="text-gray-400 hover:text-gray-600"
@@ -624,34 +624,31 @@ export function ResultsHistory() {
                   </div>
 
                   {/* Result Summary */}
-                  <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
+                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm items-center">
+                    <div className="flex items-center min-w-0 space-x-2">
                       <BarChart3 className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
                       <span style={{ color: 'var(--text-secondary)' }}>Score:</span>
-                      <span className={`font-medium ${getScoreColor(result.solution.final_score)}`}>
-                        {result.solution.final_score.toFixed(2)}
-                      </span>
+                      <span className={`font-medium ${getScoreColor(result.solution.final_score, result)}`}>{result.solution.final_score.toFixed(2)}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center min-w-0 space-x-2">
+                      <Users className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
+                      <span style={{ color: 'var(--text-secondary)' }}>Unique:</span>
+                      <span className={`font-medium ${metrics.uniqueColorClass}`} style={{ whiteSpace: 'nowrap' }}>{result.solution.unique_contacts} / {metrics.effectiveMaxUniqueTotal}</span>
+                    </div>
+                    <div className="flex items-center min-w-0 space-x-2">
                       <Clock className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
                       <span style={{ color: 'var(--text-secondary)' }}>Duration:</span>
-                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {formatDuration(result.duration)}
-                      </span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatDuration(result.duration)}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center min-w-0 space-x-2">
                       <Zap className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
                       <span style={{ color: 'var(--text-secondary)' }}>Iterations:</span>
-                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {result.solution.iteration_count.toLocaleString()}
-                      </span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{result.solution.iteration_count.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center min-w-0 space-x-2">
                       <Calendar className="h-4 w-4" style={{ color: 'var(--text-tertiary)' }} />
                       <span style={{ color: 'var(--text-secondary)' }}>Created:</span>
-                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {formatDate(result.timestamp)}
-                      </span>
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{formatDate(result.timestamp)}</span>
                     </div>
                   </div>
 
@@ -666,9 +663,11 @@ export function ResultsHistory() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Unique Contacts</div>
-                            <div className={`font-medium ${uniqueColorClass}`}>
-                              {result.solution.unique_contacts}
-                            </div>
+                            <div className={`font-medium ${metrics.uniqueColorClass}`}>{result.solution.unique_contacts} / {metrics.effectiveMaxUniqueTotal}</div>
+                          </div>
+                          <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div style={{ color: 'var(--text-secondary)' }}>Avg Contacts / Person</div>
+                            <div className={`font-medium ${metrics.avgColorClass}`}>{metrics.avgUniqueContacts.toFixed(1)} / {metrics.effectiveMaxAvgContacts}</div>
                           </div>
                           <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                             <div style={{ color: 'var(--text-secondary)' }}>Repetition Penalty</div>
@@ -823,10 +822,10 @@ export function ResultsHistory() {
                 </div>
               );
             })}
-          </div>
-        )}
+        </div>
+      )}
 
 
-      </div>
-    );
-  } 
+    </div>
+  );
+} 

@@ -16,14 +16,17 @@ import {
   FileText,
   FileSpreadsheet
 } from 'lucide-react';
-import { Constraint, Person } from '../types';
+import { Constraint, Person, Problem } from '../types';
 import { Tooltip } from './Tooltip';
 import PersonCard from './PersonCard';
+import { compareProblemConfigurations } from '../services/problemStorage';
+import { calculateMetrics, getColorClass } from '../utils/metricCalculations';
 
 export function ResultsView() {
   const { problem, solution, solverState, currentProblemId, savedProblems } = useAppStore();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -40,43 +43,67 @@ export function ResultsView() {
     }
   }, [exportDropdownOpen]);
 
-  // Derive the name of the currently displayed result (if any)
-  const resultName = useMemo(() => {
+  // Close config details when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.config-details-badge') && !target.closest('.relative')) {
+        setConfigDetailsOpen(false);
+      }
+    };
+
+    if (configDetailsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [configDetailsOpen]);
+
+  // Find the current result object and derive the name
+  const currentResult = useMemo(() => {
     if (!currentProblemId || !solution) return undefined;
     const problem = savedProblems[currentProblemId];
     if (!problem) return undefined;
-    const match = problem.results.find(r => r.solution === solution);
-    return match?.name;
+    return problem.results.find(r => r.solution === solution);
   }, [currentProblemId, savedProblems, solution]);
 
-  // === Derived Metrics ===
-  const avgUniqueContacts = useMemo(() => {
-    if (!problem || !solution) return 0;
-    const peopleCount = problem.people.length || 1;
-    return (solution.unique_contacts * 2) / peopleCount;
-  }, [problem, solution]);
+  const resultName = currentResult?.name;
 
-  // === Maximum values for normalization ===
-  const peopleCount = problem?.people.length || 1;
-  const numSessions = problem?.num_sessions || 0;
-  const maxUniqueTotalTheoretical = useMemo(() => (peopleCount * (peopleCount - 1)) / 2, [peopleCount]);
-  const maxAvgContactsTheoretical = peopleCount - 1;
+  // Check if problem configuration has changed since result was created
+  const configDiff = useMemo(() => {
+    if (!problem || !currentResult?.problemSnapshot) return null;
+    
+    // For the latest result, we need to compare with the most recent result's config
+    // to determine if this result is outdated
+    const currentProblemData = savedProblems[currentProblemId!];
+    if (!currentProblemData) return null;
+    
+    const mostRecentResult = currentProblemData.results
+      .sort((a, b) => b.timestamp - a.timestamp)[0];
+    
+    // If this is the most recent result, only show warning if it differs from current problem
+    if (currentResult.id === mostRecentResult?.id) {
+      return compareProblemConfigurations(problem, currentResult.problemSnapshot);
+    }
+    
+    // For older results, compare with the most recent result's configuration
+    if (mostRecentResult?.problemSnapshot) {
+      return compareProblemConfigurations(mostRecentResult.problemSnapshot as any, currentResult.problemSnapshot as any);
+    }
+    
+    // Fallback to comparing with current problem
+    return compareProblemConfigurations(problem, currentResult.problemSnapshot);
+  }, [problem, currentResult, currentProblemId, savedProblems]);
 
-  // Alternative bound based on sessions & largest group capacity
-  const capacityBiggestGroup = useMemo(() => {
-    return problem?.groups && problem.groups.length > 0
-      ? Math.max(...problem.groups.map(g => g.size))
-      : 0;
-  }, [problem]);
-
-  const altMaxAvgContacts = numSessions * Math.max(0, capacityBiggestGroup - 1);
-  const altMaxUniqueTotal = (altMaxAvgContacts * peopleCount) / 2;
-
-  const effectiveMaxAvgContacts = Math.max(1, Math.min(maxAvgContactsTheoretical, altMaxAvgContacts || maxAvgContactsTheoretical));
-  const effectiveMaxUniqueTotal = Math.max(1, Math.min(maxUniqueTotalTheoretical, altMaxUniqueTotal || maxUniqueTotalTheoretical));
-
-  const uniqueRatio = useMemo(() => solution?.unique_contacts ? solution.unique_contacts / effectiveMaxUniqueTotal : 0, [solution?.unique_contacts, effectiveMaxUniqueTotal]);
-  const avgRatio = useMemo(() => avgUniqueContacts / effectiveMaxAvgContacts, [avgUniqueContacts, effectiveMaxAvgContacts]);
+  // === Derived Metrics using cached configuration ===
+  const metrics = useMemo(() => {
+    if (!solution) return null;
+    
+    // Use the result's problemSnapshot for metric calculations, fallback to current problem
+    const problemConfig = currentResult?.problemSnapshot || problem;
+    if (!problemConfig) return null;
+    
+    return calculateMetrics(problemConfig, solution);
+  }, [solution, currentResult, problem]);
 
   // Constraint penalty normalization
   const finalConstraintPenalty = solution?.weighted_constraint_penalty ?? solution?.constraint_penalty ?? 0;
@@ -86,12 +113,17 @@ export function ResultsView() {
   }, [solverState.initialConstraintPenalty, solverState.currentConstraintPenalty, finalConstraintPenalty]);
 
   const constraintRatio = Math.min(finalConstraintPenalty / baselineConstraintPenalty, 1);
+  const constraintColorClass = getColorClass(constraintRatio, true);
 
   // === Constraint Compliance Evaluation ===
   type ConstraintCompliance = { constraint: Constraint; adheres: boolean; violations: number };
 
   const constraintResults: ConstraintCompliance[] = useMemo(() => {
-    if (!problem || !solution) return [];
+    if (!solution) return [];
+
+    // Use the result's problemSnapshot for constraint evaluation, fallback to current problem
+    const problemConfig = currentResult?.problemSnapshot || problem;
+    if (!problemConfig) return [];
 
     // Build schedule map: session -> group -> people array
     const schedule: Record<number, Record<string, string[]>> = {};
@@ -101,9 +133,9 @@ export function ResultsView() {
       schedule[a.session_id][a.group_id].push(a.person_id);
     });
 
-    const personMap = new Map<string, Person>(problem.people.map(p => [p.id, p]));
+    const personMap = new Map<string, Person>(problemConfig.people.map(p => [p.id, p]));
 
-    const results: ConstraintCompliance[] = problem.constraints.map((c): ConstraintCompliance => {
+    const results: ConstraintCompliance[] = problemConfig.constraints.map((c): ConstraintCompliance => {
       switch (c.type) {
         case 'RepeatEncounter': {
           const pairCounts = new Map<string, number>();
@@ -128,7 +160,7 @@ export function ResultsView() {
         }
         case 'AttributeBalance': {
           let violations = 0;
-          const sessionsToCheck = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          const sessionsToCheck = c.sessions ?? Array.from({ length: problemConfig.num_sessions }, (_, i) => i);
           sessionsToCheck.forEach(session => {
             const peopleIds = schedule[session]?.[c.group_id] || [];
             const counts: Record<string, number> = {};
@@ -145,7 +177,7 @@ export function ResultsView() {
         }
         case 'ImmovablePeople': {
           let violations = 0;
-          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          const sessions = c.sessions ?? Array.from({ length: problemConfig.num_sessions }, (_, i) => i);
           sessions.forEach(session => {
             const peopleIds = schedule[session]?.[c.group_id] || [];
             c.people.forEach(pid => {
@@ -155,7 +187,7 @@ export function ResultsView() {
           return { constraint: c, adheres: violations === 0, violations };
         }
         case 'MustStayTogether': {
-          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          const sessions = c.sessions ?? Array.from({ length: problemConfig.num_sessions }, (_, i) => i);
           let violations = 0;
           sessions.forEach(session => {
             const groupIdSet = new Set<string>();
@@ -178,7 +210,7 @@ export function ResultsView() {
           return { constraint: c, adheres: violations === 0, violations };
         }
         case 'ShouldNotBeTogether': {
-          const sessions = c.sessions ?? Array.from({ length: problem.num_sessions }, (_, i) => i);
+          const sessions = c.sessions ?? Array.from({ length: problemConfig.num_sessions }, (_, i) => i);
           let violations = 0;
           sessions.forEach(session => {
             const groups = schedule[session] || {};
@@ -195,7 +227,7 @@ export function ResultsView() {
     });
 
     return results;
-  }, [problem, solution]);
+  }, [problem, solution, currentResult]);
 
   if (!solution) {
     return (
@@ -319,11 +351,6 @@ export function ResultsView() {
       totalPeople: sessionAssignments.length
     };
   });
-
-  // Color classes
-  const uniqueColorClass = getColorClass(uniqueRatio);
-  const avgColorClass = getColorClass(avgRatio);
-  const constraintColorClass = getColorClass(constraintRatio, true);
 
   const getPersonById = (id: string) => problem?.people.find(p => p.id === id);
 
@@ -501,26 +528,63 @@ export function ResultsView() {
     </div>
   );
 
-  // === Helper for dynamic metric colors ===
-  function getColorClass(ratio: number, invert: boolean = false): string {
-    // Clamp between 0 and 1
-    let r = Math.max(0, Math.min(1, ratio));
-    if (invert) r = 1 - r;
-    if (r >= 0.9) return 'text-green-600';
-    if (r >= 0.75) return 'text-lime-600';
-    if (r >= 0.5) return 'text-yellow-600';
-    if (r >= 0.25) return 'text-orange-600';
-    return 'text-red-600';
-  }
+
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            Optimization Results{resultName ? ` - ${resultName}` : ''}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              Optimization Results{resultName ? ` - ${resultName}` : ''}
+            </h2>
+            {configDiff && configDiff.isDifferent && (
+              <div className="relative">
+                <button
+                  onClick={() => setConfigDetailsOpen(!configDetailsOpen)}
+                  className="config-details-badge inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border transition-colors"
+                  style={{
+                    backgroundColor: '#fef2f2',
+                    borderColor: '#dc2626',
+                    color: '#dc2626'
+                  }}
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  Different Config
+                </button>
+                
+                {configDetailsOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
+                       style={{ 
+                         backgroundColor: 'var(--bg-primary)', 
+                         borderColor: '#dc2626',
+                         color: 'var(--text-primary)'
+                       }}>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <span className="font-medium text-red-600">Different Problem Configuration</span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        This result was created with a different problem setup than the most recent result and may not be directly comparable with the current configuration.
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {Object.entries(configDiff.details).map(([key, detail]) => (
+                          detail && (
+                            <div key={key} className="flex items-start space-x-2 text-xs">
+                              <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                              <span style={{ color: 'var(--text-secondary)' }}>{detail}</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2" style={{ color: 'var(--text-secondary)' }}>
             <div className="flex items-center gap-2">
               Cost Score: {solution.final_score.toFixed(2)}
@@ -599,8 +663,8 @@ export function ResultsView() {
       {/* Metrics Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {renderMetricCard("Cost Score", solution.final_score.toFixed(1), Target, 'text-green-600')}
-        {renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${effectiveMaxUniqueTotal}`, Users, uniqueColorClass)}
-        {renderMetricCard("Avg Contacts / Person", `${avgUniqueContacts.toFixed(1)} / ${effectiveMaxAvgContacts}`, PieChart, avgColorClass)}
+        {metrics && renderMetricCard("Unique Contacts", `${solution.unique_contacts} / ${metrics.effectiveMaxUniqueTotal}`, Users, metrics.uniqueColorClass)}
+        {metrics && renderMetricCard("Avg Contacts / Person", `${metrics.avgUniqueContacts.toFixed(1)} / ${metrics.effectiveMaxAvgContacts}`, PieChart, metrics.avgColorClass)}
         {renderMetricCard("Repetition Penalty", (solution.weighted_repetition_penalty ?? solution.repetition_penalty).toFixed(1), RefreshCw, getColorClass((solution.weighted_repetition_penalty ?? solution.repetition_penalty) / ((solverState.currentRepetitionPenalty ?? (solution.weighted_repetition_penalty ?? solution.repetition_penalty)) || 1), true))}
         {renderMetricCard("Constraint Penalty", finalConstraintPenalty.toFixed(1), AlertTriangle, constraintColorClass)}
       </div>
