@@ -17,7 +17,7 @@ export function Header() {
           <div className="flex items-center justify-between">
             <Link to="/landingpage" className="flex items-center space-x-3 group">
               <div className="flex items-center space-x-2">
-                <img src={'logo.svg'} alt="GroupMixer Logo" className="h-8 w-8" />
+                <img src={import.meta.env.BASE_URL + 'logo.svg'} alt="GroupMixer Logo" className="h-8 w-8" />
                 <h1 className="text-2xl font-bold transition-colors" style={{ color: 'var(--text-primary)' }}>
                   GroupMixer
                 </h1>
