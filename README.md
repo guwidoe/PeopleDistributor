@@ -6,7 +6,7 @@ A sophisticated Rust-based solution for optimally distributing people into group
 
 **Group Mixer** is a user-friendly web application built on top of the PeopleDistributor engine. Perfect for conferences, workshops, team building, and any event where you need to create optimal group assignments.
 
-🚀 **[Try Group Mixer Now](groupmixer.app)** - No installation required, runs entirely in your browser!
+🚀 **[Try Group Mixer Now](https://groupmixer.app)** - No installation required, runs entirely in your browser!
 
 ## Overview
 
