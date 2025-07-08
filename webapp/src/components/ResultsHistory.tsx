@@ -23,7 +23,6 @@ import {
   FileSpreadsheet,
   Eye,
   AlertTriangle,
-  Info,
   ChevronRight
 } from 'lucide-react';
 import type { ProblemResult } from '../types';
@@ -38,7 +37,6 @@ export function ResultsHistory() {
     updateResultName,
     deleteResult,
     setShowResultComparison,
-    solution: currentSolution,
     setSolution,
   } = useAppStore();
   const navigate = useNavigate();
@@ -274,18 +272,32 @@ export function ResultsHistory() {
     return 'text-gray-600';
   };
 
+  // Find the most recent result (by timestamp)
+  const mostRecentResult = results.length > 0 ? results.reduce((a, b) => (a.timestamp > b.timestamp ? a : b)) : null;
+  const mostRecentResultId = mostRecentResult?.id;
+
+  // Helper: check if two results have the same config
+  function isSameConfig(resultA: ProblemResult | null, resultB: ProblemResult | null): boolean {
+    if (!resultA || !resultB) return false;
+    // Use the same logic as compareProblemConfigurations, but check for no differences
+    const diff = compareProblemConfigurations(
+      resultA.problemSnapshot as any,
+      resultB.problemSnapshot as any
+    );
+    return !diff.isDifferent;
+  }
+
+  // Best result: only among those with the same config as the latest
   const getBestResult = () => {
-    if (results.length === 0) return null;
-    return results.reduce((best, current) => 
+    if (!results.length || !mostRecentResult) return null;
+    const comparableResults = results.filter(r => isSameConfig(r, mostRecentResult));
+    if (!comparableResults.length) return null;
+    return comparableResults.reduce((best, current) =>
       current.solution.final_score < best.solution.final_score ? current : best
     );
   };
 
   const bestResult = getBestResult();
-
-  // Find the most recent result (by timestamp)
-  const mostRecentResult = results.length > 0 ? results.reduce((a, b) => (a.timestamp > b.timestamp ? a : b)) : null;
-  const mostRecentResultId = mostRecentResult?.id;
 
   // === Helper: dynamic color class (copied from ResultsView) ===
   function getColorClass(ratio: number, invert: boolean = false): string {
@@ -532,7 +544,7 @@ export function ResultsHistory() {
                               <span className="px-2 py-1 text-xs rounded-full badge-best">Best</span>
                             )}
                             {isCurrent && (
-                              <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Current</span>
+                              <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Latest</span>
                             )}
                             {configDiff && configDiff.isDifferent && (
                               <div className="relative">
@@ -591,23 +603,13 @@ export function ResultsHistory() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      {isCurrent ? (
-                        <button
-                          onClick={() => handleOpenDetails(result)}
-                          className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View in Result Details
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenDetails(result)}
-                          className="text-gray-400 hover:text-gray-600"
-                          title="Open in Result Details"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleOpenDetails(result)}
+                        className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View in Result Details
+                      </button>
                       <button
                         onClick={() => toggleExpanded(result.id)}
                         className="text-gray-400 hover:text-gray-600"

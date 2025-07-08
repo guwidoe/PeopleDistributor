@@ -187,7 +187,7 @@ export function ResultsView() {
         <Target className="w-16 h-16 mb-4" style={{ color: 'var(--text-tertiary)' }} />
         <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--text-primary)' }}>No Results Yet</h3>
         <p className="text-center max-w-md" style={{ color: 'var(--text-secondary)' }}>
-          Run the solver to see optimization results and group assignments.
+          Run the solver or select one of the results from the Results tab to see optimization results and group assignments.
         </p>
       </div>
     );
