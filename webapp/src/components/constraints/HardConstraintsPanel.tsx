@@ -69,11 +69,15 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
             className={
               `px-4 py-2 -mb-px text-sm font-medium transition-colors rounded-t-md focus:outline-none ` +
               (activeTab === t
-                ? 'bg-white dark:bg-neutral-900 border-x border-t border-b-0 border-[var(--color-accent)] text-[var(--color-accent)] shadow-sm z-10'
+                ? 'border-x border-t border-b-0 border-[var(--color-accent)] text-[var(--color-accent)] shadow-sm z-10'
                 : 'bg-transparent text-[var(--text-secondary)] border-0 hover:text-[var(--color-accent)]')
             }
             style={activeTab === t
-              ? { borderColor: 'var(--color-accent)', borderBottom: 'none' }
+              ? { 
+                  borderColor: 'var(--color-accent)', 
+                  borderBottom: 'none',
+                  backgroundColor: 'var(--bg-primary)'
+                }
               : {}}
           >
             {constraintTypeLabels[t]}
