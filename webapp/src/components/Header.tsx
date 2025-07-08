@@ -67,7 +67,7 @@ export function Header() {
             )}
             
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <a href="https://github.com/guwidoe/PeopleDistributor/issues" target="_blank" rel="noopener noreferrer" title="Report an issue or suggest a feature" className="flex items-center space-x-2 text-sm transition-colors p-2 rounded-md hover:bg-opacity-50 flex-1 sm:flex-none justify-center sm:justify-start" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}>
+              <a href="https://github.com/guwidoe/GroupMixer/issues" target="_blank" rel="noopener noreferrer" title="Report an issue or suggest a feature" className="flex items-center space-x-2 text-sm transition-colors p-2 rounded-md hover:bg-opacity-50 flex-1 sm:flex-none justify-center sm:justify-start" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}>
                 <Bug className="h-4 w-4" />
                 <span className="hidden lg:inline">Report Issue</span>
                 <span className="lg:hidden">Issues</span>
@@ -116,7 +116,7 @@ export function Header() {
               
               <div className="flex items-center gap-2">
                 <a 
-                  href="https://github.com/guwidoe/PeopleDistributor/issues" 
+                  href="https://github.com/guwidoe/GroupMixer/issues" 
                   target="_blank" 
                   rel="noopener noreferrer" 
                   title="Report an issue or suggest a feature" 

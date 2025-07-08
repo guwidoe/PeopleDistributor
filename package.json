@@ -1,4 +1,5 @@
 {
+  "name": "GroupMixer",
   "dependencies": {
     "tailwindcss": "^4.1.11"
   }

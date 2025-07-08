@@ -1,16 +1,16 @@
-# PeopleDistributor
+# GroupMixer
 
 A sophisticated Rust-based solution for optimally distributing people into groups across multiple sessions to maximize social interactions while respecting various constraints. Now featuring **Group Mixer**, a modern web application that makes group optimization accessible to everyone.
 
 ## 🌟 Try Group Mixer
 
-**Group Mixer** is a user-friendly web application built on top of the PeopleDistributor engine. Perfect for conferences, workshops, team building, and any event where you need to create optimal group assignments.
+**Group Mixer** is a user-friendly web application built on top of the GroupMixer engine. Perfect for conferences, workshops, team building, and any event where you need to create optimal group assignments.
 
 🚀 **[Try Group Mixer Now](https://groupmixer.app)** - No installation required, runs entirely in your browser!
 
 ## Overview
 
-PeopleDistributor solves the social group scheduling problem using advanced optimization algorithms. It distributes a given number of people into groups across multiple sessions, maximizing the number of unique contacts while respecting various hard and soft constraints.
+GroupMixer solves the social group scheduling problem using advanced optimization algorithms. It distributes a given number of people into groups across multiple sessions, maximizing the number of unique contacts while respecting various hard and soft constraints.
 
 ## Architecture
 
@@ -125,8 +125,8 @@ To run the webapp locally:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/PeopleDistributor.git
-cd PeopleDistributor
+git clone https://github.com/yourusername/GroupMixer.git
+cd GroupMixer
 
 # Build and run the webapp
 cd webapp
@@ -241,6 +241,13 @@ npm run build
 ```
 
 This builds both the WebAssembly module and the React application.
+
+You can also rebuild just the wasm by using
+
+```bash
+cd webapp
+npm run build-wasm
+```
 
 ### Building Individual Components
 

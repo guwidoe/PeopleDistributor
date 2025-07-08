@@ -2,7 +2,7 @@ mod state;
 mod subroutines;
 
 fn main() {
-    println!("Starting PeopleDistributor...");
+    println!("Starting GroupMixer...");
     subroutines::run_final_algorithm();
-    println!("...PeopleDistributor finished.");
+    println!("...GroupMixer finished.");
 }
