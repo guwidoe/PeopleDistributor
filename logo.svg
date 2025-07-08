@@ -1,0 +1,40 @@
+<svg width="500" height="500" viewBox="-120 -120 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .color1 { stroke: #E92525; } /* Red */
+      .color2 { stroke: #9DE925; } /* Lime Green */
+      .color3 { stroke: #25E99D; } /* Spring Green */
+      .color4 { stroke: #259DE9; } /* Bright Blue */
+      .color5 { stroke: #9D25E9; } /* Purple */
+    </style>
+  </defs>
+
+  <g fill="none" stroke-width="12">
+    <path d="M 0.0,-100.0 A 100 100 0 0 1 95.11,-30.9" class="color1" />
+    <path d="M 95.11,-30.9 A 100 100 0 0 1 58.78,80.9" class="color2" />
+    <path d="M 58.78,80.9 A 100 100 0 0 1 -58.78,80.9" class="color3" />
+    <path d="M -58.78,80.9 A 100 100 0 0 1 -95.11,-30.9" class="color4" />
+    <path d="M -95.11,-30.9 A 100 100 0 0 1 0.0,-100.0" class="color5" />
+  </g>
+
+  <g fill="none" stroke-width="12" opacity="1">
+    <path d="M 0,-100 c 25.04,42.42 49.33,58.96 95.11,69.1" class="color3" />
+    <path d="M 0.0,-100.0 Q 11.76,-3.82 58.78,80.9" class="color5" />
+    <path d="M 0.0,-100.0 Q -11.76,-3.82 -58.78,80.9" class="color2" />
+    <path d="M 0,-100 c -23.18,38.71 -45.00,54.64 -95.11,69.1" class="color4" />
+    <path d="M 95.11,-30.9 C 64.27,5.02 53.40,31.47 58.78,80.9" class="color1" />
+    <path d="M 95.11,-30.9 Q 7.27,10.0 -58.78,80.9" class="color5" />
+    <path d="M 95.11,-30.9 Q 0.0,-12.36 -95.11,-30.9" class="color3" />
+    <path d="M 58.78,80.9 C 12.80,60.90 -13.72,60.28 -58.78,80.9" class="color4" />
+    <path d="M 58.78,80.9 Q -7.27,10.0 -95.11,-30.9" class="color2" />
+    <path d="M -58.78,80.9 C -57.10,33.63 -65.81,4.40 -95.11,-30.9" class="color1" />
+  </g>
+
+  <g>
+    <circle cx="0.0" cy="-100.0" r="20" fill="#E92525" />
+    <circle cx="95.11" cy="-30.9" r="20" fill="#9DE925" />
+    <circle cx="58.78" cy="80.9" r="20" fill="#25E99D" />
+    <circle cx="-58.78" cy="80.9" r="20" fill="#259DE9" />
+    <circle cx="-95.11" cy="-30.9" r="20" fill="#9D25E9" />
+  </g>
+</svg>

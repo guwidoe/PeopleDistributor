@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.svg" alt="GroupMixer Logo" width="120"/>
+</p>
+
 # GroupMixer
 
 A sophisticated Rust-based solution for optimally distributing people into groups across multiple sessions to maximize social interactions while respecting various constraints. Now featuring **Group Mixer**, a modern web application that makes group optimization accessible to everyone.
