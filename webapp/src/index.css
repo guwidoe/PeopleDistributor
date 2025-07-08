@@ -79,7 +79,7 @@
   /* Dark theme variables */
   .dark {
     --bg-primary: #1e1e1e;
-    --bg-secondary: #000000;
+    --bg-secondary: #181818;
     --bg-tertiary: #23242a;
     --text-primary: #e6eaf1;
     --text-secondary: #bfc7d5;
@@ -479,4 +479,8 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"]::-webkit-inner-spin-button:hover,
 input[type="number"]::-webkit-outer-spin-button:hover {
   opacity: 1;
+} 
+
+.dark .landing-hero-bg {
+  background-color: #000 !important;
 } 

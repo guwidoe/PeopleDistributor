@@ -75,7 +75,7 @@ const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-secondary">
       {/* Header */}
-      <header className="relative bg-secondary overflow-hidden">
+      <header className="relative overflow-hidden landing-hero-bg">
         {/* Animated graph/network background */}
         <GraphBackground />
 
