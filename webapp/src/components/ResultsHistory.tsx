@@ -570,12 +570,16 @@ export function ResultsHistory() {
                                 <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1 items-center">
                               {isBest && (
-                                <span className="px-2 py-1 text-xs rounded-full badge-best">Best</span>
+                                <span className="px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm badge-best" style={{lineHeight: '1.1', fontWeight: 500}}>
+                                  Best
+                                </span>
                               )}
                               {isCurrent && (
-                                <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Latest</span>
+                                <span className="px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)', lineHeight: '1.1', fontWeight: 500 }}>
+                                  Latest
+                                </span>
                               )}
                               {configDiff && configDiff.isDifferent && (
                                 <div className="relative">
@@ -584,11 +588,13 @@ export function ResultsHistory() {
                                       e.stopPropagation();
                                       setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
                                     }}
-                                    className="config-details-badge px-2 py-1 text-xs rounded-full border flex items-center gap-1 transition-colors hover:bg-red-50"
+                                    className="config-details-badge px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm border flex items-center gap-1 transition-colors hover:bg-red-50"
                                     style={{ 
                                       backgroundColor: 'var(--bg-secondary)', 
                                       color: '#dc2626', 
-                                      borderColor: '#dc2626' 
+                                      borderColor: '#dc2626',
+                                      lineHeight: '1.1',
+                                      fontWeight: 500
                                     }}
                                     title="Different Problem Configuration - Click to see details"
                                   >
