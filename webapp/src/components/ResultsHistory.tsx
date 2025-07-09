@@ -312,6 +312,27 @@ export function ResultsHistory() {
 
   const bestResult = getBestResult();
 
+  const formatNumber = (num: number | undefined) => {
+    if (num === undefined) return 'N/A';
+    if (num < 0.001 && num !== 0) {
+      return num.toExponential(2);
+    }
+    return num.toLocaleString(undefined, { 
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 0
+    });
+  };
+
+  const formatLargeNumber = (num: number | undefined) => {
+    if (num === undefined) return 'N/A';
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toLocaleString();
+  };
 
 
   if (!currentProblem) {
@@ -495,11 +516,11 @@ export function ResultsHistory() {
                   }}
                 >
                   {/* Result Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                    <div className="flex items-start sm:items-center space-x-3 min-w-0 flex-1">
                       <button
                         onClick={() => toggleResultSelection(result.id)}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1 sm:mt-0"
                       >
                         {isSelected ? (
                           <CheckSquare className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
@@ -508,7 +529,7 @@ export function ResultsHistory() {
                         )}
                       </button>
                       
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         {editingId === result.id ? (
                           <div className="flex items-center space-x-2">
                             <input
@@ -524,91 +545,103 @@ export function ResultsHistory() {
                             />
                             <button
                               onClick={handleSaveRename}
-                              className="text-green-600 hover:text-green-700"
+                              className="text-green-600 hover:text-green-700 flex-shrink-0"
                             >
                               <Save className="h-4 w-4" />
                             </button>
                             <button
                               onClick={handleCancelRename}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 hover:text-red-700 flex-shrink-0"
                             >
                               <X className="h-4 w-4" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-2">
-                            <h3 className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                              {result.name}
-                            </h3>
-                            {isBest && (
-                              <span className="px-2 py-1 text-xs rounded-full badge-best">Best</span>
-                            )}
-                            {isCurrent && (
-                              <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Latest</span>
-                            )}
-                            {configDiff && configDiff.isDifferent && (
-                              <div className="relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
-                                  }}
-                                  className="config-details-badge px-2 py-1 text-xs rounded-full border flex items-center gap-1 transition-colors hover:bg-red-50"
-                                  style={{ 
-                                    backgroundColor: 'var(--bg-secondary)', 
-                                    color: '#dc2626', 
-                                    borderColor: '#dc2626' 
-                                  }}
-                                  title="Different Problem Configuration - Click to see details"
-                                >
-                                  <AlertTriangle className="h-3 w-3" />
-                                  <span>Different Config</span>
-                                  <ChevronRight className={`h-3 w-3 transition-transform ${configDetailsOpen === result.id ? 'rotate-90' : ''}`} />
-                                </button>
-                                
-                                {/* Expanded Badge Details */}
-                                {configDetailsOpen === result.id && (
-                                  <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
-                                       style={{ 
-                                         backgroundColor: 'var(--bg-primary)', 
-                                         borderColor: '#dc2626',
-                                         color: 'var(--text-primary)'
-                                       }}>
-                                    <div className="space-y-2">
-                                      <div className="flex items-center space-x-2 mb-2">
-                                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                                        <span className="font-medium text-red-600">Different Problem Configuration</span>
-                                      </div>
-                                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                        This result was created with a different problem setup than the most recent result and may not be directly comparable with the current configuration.
-                                      </p>
-                                      <div className="mt-2 space-y-1">
-                                        {Object.entries(configDiff.details).map(([key, detail]) => (
-                                          detail && (
-                                            <div key={key} className="flex items-start space-x-2 text-xs">
-                                              <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                                              <span style={{ color: 'var(--text-secondary)' }}>{detail}</span>
-                                            </div>
-                                          )
-                                        ))}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <h3 className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                                {result.name}
+                              </h3>
+                              <button
+                                onClick={() => handleRename(result)}
+                                className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                                title="Rename result"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {isBest && (
+                                <span className="px-2 py-1 text-xs rounded-full badge-best">Best</span>
+                              )}
+                              {isCurrent && (
+                                <span className="px-2 py-1 text-xs rounded-full border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>Latest</span>
+                              )}
+                              {configDiff && configDiff.isDifferent && (
+                                <div className="relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
+                                    }}
+                                    className="config-details-badge px-2 py-1 text-xs rounded-full border flex items-center gap-1 transition-colors hover:bg-red-50"
+                                    style={{ 
+                                      backgroundColor: 'var(--bg-secondary)', 
+                                      color: '#dc2626', 
+                                      borderColor: '#dc2626' 
+                                    }}
+                                    title="Different Problem Configuration - Click to see details"
+                                  >
+                                    <AlertTriangle className="h-3 w-3" />
+                                    <span>Different Config</span>
+                                    <ChevronRight className={`h-3 w-3 transition-transform ${configDetailsOpen === result.id ? 'rotate-90' : ''}`} />
+                                  </button>
+                                  
+                                  {/* Expanded Badge Details */}
+                                  {configDetailsOpen === result.id && (
+                                    <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
+                                         style={{ 
+                                           backgroundColor: 'var(--bg-primary)', 
+                                           borderColor: '#dc2626',
+                                           color: 'var(--text-primary)'
+                                         }}>
+                                      <div className="space-y-2">
+                                        <div className="flex items-center space-x-2 mb-2">
+                                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                                          <span className="font-medium text-red-600">Different Problem Configuration</span>
+                                        </div>
+                                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                          This result was created with a different problem setup than the most recent result and may not be directly comparable with the current configuration.
+                                        </p>
+                                        <div className="mt-2 space-y-1">
+                                          {Object.entries(configDiff.details).map(([key, detail]) => (
+                                            detail && (
+                                              <div key={key} className="flex items-start space-x-2 text-xs">
+                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                                                <span style={{ color: 'var(--text-secondary)' }}>{detail}</span>
+                                              </div>
+                                            )
+                                          ))}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-shrink-0">
                         <button
                           onClick={() => handleOpenDetails(result)}
                           className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
                         >
                           <Eye className="h-4 w-4" />
-                          View in Result Details
+                          <span className="hidden sm:inline">View in Result Details</span>
+                          <span className="sm:hidden">View</span>
                         </button>
                       <button
                         onClick={() => toggleExpanded(result.id)}
@@ -688,11 +721,11 @@ export function ResultsHistory() {
                       <div>
                         <h4 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Solver Configuration</h4>
                         <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             <div>
                               <span style={{ color: 'var(--text-secondary)' }}>Max Iterations:</span>
                               <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {result.solverSettings.stop_conditions.max_iterations?.toLocaleString()}
+                                {formatLargeNumber(result.solverSettings.stop_conditions.max_iterations)}
                               </span>
                             </div>
                             <div>
@@ -704,19 +737,19 @@ export function ResultsHistory() {
                             <div>
                               <span style={{ color: 'var(--text-secondary)' }}>No Improvement:</span>
                               <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {result.solverSettings.stop_conditions.no_improvement_iterations?.toLocaleString()}
+                                {formatLargeNumber(result.solverSettings.stop_conditions.no_improvement_iterations)}
                               </span>
                             </div>
                             <div>
                               <span style={{ color: 'var(--text-secondary)' }}>Initial Temp:</span>
                               <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature}
+                                {formatNumber(result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature)}
                               </span>
                             </div>
                             <div>
                               <span style={{ color: 'var(--text-secondary)' }}>Final Temp:</span>
                               <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
-                                {result.solverSettings.solver_params.SimulatedAnnealing?.final_temperature}
+                                {formatNumber(result.solverSettings.solver_params.SimulatedAnnealing?.final_temperature)}
                               </span>
                             </div>
                             <div>
@@ -730,7 +763,7 @@ export function ResultsHistory() {
                               <span className="ml-2 font-medium" style={{ color: 'var(--text-primary)' }}>
                                 {(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0) === 0 
                                   ? 'Disabled' 
-                                  : (result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toLocaleString()
+                                  : formatLargeNumber(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0)
                                 }
                               </span>
                             </div>
@@ -739,75 +772,66 @@ export function ResultsHistory() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center justify-between pt-3 border-t">
-                        <div className="flex items-center space-x-2">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t gap-3">
+                        <div className="relative" ref={dropdownRef}>
                           <button
-                            onClick={() => handleRename(result)}
+                            onClick={() => setExportDropdownOpen(
+                              exportDropdownOpen === result.id ? null : result.id
+                            )}
                             className="btn-secondary flex items-center space-x-2"
                           >
-                            <Edit3 className="h-4 w-4" />
-                            <span>Rename</span>
+                            <Download className="h-4 w-4" />
+                            <span>Export</span>
+                            <ChevronDown className="h-3 w-3" />
                           </button>
-                          <div className="relative" ref={dropdownRef}>
-                            <button
-                              onClick={() => setExportDropdownOpen(
-                                exportDropdownOpen === result.id ? null : result.id
-                              )}
-                              className="btn-secondary flex items-center space-x-2"
-                            >
-                              <Download className="h-4 w-4" />
-                              <span>Export</span>
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-                            
-                            {exportDropdownOpen === result.id && (
-                              <div className="absolute left-0 mt-1 w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
-                                   style={{ 
-                                     backgroundColor: 'var(--bg-primary)', 
-                                     borderColor: 'var(--border-primary)' 
-                                   }}>
-                                <button
-                                  onClick={() => handleExportResult(result, 'json')}
-                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
-                                  style={{ 
-                                    color: 'var(--text-primary)',
-                                    backgroundColor: 'transparent'
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                  <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
-                                  <span>Export as JSON</span>
-                                </button>
-                                <button
-                                  onClick={() => handleExportResult(result, 'csv')}
-                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
-                                  style={{ 
-                                    color: 'var(--text-primary)',
-                                    backgroundColor: 'transparent'
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
-                                  <span>Export as CSV</span>
-                                </button>
-                                <button
-                                  onClick={() => handleExportResult(result, 'excel')}
-                                  className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
-                                  style={{ 
-                                    color: 'var(--text-primary)',
-                                    backgroundColor: 'transparent'
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                  <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
-                                  <span>Export as Excel</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          
+                          {exportDropdownOpen === result.id && (
+                            <div className="absolute left-0 mt-1 w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
+                                 style={{ 
+                                   backgroundColor: 'var(--bg-primary)', 
+                                   borderColor: 'var(--border-primary)' 
+                                 }}>
+                              <button
+                                onClick={() => handleExportResult(result, 'json')}
+                                className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                style={{ 
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span>Export as JSON</span>
+                              </button>
+                              <button
+                                onClick={() => handleExportResult(result, 'csv')}
+                                className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                style={{ 
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span>Export as CSV</span>
+                              </button>
+                              <button
+                                onClick={() => handleExportResult(result, 'excel')}
+                                className="flex items-center w-full px-3 py-2 text-sm text-left transition-colors"
+                                style={{ 
+                                  color: 'var(--text-primary)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <FileSpreadsheet className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span>Export as Excel</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={() => handleDelete(result.id)}

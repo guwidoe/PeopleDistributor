@@ -533,14 +533,14 @@ export function ResultsView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              Optimization Results{resultName ? ` - ${resultName}` : ''}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-0">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+            <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0" style={{ color: 'var(--text-primary)' }}>
+              <span className="truncate">Optimization Results{resultName ? ` - ${resultName}` : ''}</span>
             </h2>
             {configDiff && configDiff.isDifferent && (
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <button
                   onClick={() => setConfigDetailsOpen(!configDetailsOpen)}
                   className="config-details-badge inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border transition-colors"
@@ -551,7 +551,8 @@ export function ResultsView() {
                   }}
                 >
                   <AlertTriangle className="h-3 w-3" />
-                  Different Config
+                  <span className="hidden sm:inline">Different Config</span>
+                  <span className="sm:hidden">Config</span>
                 </button>
                 
                 {configDetailsOpen && (
@@ -587,18 +588,20 @@ export function ResultsView() {
           </div>
           <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2" style={{ color: 'var(--text-secondary)' }}>
             <div className="flex items-center gap-2">
-              Cost Score: {solution.final_score.toFixed(2)}
+              <span className="hidden sm:inline">Cost Score:</span>
+              <span className="sm:hidden">Score:</span>
+              {solution.final_score.toFixed(2)}
               <Tooltip content={<span>Cost Score = Unique contacts minus penalties. <b>Lower is better.</b></span>}>
                 <Info className="w-4 h-4" />
               </Tooltip>
             </div>
             <div className="flex items-center gap-2">
               {solution.iteration_count.toLocaleString()} iterations • 
-              {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic">(lower cost is better)</span>
+              {(solution.elapsed_time_ms / 1000).toFixed(2)}s <span className="ml-1 italic hidden sm:inline">(lower cost is better)</span>
             </div>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setExportDropdownOpen(!exportDropdownOpen)}

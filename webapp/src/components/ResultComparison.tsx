@@ -84,6 +84,28 @@ export function ResultComparison() {
     return <Minus className="w-4 h-4 text-gray-400" />;
   };
 
+  const formatNumber = (num: number | undefined) => {
+    if (num === undefined) return 'N/A';
+    if (num < 0.001 && num !== 0) {
+      return num.toExponential(2);
+    }
+    return num.toLocaleString(undefined, { 
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 0
+    });
+  };
+
+  const formatLargeNumber = (num: number | undefined) => {
+    if (num === undefined) return 'N/A';
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toLocaleString();
+  };
+
   const bestResult = getBestResult();
   const worstResult = getWorstResult();
 
@@ -344,7 +366,7 @@ export function ResultComparison() {
                     {selectedResults.map((result) => (
                       <td key={result.id} className="p-4">
                         <span style={{ color: 'var(--text-primary)' }}>
-                          {result.solverSettings.stop_conditions.max_iterations?.toLocaleString() || 'N/A'}
+                          {formatLargeNumber(result.solverSettings.stop_conditions.max_iterations)}
                         </span>
                       </td>
                     ))}
@@ -376,7 +398,7 @@ export function ResultComparison() {
                     {selectedResults.map((result) => (
                       <td key={result.id} className="p-4">
                         <span style={{ color: 'var(--text-primary)' }}>
-                          {result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 'N/A'}
+                          {formatNumber(result.solverSettings.solver_params.SimulatedAnnealing?.initial_temperature)}
                         </span>
                       </td>
                     ))}
@@ -394,7 +416,7 @@ export function ResultComparison() {
                         <span style={{ color: 'var(--text-primary)' }}>
                           {(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0) === 0 
                             ? 'Disabled' 
-                            : (result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toLocaleString()
+                            : formatLargeNumber(result.solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0)
                           }
                         </span>
                       </td>
@@ -407,11 +429,11 @@ export function ResultComparison() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-6 border-t gap-4 sm:gap-0" style={{ borderColor: 'var(--border-primary)' }}>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             Lower scores are better (penalty-based scoring). The solver minimizes total penalties.
           </p>
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3">
             <button
               onClick={() => selectResultsForComparison([])}
               className="btn-secondary"
