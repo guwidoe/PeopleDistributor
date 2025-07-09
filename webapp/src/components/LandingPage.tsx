@@ -191,7 +191,7 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="text-center mt-1 mb-3">
+              <div className="text-center mt-1 mb-3 sm:mb-3 mb-12">
                 <Link to="/app">
                   <button className="btn-primary text-xl sm:text-2xl px-8 sm:px-12 py-3 sm:py-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 inline-flex items-center gap-2">
                     Get Started <ArrowRight className="w-6 h-6" />
