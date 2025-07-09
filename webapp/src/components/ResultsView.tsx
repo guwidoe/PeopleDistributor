@@ -23,6 +23,7 @@ import { compareProblemConfigurations } from '../services/problemStorage';
 import { calculateMetrics, getColorClass } from '../utils/metricCalculations';
 
 function snapshotToProblem(snapshot: ProblemSnapshot, settings: SolverSettings): Problem {
+  // Use the settings that were saved with the result, not current settings
   return {
     ...snapshot,
     settings,
@@ -35,6 +36,10 @@ export function ResultsView() {
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+
+
+
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -74,6 +79,14 @@ export function ResultsView() {
   }, [currentProblemId, savedProblems, solution]);
 
   const resultName = currentResult?.name;
+
+  // Use the problemSnapshot from the result if available, otherwise fall back to current problem
+  const effectiveProblem = useMemo(() => {
+    if (currentResult?.problemSnapshot) {
+      return snapshotToProblem(currentResult.problemSnapshot, currentResult.solverSettings);
+    }
+    return problem;
+  }, [currentResult, problem]);
 
   // Check if problem configuration has changed since result was created
   const configDiff = useMemo(() => {
@@ -262,7 +275,7 @@ export function ResultsView() {
   };
 
   const generateCSV = () => {
-    if (!problem || !solution) return '';
+    if (!effectiveProblem || !solution) return '';
     
     const headers = [
       'Person ID',
@@ -273,7 +286,7 @@ export function ResultsView() {
     ];
 
     const rows = solution.assignments.map(assignment => {
-      const person = problem.people.find(p => p.id === assignment.person_id);
+      const person = effectiveProblem.people.find(p => p.id === assignment.person_id);
       const personName = person?.attributes.name || assignment.person_id;
       const personAttrs = person ? Object.entries(person.attributes)
         .filter(([key]) => key !== 'name')
@@ -315,13 +328,13 @@ export function ResultsView() {
   };
 
   const handleExportResult = (format: 'json' | 'csv' | 'excel') => {
-    if (!problem || !solution) return;
+    if (!effectiveProblem || !solution) return;
     
     const fileName = (resultName || 'result').replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
     if (format === 'json') {
       const exportData = {
-        problem,
+        problem: effectiveProblem,
         solution,
         exportedAt: Date.now(),
       };
@@ -344,24 +357,35 @@ export function ResultsView() {
   };
 
   // Group assignments by session for display
-  const sessionData = Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
-    const sessionAssignments = solution.assignments.filter(a => a.session_id === sessionIndex);
-    const groups = problem?.groups.map(group => ({
-      ...group,
-      people: sessionAssignments
-        .filter(a => a.group_id === group.id)
-        .map(a => problem?.people.find(p => p.id === a.person_id))
-        .filter(Boolean)
-    })) || [];
+  const sessionData = useMemo(() => {
+    if (!solution || !effectiveProblem) {
+      return [];
+    }
     
-    return {
-      sessionIndex,
-      groups,
-      totalPeople: sessionAssignments.length
-    };
-  });
+    return Array.from({ length: effectiveProblem.num_sessions || 0 }, (_, sessionIndex) => {
+      const sessionAssignments = solution.assignments.filter(a => a.session_id === sessionIndex);
+      
+      const groups = effectiveProblem.groups.map(group => {
+        const groupAssignments = sessionAssignments.filter(a => a.group_id === group.id);
+        const people = groupAssignments
+          .map(a => effectiveProblem.people.find(p => p.id === a.person_id))
+          .filter(Boolean);
+        
+        return {
+          ...group,
+          people
+        };
+      }) || [];
+      
+      return {
+        sessionIndex,
+        groups,
+        totalPeople: sessionAssignments.length
+      };
+    });
+  }, [solution, effectiveProblem]);
 
-  const getPersonById = (id: string) => problem?.people.find(p => p.id === id);
+  const getPersonById = (id: string) => effectiveProblem?.people.find(p => p.id === id);
 
   const formatConstraintLabel = (constraint: Constraint): React.ReactNode => {
     switch (constraint.type) {
@@ -494,7 +518,7 @@ export function ResultsView() {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
                 Person
               </th>
-              {Array.from({ length: problem?.num_sessions || 0 }, (_, i) => (
+              {Array.from({ length: effectiveProblem?.num_sessions || 0 }, (_, i) => (
                 <th key={i} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
                   Session {i + 1}
                 </th>
@@ -502,9 +526,9 @@ export function ResultsView() {
             </tr>
           </thead>
           <tbody className="divide-y" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-secondary)' }}>
-            {problem?.people.map(person => {
-              const personAssignments = solution.assignments.filter(a => a.person_id === person.id);
-              const displayName = person.attributes?.name || person.id;
+                          {effectiveProblem?.people.map((person, _index) => {
+                const personAssignments = solution.assignments.filter(a => a.person_id === person.id);
+                const displayName = person.attributes?.name || person.id;
               
               return (
                 <tr key={person.id} className="transition-colors" style={{ backgroundColor: 'var(--bg-primary)' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-primary)'}>
@@ -514,7 +538,7 @@ export function ResultsView() {
                       <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{displayName}</span>
                     </div>
                   </td>
-                  {Array.from({ length: problem?.num_sessions || 0 }, (_, sessionIndex) => {
+                  {Array.from({ length: effectiveProblem?.num_sessions || 0 }, (_, sessionIndex) => {
                     const assignment = personAssignments.find(a => a.session_id === sessionIndex);
                     return (
                       <td key={sessionIndex} className="px-6 py-4 whitespace-nowrap">
@@ -537,7 +561,17 @@ export function ResultsView() {
     </div>
   );
 
-
+  if (!solution || !effectiveProblem) {
+    return (
+      <div className="text-center py-12">
+        <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>No Results Available</h3>
+        <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Run the solver to generate results for this problem.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

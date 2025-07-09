@@ -1217,9 +1217,11 @@ export const useAppStore = create<AppStore>()(
           );
 
           // Update the store with both the problem and the merged attributes
+          // Clear solution since it's no longer valid for the new problem
           set({
             problem: demoProblem,
             attributeDefinitions: mergedAttributes,
+            solution: null,
           });
 
           get().addNotification({
@@ -1261,9 +1263,11 @@ export const useAppStore = create<AppStore>()(
           );
 
           // Update the store with both the problem and the merged attributes
+          // Clear solution since it's no longer valid for the new problem
           set({
             problem,
             attributeDefinitions: mergedAttributes,
+            solution: null,
           });
 
           // Check if any new attributes were added
@@ -1320,9 +1324,11 @@ export const useAppStore = create<AppStore>()(
           );
 
           // Update the store with both the problem and the merged attributes
+          // Clear solution since it's no longer valid for the new problem
           set({
             problem,
             attributeDefinitions: mergedAttributes,
+            solution: null,
           });
 
           // Check if any new attributes were added
@@ -1423,6 +1429,7 @@ export const useAppStore = create<AppStore>()(
             currentProblemId: newSavedProblem.id,
             attributeDefinitions: mergedAttributes,
             savedProblems: updatedSavedProblems,
+            solution: null,
           });
 
           // Check if any new attributes were added
