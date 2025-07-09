@@ -552,14 +552,18 @@ export function ResultsView() {
                 >
                   <AlertTriangle className="h-3 w-3" />
                   Different Config
+                  <ChevronDown className={`h-3 w-3 transition-transform ${configDetailsOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {configDetailsOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-10 w-80 max-w-[90vw] w-full p-3 rounded-lg border shadow-lg"
+                  <div className="absolute top-full left-0 mt-1 z-10 p-3 rounded-lg border shadow-lg"
                        style={{ 
                          backgroundColor: 'var(--bg-primary)', 
                          borderColor: '#dc2626',
-                         color: 'var(--text-primary)'
+                         color: 'var(--text-primary)',
+                         minWidth: '320px',
+                         width: '100%',
+                         maxWidth: '90vw'
                        }}>
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2 mb-2">
