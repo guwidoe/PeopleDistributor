@@ -634,14 +634,13 @@ export function ResultsHistory() {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 flex-shrink-0">
+                    <div className="flex items-center space-x-2 flex-shrink-0 flex-row flex-wrap">
                         <button
                           onClick={() => handleOpenDetails(result)}
                           className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
                         >
                           <Eye className="h-4 w-4" />
-                          <span className="hidden sm:inline">View in Result Details</span>
-                          <span className="sm:hidden">View</span>
+                          View in Result Details
                         </button>
                       <button
                         onClick={() => toggleExpanded(result.id)}
@@ -772,7 +771,7 @@ export function ResultsHistory() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t gap-3">
+                      <div className="flex flex-row flex-wrap items-center justify-between pt-3 border-t gap-3">
                         <div className="relative" ref={dropdownRef}>
                           <button
                             onClick={() => setExportDropdownOpen(

@@ -545,18 +545,17 @@ export function ResultsView() {
                   onClick={() => setConfigDetailsOpen(!configDetailsOpen)}
                   className="config-details-badge inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border transition-colors"
                   style={{
-                    backgroundColor: '#fef2f2',
+                    backgroundColor: 'var(--bg-secondary)',
                     borderColor: '#dc2626',
                     color: '#dc2626'
                   }}
                 >
                   <AlertTriangle className="h-3 w-3" />
-                  <span className="hidden sm:inline">Different Config</span>
-                  <span className="sm:hidden">Config</span>
+                  Different Config
                 </button>
                 
                 {configDetailsOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
+                  <div className="absolute top-full left-0 mt-1 z-10 w-80 max-w-[90vw] w-full p-3 rounded-lg border shadow-lg"
                        style={{ 
                          backgroundColor: 'var(--bg-primary)', 
                          borderColor: '#dc2626',
@@ -613,7 +612,7 @@ export function ResultsView() {
             </button>
             
             {exportDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
+              <div className="absolute left-0 mt-1 min-w-full w-40 rounded-md shadow-lg z-10 border overflow-hidden" 
                    style={{ 
                      backgroundColor: 'var(--bg-primary)', 
                      borderColor: 'var(--border-primary)' 
