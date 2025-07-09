@@ -503,7 +503,7 @@ export function SolverPanel() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Solver</h2>
           <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
@@ -512,9 +512,9 @@ export function SolverPanel() {
         </div>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="btn-secondary flex items-center space-x-2"
+          className="btn-secondary flex items-center space-x-2 min-w-fit"
         >
-          <Settings className="h-4 w-4" />
+          <Settings className="h-5 w-5 flex-shrink-0" />
           <span>Solve with Custom Settings</span>
         </button>
       </div>
@@ -523,7 +523,7 @@ export function SolverPanel() {
       {showSettings && (
         <div className="card">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-4">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Solver Settings</h3>
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Manual Solver Configuration</h3>
 
             {/* Automatic Configuration (header right) */}
             <div className="flex items-end gap-2 p-3 rounded-lg" style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--background-secondary)' }}>
@@ -916,7 +916,7 @@ export function SolverPanel() {
               disabled={!problem}
             >
               <Play className="h-4 w-4" />
-              <span>Start Solver</span>
+              <span>Start Solver with Automatic Settings</span>
             </button>
           ) : (
             <button

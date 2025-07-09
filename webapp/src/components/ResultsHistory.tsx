@@ -588,15 +588,18 @@ export function ResultsHistory() {
                                       e.stopPropagation();
                                       setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
                                     }}
-                                    className="px-2 py-1 rounded-full text-xs border cursor-pointer transition-colors hover:opacity-80"
+                                    className="px-2 py-1 rounded-full text-xs border cursor-pointer flex items-center gap-1 transition-colors hover:opacity-80"
                                     style={{ 
                                       backgroundColor: 'var(--bg-secondary)', 
                                       color: '#dc2626', 
-                                      borderColor: '#dc2626'
+                                      borderColor: '#dc2626',
+                                      lineHeight: 1.2
                                     }}
                                     title="Different Problem Configuration - Click to see details"
                                   >
-                                    Different Config
+                                    <AlertTriangle className="h-3 w-3" />
+                                    <span>Different Config</span>
+                                    <ChevronRight className={`h-3 w-3 transition-transform ${configDetailsOpen === result.id ? 'rotate-90' : ''}`} />
                                   </span>
                                   
                                   {/* Expanded Badge Details */}
