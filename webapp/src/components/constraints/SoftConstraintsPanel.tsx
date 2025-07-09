@@ -101,8 +101,7 @@ const SoftConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       <div>
         <button
           onClick={() => onAddConstraint(activeTab)}
-          className="flex items-center gap-2 px-3 py-2 rounded-md font-medium text-white text-sm transition-colors"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="btn-primary flex items-center gap-2 px-3 py-2 text-sm"
         >
           <Plus className="w-4 h-4" />
           {activeTab === 'RepeatEncounter' ? 'Add Repeat Limit' : activeTab === 'AttributeBalance' ? 'Add Attribute Balance' : 'Add Should Not Be Together'}

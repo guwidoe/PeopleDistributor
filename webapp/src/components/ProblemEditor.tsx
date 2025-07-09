@@ -319,7 +319,7 @@ export function ProblemEditor() {
     setShowProblemManager(true);
   };
 
-  const handleDemoCaseClick = (demoCaseId: string, demoCaseName: string) => {
+  const handleDemoCaseClick = (demoCaseId: string) => {
     // Check if current problem has content
     const currentProblem = problem;
     const hasContent = currentProblem && (
@@ -1302,10 +1302,7 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdatePerson : handleAddPerson}
-              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              className="btn-primary flex-1 px-4 py-2"
             >
               {isEditing ? 'Update' : 'Add'} Person
             </button>
@@ -1395,10 +1392,7 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdateGroup : handleAddGroup}
-              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              className="btn-primary flex-1 px-4 py-2"
             >
               {isEditing ? 'Update' : 'Add'} Group
             </button>
@@ -1835,10 +1829,7 @@ export function ProblemEditor() {
           <div className="flex gap-2 mt-6">
             <button
               onClick={isEditing ? handleUpdateConstraint : handleAddConstraint}
-              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              className="btn-primary flex-1 px-4 py-2"
             >
               {isEditing ? 'Update' : 'Add'} Constraint
             </button>
@@ -2069,8 +2060,7 @@ export function ProblemEditor() {
             )}
             <button
               onClick={handleAddBulkPeople}
-              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
+              className="btn-primary flex-1 px-4 py-2"
             >
               Add People
             </button>
@@ -2303,8 +2293,7 @@ export function ProblemEditor() {
             )}
             <button
               onClick={handleAddGroupBulkPeople}
-              className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
+              className="btn-primary flex-1 px-4 py-2"
             >
               Add Groups
             </button>
@@ -2443,7 +2432,7 @@ export function ProblemEditor() {
                     {casesInCategory.map((demoCase) => (
                       <button
                         key={demoCase.id}
-                        onClick={() => handleDemoCaseClick(demoCase.id, demoCase.name)}
+                        onClick={() => handleDemoCaseClick(demoCase.id)}
                         className="flex flex-col w-full px-3 py-3 text-left transition-colors border-b last:border-b-0"
                         style={{
                           color: 'var(--text-primary)',
@@ -2535,10 +2524,7 @@ export function ProblemEditor() {
               </button>
               <button
                 onClick={() => setShowAttributeForm(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md font-medium text-white text-sm transition-colors"
-                style={{ backgroundColor: 'var(--color-accent)' }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                className="btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
               >
                 <Plus className="w-3 h-3" />
                 Add Attribute
@@ -2719,10 +2705,7 @@ export function ProblemEditor() {
                       {/* Add Person Button */}
                       <button
                         onClick={() => setShowPersonForm(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-                        style={{ backgroundColor: 'var(--color-accent)' }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                        className="btn-primary flex items-center gap-2 px-4 py-2"
                       >
                         <Plus className="w-4 h-4" />
                         Add Person
@@ -2793,10 +2776,7 @@ export function ProblemEditor() {
               {/* Add Group Button */}
               <button
                 onClick={() => setShowGroupForm(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-                style={{ backgroundColor: 'var(--color-accent)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                className="btn-primary flex items-center gap-2 px-4 py-2"
               >
                 <Plus className="w-4 h-4" />
                 Add Group
@@ -3010,10 +2990,7 @@ export function ProblemEditor() {
             <h3 className="text-lg font-medium">Constraints ({problem?.constraints.length || 0})</h3>
             <button
               onClick={() => setShowConstraintForm(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              className="btn-primary flex items-center gap-2 px-4 py-2"
             >
               <Plus className="w-4 h-4" />
               Add Constraint
@@ -3082,11 +3059,10 @@ export function ProblemEditor() {
                         const firstType = cat === 'soft' ? SOFT_TYPES[0] : HARD_TYPES[0];
                         setActiveConstraintTab(firstType);
                       }}
-                      className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
-                      style={{
-                        backgroundColor: constraintCategoryTab === cat ? 'var(--color-accent)' : 'var(--bg-tertiary)',
-                        color: constraintCategoryTab === cat ? 'white' : 'var(--text-secondary)'
-                      }}
+                      className={
+                        'px-3 py-1 rounded-md text-sm font-medium transition-colors ' +
+                        (constraintCategoryTab === cat ? 'btn-primary' : 'btn-secondary')
+                      }
                     >
                       {cat === 'soft' ? 'Soft Constraints' : 'Hard Constraints'}
                     </button>
@@ -3099,11 +3075,10 @@ export function ProblemEditor() {
                     <button
                       key={type}
                       onClick={() => setActiveConstraintTab(type)}
-                      className="px-3 py-1 rounded-md text-sm font-medium transition-colors"
-                      style={{
-                        backgroundColor: activeConstraintTab === type ? 'var(--color-accent)' : 'var(--bg-tertiary)',
-                        color: activeConstraintTab === type ? 'white' : 'var(--text-secondary)'
-                      }}
+                      className={
+                        'px-3 py-1 rounded-md text-sm font-medium transition-colors ' +
+                        (activeConstraintTab === type ? 'btn-primary' : 'btn-secondary')
+                      }
                     >
                       {constraintTypeLabels[type]}
                       <span className="ml-1 text-xs">({constraintsByType[type]?.length || 0})</span>
@@ -3359,10 +3334,7 @@ export function ProblemEditor() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={editingAttribute ? handleUpdateAttribute : handleAddAttribute}
-                className="flex-1 px-4 py-2 rounded-md font-medium text-white transition-colors"
-                style={{ backgroundColor: 'var(--color-accent)' }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                className="btn-primary flex-1 px-4 py-2"
               >
                 {editingAttribute ? 'Update Attribute' : 'Add Attribute'}
               </button>

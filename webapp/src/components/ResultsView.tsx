@@ -16,11 +16,18 @@ import {
   FileText,
   FileSpreadsheet
 } from 'lucide-react';
-import { Constraint, Person, Problem } from '../types';
+import type { Problem, ProblemSnapshot, SolverSettings, Constraint, Person } from '../types';
 import { Tooltip } from './Tooltip';
 import PersonCard from './PersonCard';
 import { compareProblemConfigurations } from '../services/problemStorage';
 import { calculateMetrics, getColorClass } from '../utils/metricCalculations';
+
+function snapshotToProblem(snapshot: ProblemSnapshot, settings: SolverSettings): Problem {
+  return {
+    ...snapshot,
+    settings,
+  };
+}
 
 export function ResultsView() {
   const { problem, solution, solverState, currentProblemId, savedProblems } = useAppStore();
@@ -71,27 +78,29 @@ export function ResultsView() {
   // Check if problem configuration has changed since result was created
   const configDiff = useMemo(() => {
     if (!problem || !currentResult?.problemSnapshot) return null;
-    
-    // For the latest result, we need to compare with the most recent result's config
-    // to determine if this result is outdated
     const currentProblemData = savedProblems[currentProblemId!];
     if (!currentProblemData) return null;
-    
     const mostRecentResult = currentProblemData.results
       .sort((a, b) => b.timestamp - a.timestamp)[0];
-    
     // If this is the most recent result, only show warning if it differs from current problem
     if (currentResult.id === mostRecentResult?.id) {
-      return compareProblemConfigurations(problem, currentResult.problemSnapshot);
+      return compareProblemConfigurations(
+        problem,
+        snapshotToProblem(currentResult.problemSnapshot, currentResult.solverSettings)
+      );
     }
-    
     // For older results, compare with the most recent result's configuration
     if (mostRecentResult?.problemSnapshot) {
-      return compareProblemConfigurations(mostRecentResult.problemSnapshot as any, currentResult.problemSnapshot as any);
+      return compareProblemConfigurations(
+        snapshotToProblem(mostRecentResult.problemSnapshot, mostRecentResult.solverSettings),
+        snapshotToProblem(currentResult.problemSnapshot, currentResult.solverSettings)
+      );
     }
-    
     // Fallback to comparing with current problem
-    return compareProblemConfigurations(problem, currentResult.problemSnapshot);
+    return compareProblemConfigurations(
+      problem,
+      snapshotToProblem(currentResult.problemSnapshot, currentResult.solverSettings)
+    );
   }, [problem, currentResult, currentProblemId, savedProblems]);
 
   // === Derived Metrics using cached configuration ===
@@ -385,7 +394,7 @@ export function ResultsView() {
         return (
           <>
             Must Stay Together (
-            {constraint.people.map((pid, idx) => {
+            {constraint.people.map((pid: string, idx: number) => {
               const person = getPersonById(pid);
               return (
                 <React.Fragment key={pid}>
@@ -402,7 +411,7 @@ export function ResultsView() {
         return (
           <>
             Should Not Be Together (
-            {constraint.people.map((pid, idx) => {
+            {constraint.people.map((pid: string, idx: number) => {
               const person = getPersonById(pid);
               return (
                 <React.Fragment key={pid}>

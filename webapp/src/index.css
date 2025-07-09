@@ -66,9 +66,11 @@
   --border-secondary: #d1d5db;
   --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --color-accent: #2563eb; /* Default blue for light mode */
-  --badge-best-bg: #e0f2fe; /* Light blue for best badge in light mode */
-  --color-accent-hover: #1d4ed8;
+      --color-accent: #2563eb; /* Default blue for light mode */
+    --badge-best-bg: #e0f2fe; /* Light blue for best badge in light mode */
+    --color-accent-hover: #1d4ed8;
+    --btn-primary-bg: #60a5fa; /* Lighter blue for primary buttons in light mode */
+    --btn-primary-hover: #3b82f6; /* Hover color for primary buttons in light mode */
   --number-input-spinner-color: #374151; /* Gray for light mode */
   --bg-backdrop-rgb: 255, 255, 255;
   --bg-backdrop: rgba(var(--bg-backdrop-rgb), 0.8); /* Translucent white for light mode */
@@ -94,6 +96,8 @@
     --badge-best-bg: #064e3b;
     --badge-best-text: #6ee7b7;
     --color-accent-hover: #3b82f6;
+    --btn-primary-bg: #1d4ed8; /* Darker blue for primary buttons in dark mode */
+    --btn-primary-hover: #1e40af; /* Hover color for primary buttons in dark mode */
     --number-input-spinner-color: #bfc7d5; /* Lighter gray for dark mode */
     --bg-backdrop-rgb: 0, 0, 0;
     --bg-backdrop: rgba(var(--bg-backdrop-rgb), 0.6); /* Translucent black for dark mode */
@@ -178,8 +182,8 @@
 @layer components {
   /* Button Styles */
   .btn-primary {
-    background-color: var(--color-accent);
-    color: white;
+    background-color: var(--btn-primary-bg) !important;
+    color: white !important;
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
@@ -189,7 +193,7 @@
   }
   
   .btn-primary:hover {
-    background-color: var(--color-accent-hover);
+    background-color: var(--btn-primary-hover) !important;
   }
   
   .btn-primary:focus {

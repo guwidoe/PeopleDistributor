@@ -17,7 +17,7 @@ const constraintTypeLabels: Record<typeof HARD_TABS[number], string> = {
   MustStayTogether: 'Must Stay Together',
 };
 
-const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstraint, onDeleteConstraint }) => {
+function HardConstraintsPanel({ onAddConstraint, onEditConstraint, onDeleteConstraint }: Props) {
   const [activeTab, setActiveTab] = useState<typeof HARD_TABS[number]>('ImmovablePeople');
   const [showInfo, setShowInfo] = useState(false);
   const { GetProblem, ui } = useAppStore();
@@ -88,8 +88,7 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
       <div>
         <button
           onClick={() => onAddConstraint(activeTab)}
-          className="flex items-center gap-2 px-3 py-2 rounded-md font-medium text-white text-sm transition-colors"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="btn-primary flex items-center gap-2 px-3 py-2 text-sm"
         >
           <Plus className="w-4 h-4" />
           {activeTab === 'ImmovablePeople' ? 'Add Immovable People' : 'Add Clique'}
@@ -180,4 +179,4 @@ const HardConstraintsPanel: React.FC<Props> = ({ onAddConstraint, onEditConstrai
   );
 };
 
-export default HardConstraintsPanel; 
+export default HardConstraintsPanel;

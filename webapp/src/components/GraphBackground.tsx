@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { useThemeStore } from '../store/theme';
 
 interface Dot {
   color: string;
@@ -95,7 +94,7 @@ const GraphBackground: React.FC = () => {
       const dt = ts - lastTimeRef.current;
       lastTimeRef.current = ts;
 
-      const isDarkNow = useThemeStore.getState().isDark;
+
 
       // Clear the entire canvas each frame to prevent residue
       ctx.clearRect(0, 0, canvas.width, canvas.height);

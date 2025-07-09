@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAppStore } from '../store';
-import { Play, Pause, RotateCcw, Settings, Zap, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info, BarChart3 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Settings, TrendingUp, Clock, Activity, ChevronDown, ChevronRight, Info, BarChart3 } from 'lucide-react';
 import type { SolverSettings } from '../types';
 import { solverWorkerService } from '../services/solverWorker';
 import type { ProgressUpdate } from '../services/wasm';

@@ -1,12 +1,10 @@
 import React, { useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Zap,
   Clock,
   CheckCircle,
   ArrowRight,
   Star,
-  Globe,
   Lightbulb,
   Calendar,
   GitBranch,
@@ -14,9 +12,8 @@ import {
   ArrowDown,
   Settings,
   Download,
+  Zap,
 } from 'lucide-react';
-import GraphNetworkIcon from './icons/GraphNetworkIcon';
-import ChecklistIcon from './icons/ChecklistIcon';
 import GraphBackground from './GraphBackground';
 import { HeaderThemeToggle } from './ThemeToggle';
 

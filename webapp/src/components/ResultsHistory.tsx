@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -23,12 +23,19 @@ import {
   FileSpreadsheet,
   Eye,
   AlertTriangle,
-  ChevronRight,
-  PieChart
+  ChevronRight
 } from 'lucide-react';
-import type { ProblemResult } from '../types';
+import type { ProblemResult, Problem, ProblemSnapshot, SolverSettings } from '../types';
 import { compareProblemConfigurations } from '../services/problemStorage';
 import { calculateMetrics, getColorClass } from '../utils/metricCalculations';
+
+// Helper: Convert a ProblemSnapshot and SolverSettings to a Problem
+function snapshotToProblem(snapshot: ProblemSnapshot, settings: SolverSettings): Problem {
+  return {
+    ...snapshot,
+    settings,
+  };
+}
 
 export function ResultsHistory() {
   const {
@@ -292,11 +299,10 @@ export function ResultsHistory() {
   // Helper: check if two results have the same config
   function isSameConfig(resultA: ProblemResult | null, resultB: ProblemResult | null): boolean {
     if (!resultA || !resultB) return false;
-    // Use the same logic as compareProblemConfigurations, but check for no differences
-    const diff = compareProblemConfigurations(
-      resultA.problemSnapshot as any,
-      resultB.problemSnapshot as any
-    );
+    if (!resultA.problemSnapshot || !resultB.problemSnapshot) return false;
+    const a = snapshotToProblem(resultA.problemSnapshot, resultA.solverSettings);
+    const b = snapshotToProblem(resultB.problemSnapshot, resultB.solverSettings);
+    const diff = compareProblemConfigurations(a, b);
     return !diff.isDifferent;
   }
 
@@ -642,7 +648,7 @@ export function ResultsHistory() {
                     <div className="flex items-center space-x-2 flex-shrink-0">
                         <button
                           onClick={() => handleOpenDetails(result)}
-                          className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
+                          className="btn-secondary flex items-center gap-2 px-3 py-1 text-sm"
                         >
                           <Eye className="h-4 w-4" />
                           View in Result Details
