@@ -570,42 +570,38 @@ export function ResultsHistory() {
                                 <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-1 items-center">
+                            <div className="flex flex-wrap gap-2 items-center">
                               {isBest && (
-                                <span className="px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm badge-best" style={{lineHeight: '1.1', fontWeight: 500}}>
+                                <span className="px-2 py-1 rounded-full text-xs badge-best">
                                   Best
                                 </span>
                               )}
                               {isCurrent && (
-                                <span className="px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)', lineHeight: '1.1', fontWeight: 500 }}>
+                                <span className="px-2 py-1 rounded-full text-xs border" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>
                                   Latest
                                 </span>
                               )}
                               {configDiff && configDiff.isDifferent && (
                                 <div className="relative">
-                                  <button
+                                  <span
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setConfigDetailsOpen(configDetailsOpen === result.id ? null : result.id);
                                     }}
-                                    className="config-details-badge px-2 py-0.5 rounded-md text-xs sm:px-3 sm:py-1 sm:rounded-full sm:text-sm border flex items-center gap-1 transition-colors hover:bg-red-50"
+                                    className="px-2 py-1 rounded-full text-xs border cursor-pointer transition-colors hover:opacity-80"
                                     style={{ 
                                       backgroundColor: 'var(--bg-secondary)', 
                                       color: '#dc2626', 
-                                      borderColor: '#dc2626',
-                                      lineHeight: '1.1',
-                                      fontWeight: 500
+                                      borderColor: '#dc2626'
                                     }}
                                     title="Different Problem Configuration - Click to see details"
                                   >
-                                    <AlertTriangle className="h-3 w-3" />
-                                    <span>Different Config</span>
-                                    <ChevronRight className={`h-3 w-3 transition-transform ${configDetailsOpen === result.id ? 'rotate-90' : ''}`} />
-                                  </button>
+                                    Different Config
+                                  </span>
                                   
                                   {/* Expanded Badge Details */}
                                   {configDetailsOpen === result.id && (
-                                    <div className="absolute top-full left-0 mt-1 z-10 w-80 p-3 rounded-lg border shadow-lg"
+                                    <div className="absolute top-full left-0 mt-1 z-10 w-80 max-w-[calc(100vw-2rem)] p-3 rounded-lg border shadow-lg"
                                          style={{ 
                                            backgroundColor: 'var(--bg-primary)', 
                                            borderColor: '#dc2626',
@@ -640,7 +636,7 @@ export function ResultsHistory() {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 flex-shrink-0 flex-row flex-wrap">
+                    <div className="flex items-center space-x-2 flex-shrink-0">
                         <button
                           onClick={() => handleOpenDetails(result)}
                           className="btn-primary flex items-center gap-2 px-3 py-1 text-sm"
