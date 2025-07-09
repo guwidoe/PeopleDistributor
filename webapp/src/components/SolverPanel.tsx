@@ -510,276 +510,9 @@ export function SolverPanel() {
             Run the optimization algorithm to find the best solution
           </p>
         </div>
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className="btn-secondary flex items-center space-x-2 min-w-fit"
-        >
-          <Settings className="h-5 w-5 flex-shrink-0" />
-          <span>Solve with Custom Settings</span>
-        </button>
       </div>
 
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="card">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-4">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Manual Solver Configuration</h3>
-
-            {/* Automatic Configuration (header right) */}
-            <div className="flex items-end gap-2 p-3 rounded-lg" style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--background-secondary)' }}>
-              <div className="flex-grow">
-                <label htmlFor="desiredRuntime" className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-                  Desired Runtime (s)
-                </label>
-                <input
-                  id="desiredRuntime"
-                  type="number"
-                  value={solverFormInputs.desiredRuntimeSettings ?? desiredRuntimeSettings.toString()}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: e.target.value }))}
-                  onBlur={() => {
-                    const inputValue = solverFormInputs.desiredRuntimeSettings || desiredRuntimeSettings.toString();
-                    const numValue = parseInt(inputValue);
-                    if (!isNaN(numValue) && numValue >= 1) {
-                      setDesiredRuntimeSettings(numValue);
-                      setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: undefined }));
-                    }
-                  }}
-                  disabled={solverState.isRunning}
-                  className="input w-24 md:w-32"
-                />
-              </div>
-              <Tooltip content={<span>Run a short trial to estimate optimal solver parameters for the specified runtime.</span>}>
-                <button
-                  onClick={handleAutoSetSettings}
-                  disabled={solverState.isRunning}
-                  className="btn-primary whitespace-nowrap"
-                >
-                  Auto-set
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Max Iterations
-                </label>
-                <Tooltip content="The maximum number of iterations the solver will run.">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.maxIterations ?? (solverSettings.stop_conditions.max_iterations || 10000).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, maxIterations: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.maxIterations || (solverSettings.stop_conditions.max_iterations || 10000).toString();
-                  const numValue = parseInt(inputValue);
-                  if (!isNaN(numValue) && numValue >= 1000) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      stop_conditions: {
-                        ...solverSettings.stop_conditions,
-                        max_iterations: numValue
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, maxIterations: undefined }));
-                  }
-                }}
-                min="1000"
-                max="100000"
-              />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="timeLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Time Limit (seconds)
-                </label>
-                <Tooltip content="The maximum time the solver will run in seconds.">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.timeLimit ?? (solverSettings.stop_conditions.time_limit_seconds || 30).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, timeLimit: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.timeLimit || (solverSettings.stop_conditions.time_limit_seconds || 30).toString();
-                  const numValue = parseInt(inputValue);
-                  if (!isNaN(numValue) && numValue >= 10) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      stop_conditions: {
-                        ...solverSettings.stop_conditions,
-                        time_limit_seconds: numValue
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, timeLimit: undefined }));
-                  }
-                }}
-                min="10"
-                max="300"
-              />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="noImprovementLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  No Improvement Limit
-                </label>
-                <Tooltip content="Stop after this many iterations without improvement.">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.noImprovement ?? (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, noImprovement: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.noImprovement || (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString();
-                  const numValue = parseInt(inputValue);
-                  if (!isNaN(numValue) && numValue >= 100) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      stop_conditions: {
-                        ...solverSettings.stop_conditions,
-                        no_improvement_iterations: numValue
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, noImprovement: undefined }));
-                  }
-                }}
-                min="100"
-                max="50000"
-                placeholder="Iterations without improvement before stopping"
-              />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="initialTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Initial Temperature
-                </label>
-                <Tooltip content="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.initialTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, initialTemp: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.initialTemp || (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString();
-                  const numValue = parseFloat(inputValue);
-                  if (!isNaN(numValue) && numValue >= 0.1) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      solver_params: {
-                        ...solverSettings.solver_params,
-                        SimulatedAnnealing: {
-                          ...solverSettings.solver_params.SimulatedAnnealing!,
-                          initial_temperature: numValue
-                        }
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, initialTemp: undefined }));
-                  }
-                }}
-                step="0.1"
-                min="0.1"
-                max="10.0"
-              />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="finalTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Final Temperature
-                </label>
-                <Tooltip content="The temperature at which the algorithm will stop.">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.finalTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, finalTemp: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.finalTemp || (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString();
-                  const numValue = parseFloat(inputValue);
-                  if (!isNaN(numValue) && numValue >= 0.001) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      solver_params: {
-                        ...solverSettings.solver_params,
-                        SimulatedAnnealing: {
-                          ...solverSettings.solver_params.SimulatedAnnealing!,
-                          final_temperature: numValue
-                        }
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, finalTemp: undefined }));
-                  }
-                }}
-                step="0.001"
-                min="0.001"
-                max="1.0"
-              />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <label htmlFor="reheatAfterNoImprovement" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Reheat After No Improvement
-                </label>
-                <Tooltip content="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
-                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </div>
-              <input
-                type="number"
-                className="input"
-                value={solverFormInputs.reheat ?? (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString()}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, reheat: e.target.value }))}
-                onBlur={() => {
-                  const inputValue = solverFormInputs.reheat || (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString();
-                  const numValue = parseInt(inputValue);
-                  if (!isNaN(numValue) && numValue >= 0) {
-                    handleSettingsChange({
-                      ...solverSettings,
-                      solver_params: {
-                        ...solverSettings.solver_params,
-                        SimulatedAnnealing: {
-                          ...solverSettings.solver_params.SimulatedAnnealing!,
-                          reheat_after_no_improvement: numValue
-                        }
-                      }
-                    });
-                    setSolverFormInputs(prev => ({ ...prev, reheat: undefined }));
-                  }
-                }}
-                min="0"
-                max="50000"
-                placeholder="0 = disabled"
-              />
-            </div>
-          </div>
-
-          {/* --- Custom Settings Start Button (inside settings panel) --- */}
-          <div className="mt-6">
-            <button
-              onClick={() => handleStartSolver(false)}
-              disabled={solverState.isRunning}
-              className="btn-success w-full flex items-center justify-center space-x-2"
-            >
-              <Play className="h-4 w-4" />
-              <span>Start Solver with Custom Settings</span>
-            </button>
-          </div>
-        </div>
-      )}
+      
 
       {/* Status Card */}
       <div className="card">
@@ -793,6 +526,62 @@ export function SolverPanel() {
               {solverState.isRunning ? 'Running' : 'Idle'}
             </span>
           </div>
+        </div>
+
+        {/* Control Buttons */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+          {/* Runtime (s) */}
+          <div className="flex flex-col items-start">
+            <label className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+              Desired Runtime (s)
+            </label>
+            <input
+              type="number"
+              value={solverFormInputs.desiredRuntimeMain ?? (desiredRuntimeMain?.toString() || '')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: e.target.value }))}
+              onBlur={() => {
+                const inputValue = solverFormInputs.desiredRuntimeMain || (desiredRuntimeMain?.toString() || '');
+                const numValue = inputValue === '' ? null : Number(inputValue);
+                if (numValue === null || (!isNaN(numValue) && numValue >= 1)) {
+                  setDesiredRuntimeMain(numValue);
+                  setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: undefined }));
+                }
+              }}
+              disabled={solverState.isRunning}
+              className="input w-full sm:w-28"
+              min="1"
+            />
+          </div>
+          {!solverState.isRunning ? (
+            <button
+              onClick={() => {
+                console.log('[SolverPanel] Start Solver button clicked');
+                handleStartSolver(true);
+              }}
+              className="btn-success flex-1 flex items-center justify-center space-x-2"
+              disabled={!problem}
+            >
+              <Play className="h-4 w-4" />
+              <span>Start Solver with Automatic Settings</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleStopSolver}
+              className="btn-warning flex-1 flex items-center justify-center space-x-2"
+            >
+              <Pause className="h-4 w-4" />
+              <span>Cancel Solver</span>
+            </button>
+          )}
+          
+          <button
+            onClick={handleResetSolver}
+            className="btn-secondary flex items-center justify-center space-x-2"
+            disabled={solverState.isRunning}
+          >
+            <RotateCcw className="h-4 w-4" />
+            <span>Reset</span>
+          </button>
         </div>
 
         {/* Progress Bars */}
@@ -852,6 +641,9 @@ export function SolverPanel() {
           </div>
         </div>
 
+
+
+
         {/* Basic Metrics Grid */}
         <div className="flex flex-row gap-2 sm:gap-4 mb-6 overflow-x-auto">
           <div className="text-center p-3 sm:p-4 bg-primary-50 rounded-lg flex-shrink-0 min-w-0 flex-1">
@@ -880,62 +672,6 @@ export function SolverPanel() {
             </div>
             <div className="text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>Elapsed Time</div>
           </div>
-        </div>
-
-        {/* Control Buttons */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
-          {/* Runtime (s) */}
-          <div className="flex flex-col items-start">
-            <label className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-              Desired Runtime (s)
-            </label>
-            <input
-              type="number"
-              value={solverFormInputs.desiredRuntimeMain ?? (desiredRuntimeMain?.toString() || '')}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: e.target.value }))}
-              onBlur={() => {
-                const inputValue = solverFormInputs.desiredRuntimeMain || (desiredRuntimeMain?.toString() || '');
-                const numValue = inputValue === '' ? null : Number(inputValue);
-                if (numValue === null || (!isNaN(numValue) && numValue >= 1)) {
-                  setDesiredRuntimeMain(numValue);
-                  setSolverFormInputs(prev => ({ ...prev, desiredRuntimeMain: undefined }));
-                }
-              }}
-              disabled={solverState.isRunning}
-              className="input w-full sm:w-28"
-              min="1"
-            />
-          </div>
-          {!solverState.isRunning ? (
-            <button
-              onClick={() => {
-                console.log('[SolverPanel] Start Solver button clicked');
-                handleStartSolver(true);
-              }}
-              className="btn-success flex-1 flex items-center justify-center space-x-2"
-              disabled={!problem}
-            >
-              <Play className="h-4 w-4" />
-              <span>Start Solver with Automatic Settings</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleStopSolver}
-              className="btn-warning flex-1 flex items-center justify-center space-x-2"
-            >
-              <Pause className="h-4 w-4" />
-              <span>Cancel Solver</span>
-            </button>
-          )}
-          
-          <button
-            onClick={handleResetSolver}
-            className="btn-secondary flex items-center justify-center space-x-2"
-            disabled={solverState.isRunning}
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span>Reset</span>
-          </button>
         </div>
 
         {/* Live Algorithm Metrics */}
@@ -1225,38 +961,275 @@ export function SolverPanel() {
         </div>
       </div>
 
-      {/* Problem Status */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Problem Status</h3>
-        {problem ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-primary-50 rounded-lg">
-              <div className="text-2xl font-bold text-primary-600">
-                {problem.people.length}
+      <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="btn-secondary flex items-center space-x-2 min-w-fit"
+        >
+          <Settings className="h-5 w-5 flex-shrink-0" />
+          <span>Solve with Custom Settings</span>
+        </button>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="card">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-4">
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Manual Solver Configuration</h3>
+
+            {/* Automatic Configuration (header right) */}
+            <div className="flex items-end gap-2 p-3 rounded-lg" style={{ border: '1px solid var(--border-secondary)', backgroundColor: 'var(--background-secondary)' }}>
+              <div className="flex-grow">
+                <label htmlFor="desiredRuntime" className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                  Desired Runtime (s)
+                </label>
+                <input
+                  id="desiredRuntime"
+                  type="number"
+                  value={solverFormInputs.desiredRuntimeSettings ?? desiredRuntimeSettings.toString()}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: e.target.value }))}
+                  onBlur={() => {
+                    const inputValue = solverFormInputs.desiredRuntimeSettings || desiredRuntimeSettings.toString();
+                    const numValue = parseInt(inputValue);
+                    if (!isNaN(numValue) && numValue >= 1) {
+                      setDesiredRuntimeSettings(numValue);
+                      setSolverFormInputs(prev => ({ ...prev, desiredRuntimeSettings: undefined }));
+                    }
+                  }}
+                  disabled={solverState.isRunning}
+                  className="input w-24 md:w-32"
+                />
               </div>
-              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>People</div>
-            </div>
-            <div className="text-center p-4 bg-success-50 rounded-lg">
-              <div className="text-2xl font-bold text-success-600">
-                {problem.num_sessions}
-              </div>
-              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Sessions</div>
-            </div>
-            <div className="text-center p-4 bg-warning-50 rounded-lg">
-              <div className="text-2xl font-bold text-warning-600">
-                {problem.constraints.length}
-              </div>
-              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Constraints</div>
+              <Tooltip content={<span>Run a short trial to estimate optimal solver parameters for the specified runtime.</span>}>
+                <button
+                  onClick={handleAutoSetSettings}
+                  disabled={solverState.isRunning}
+                  className="btn-primary whitespace-nowrap"
+                >
+                  Auto-set
+                </button>
+              </Tooltip>
             </div>
           </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <Zap className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No problem configured</p>
-            <p className="text-sm">Go to Problem Setup to configure your optimization problem</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="maxIterations" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Max Iterations
+                </label>
+                <Tooltip content="The maximum number of iterations the solver will run.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.maxIterations ?? (solverSettings.stop_conditions.max_iterations || 10000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, maxIterations: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.maxIterations || (solverSettings.stop_conditions.max_iterations || 10000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 1000) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        max_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, maxIterations: undefined }));
+                  }
+                }}
+                min="1000"
+                max="100000"
+              />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="timeLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Time Limit (seconds)
+                </label>
+                <Tooltip content="The maximum time the solver will run in seconds.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.timeLimit ?? (solverSettings.stop_conditions.time_limit_seconds || 30).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, timeLimit: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.timeLimit || (solverSettings.stop_conditions.time_limit_seconds || 30).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 10) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        time_limit_seconds: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, timeLimit: undefined }));
+                  }
+                }}
+                min="10"
+                max="300"
+              />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="noImprovementLimit" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  No Improvement Limit
+                </label>
+                <Tooltip content="Stop after this many iterations without improvement.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.noImprovement ?? (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, noImprovement: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.noImprovement || (solverSettings.stop_conditions.no_improvement_iterations || 5000).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 100) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      stop_conditions: {
+                        ...solverSettings.stop_conditions,
+                        no_improvement_iterations: numValue
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, noImprovement: undefined }));
+                  }
+                }}
+                min="100"
+                max="50000"
+                placeholder="Iterations without improvement before stopping"
+              />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="initialTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Initial Temperature
+                </label>
+                <Tooltip content="The starting temperature for the simulated annealing algorithm. Higher values allow more exploration.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.initialTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, initialTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.initialTemp || (solverSettings.solver_params.SimulatedAnnealing?.initial_temperature || 1.0).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.1) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          initial_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, initialTemp: undefined }));
+                  }
+                }}
+                step="0.1"
+                min="0.1"
+                max="10.0"
+              />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="finalTemperature" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Final Temperature
+                </label>
+                <Tooltip content="The temperature at which the algorithm will stop.">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.finalTemp ?? (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, finalTemp: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.finalTemp || (solverSettings.solver_params.SimulatedAnnealing?.final_temperature || 0.01).toString();
+                  const numValue = parseFloat(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0.001) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          final_temperature: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, finalTemp: undefined }));
+                  }
+                }}
+                step="0.001"
+                min="0.001"
+                max="1.0"
+              />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 mb-1">
+                <label htmlFor="reheatAfterNoImprovement" className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  Reheat After No Improvement
+                </label>
+                <Tooltip content="Reset temperature to initial value after this many iterations without improvement (0 = disabled).">
+                  <Info className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </div>
+              <input
+                type="number"
+                className="input"
+                value={solverFormInputs.reheat ?? (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSolverFormInputs(prev => ({ ...prev, reheat: e.target.value }))}
+                onBlur={() => {
+                  const inputValue = solverFormInputs.reheat || (solverSettings.solver_params.SimulatedAnnealing?.reheat_after_no_improvement || 0).toString();
+                  const numValue = parseInt(inputValue);
+                  if (!isNaN(numValue) && numValue >= 0) {
+                    handleSettingsChange({
+                      ...solverSettings,
+                      solver_params: {
+                        ...solverSettings.solver_params,
+                        SimulatedAnnealing: {
+                          ...solverSettings.solver_params.SimulatedAnnealing!,
+                          reheat_after_no_improvement: numValue
+                        }
+                      }
+                    });
+                    setSolverFormInputs(prev => ({ ...prev, reheat: undefined }));
+                  }
+                }}
+                min="0"
+                max="50000"
+                placeholder="0 = disabled"
+              />
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* --- Custom Settings Start Button (inside settings panel) --- */}
+          <div className="mt-6">
+            <button
+              onClick={() => handleStartSolver(false)}
+              disabled={solverState.isRunning}
+              className="btn-success w-full flex items-center justify-center space-x-2"
+            >
+              <Play className="h-4 w-4" />
+              <span>Start Solver with Custom Settings</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Algorithm Info */}
       <div className="card">
