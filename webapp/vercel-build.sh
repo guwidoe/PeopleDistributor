@@ -11,6 +11,9 @@ echo "--- Installing Rust toolchain... ---"
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$CARGO_HOME/env"
 
+echo "--- Installing wasm-pack... ---"
+cargo install wasm-pack
+
 echo "--- Rust toolchain installed. ---"
 rustc --version
 wasm-pack --version
